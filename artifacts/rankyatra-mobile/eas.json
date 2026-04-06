@@ -1,0 +1,43 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
+        "COREPACK_ENABLE_STRICT": "0"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
+        "COREPACK_ENABLE_STRICT": "0"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
+        "COREPACK_ENABLE_STRICT": "0"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

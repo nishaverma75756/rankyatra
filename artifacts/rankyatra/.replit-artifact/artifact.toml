@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "RankYatra"
+version = "1.0.0"
+id = "artifacts/rankyatra"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25864
+
+[services.development]
+run = "pnpm --filter @workspace/rankyatra run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rankyatra", "run", "build" ]
+publicDir = "artifacts/rankyatra/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25864"
+BASE_PATH = "/"

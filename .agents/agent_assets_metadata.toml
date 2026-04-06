@@ -1,0 +1,19 @@
+uploads = []
+
+[[generated]]
+id = "6WClksHOkWBiXh4mC9iY5"
+uri = "file://artifacts/rankyatra-mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[outputs]]
+id = "h_Xy4SqnY0bcNsVkORnPY"
+uri = "file://artifacts/rankyatra/public/rankyatra-logo.svg"
+type = "image"
+title = "RankYatra Logo (SVG)"
+
+[[outputs]]
+id = "UR-Nt6z4ZNIZlmCa4Vjv2"
+uri = "file://backup/RANKYATRA_SETUP_GUIDE.md"
+type = "text"
+title = "Complete Setup Guide — Naye Replit ke liye"

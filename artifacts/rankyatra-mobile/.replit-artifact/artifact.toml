@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "RankYatra Mobile"
+version = "1.0.0"
+id = "artifacts/rankyatra-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 25638
+
+[services.development]
+run = "pnpm --filter @workspace/rankyatra-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rankyatra-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/rankyatra-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "25638"
+BASE_PATH = "/mobile/"

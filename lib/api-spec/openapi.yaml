@@ -1,0 +1,1342 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: RankYatra API - Competitive Exam Platform
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User operations
+  - name: exams
+    description: Exam operations
+  - name: questions
+    description: Question operations
+  - name: registrations
+    description: Exam registration operations
+  - name: submissions
+    description: Exam submission operations
+  - name: leaderboard
+    description: Leaderboard operations
+  - name: wallet
+    description: Wallet operations
+  - name: admin
+    description: Admin operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ─── AUTH ───────────────────────────────────────────────────────────────────
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── USERS ──────────────────────────────────────────────────────────────────
+  /users/profile:
+    get:
+      operationId: getProfile
+      tags: [users]
+      summary: Get user profile with stats
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+    patch:
+      operationId: updateProfile
+      tags: [users]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/avatar:
+    post:
+      operationId: uploadAvatar
+      tags: [users]
+      summary: Upload profile picture (base64)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadAvatarBody"
+      responses:
+        "200":
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarResponse"
+
+  /users/dashboard:
+    get:
+      operationId: getDashboard
+      tags: [users]
+      summary: Get user dashboard summary (wallet, exams taken, rank stats)
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ─── EXAMS ──────────────────────────────────────────────────────────────────
+  /exams:
+    get:
+      operationId: listExams
+      tags: [exams]
+      summary: List all exams (upcoming, live, completed)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, live, completed]
+      responses:
+        "200":
+          description: List of exams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exam"
+
+    post:
+      operationId: createExam
+      tags: [exams]
+      summary: Create a new exam (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExamBody"
+      responses:
+        "201":
+          description: Exam created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exam"
+
+  /exams/{examId}:
+    get:
+      operationId: getExam
+      tags: [exams]
+      summary: Get exam details
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exam details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateExam
+      tags: [exams]
+      summary: Update exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExamBody"
+      responses:
+        "200":
+          description: Updated exam
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exam"
+
+    delete:
+      operationId: deleteExam
+      tags: [exams]
+      summary: Delete exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── QUESTIONS ──────────────────────────────────────────────────────────────
+  /exams/{examId}/questions:
+    get:
+      operationId: getExamQuestions
+      tags: [questions]
+      summary: Get questions for a live exam (registered users only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Questions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+        "403":
+          description: Not registered or exam not live
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: addQuestion
+      tags: [questions]
+      summary: Add a question to an exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionBody"
+      responses:
+        "201":
+          description: Question added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+  /exams/{examId}/questions/{questionId}:
+    patch:
+      operationId: updateQuestion
+      tags: [questions]
+      summary: Update a question (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionBody"
+      responses:
+        "200":
+          description: Updated question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+    delete:
+      operationId: deleteQuestion
+      tags: [questions]
+      summary: Delete a question (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── REGISTRATIONS ───────────────────────────────────────────────────────────
+  /exams/{examId}/register:
+    post:
+      operationId: registerForExam
+      tags: [registrations]
+      summary: Register for an exam (deducts ₹5 from wallet)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+        "400":
+          description: Insufficient wallet balance or already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /exams/{examId}/registration-status:
+    get:
+      operationId: getRegistrationStatus
+      tags: [registrations]
+      summary: Check if current user is registered for an exam
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationStatus"
+
+  /registrations/my:
+    get:
+      operationId: getMyRegistrations
+      tags: [registrations]
+      summary: Get all exams the current user registered for
+      responses:
+        "200":
+          description: List of user registrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegistrationWithExam"
+
+  # ─── SUBMISSIONS ─────────────────────────────────────────────────────────────
+  /exams/{examId}/submit:
+    post:
+      operationId: submitExam
+      tags: [submissions]
+      summary: Submit answers for an exam
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitExamBody"
+      responses:
+        "200":
+          description: Submission result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionResult"
+        "403":
+          description: Not registered or exam not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /exams/{examId}/my-result:
+    get:
+      operationId: getMyResult
+      tags: [submissions]
+      summary: Get current user's result for an exam
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionResult"
+
+  # ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+  /exams/{examId}/leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get leaderboard for an exam
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /leaderboard/global:
+    get:
+      operationId: getGlobalLeaderboard
+      tags: [leaderboard]
+      summary: Get global leaderboard across all exams
+      responses:
+        "200":
+          description: Global leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GlobalLeaderboardEntry"
+
+  # ─── WALLET ──────────────────────────────────────────────────────────────────
+  /wallet/transactions:
+    get:
+      operationId: getTransactions
+      tags: [wallet]
+      summary: Get wallet transaction history
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalletTransaction"
+
+  /wallet/balance:
+    get:
+      operationId: getWalletBalance
+      tags: [wallet]
+      summary: Get current wallet balance
+      responses:
+        "200":
+          description: Wallet balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalance"
+
+  # ─── ADMIN ───────────────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}:
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      summary: Get user details (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+    patch:
+      operationId: adminUpdateUser
+      tags: [admin]
+      summary: Update any user (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}/block:
+    patch:
+      operationId: adminBlockUser
+      tags: [admin]
+      summary: Block or unblock a user (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockUserBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}/wallet:
+    patch:
+      operationId: adminAdjustWallet
+      tags: [admin]
+      summary: Adjust user wallet balance (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustWalletBody"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/exams/{examId}/reward:
+    post:
+      operationId: adminRewardWinners
+      tags: [admin]
+      summary: Reward top 5 winners of a completed exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardWinnersBody"
+      responses:
+        "200":
+          description: Rewards distributed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewardResult"
+
+  /admin/exams/{examId}/solution-pdf:
+    patch:
+      operationId: adminUpdateSolutionPdf
+      tags: [admin]
+      summary: Update solution PDF URL for an exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolutionPdfBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exam"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get platform stats (admin only)
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    # ─── AUTH ─────────────────────────────────────────────────────────────────
+    SignupBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        phone:
+          type: string
+      required: [name, email, password]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    # ─── USER ─────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        walletBalance:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        isBlocked:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, name, email, walletBalance, isAdmin, isBlocked, createdAt]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        walletBalance:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+        totalExamsTaken:
+          type: integer
+        totalExamsWon:
+          type: integer
+        bestRank:
+          type: ["integer", "null"]
+      required: [id, name, email, walletBalance, isAdmin, createdAt, totalExamsTaken, totalExamsWon]
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+
+    UploadAvatarBody:
+      type: object
+      properties:
+        avatarBase64:
+          type: string
+        mimeType:
+          type: string
+      required: [avatarBase64, mimeType]
+
+    AvatarResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+      required: [avatarUrl]
+
+    DashboardSummary:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        walletBalance:
+          type: string
+        totalExamsTaken:
+          type: integer
+        totalExamsWon:
+          type: integer
+        upcomingRegistrations:
+          type: integer
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalletTransaction"
+        liveExams:
+          type: array
+          items:
+            $ref: "#/components/schemas/Exam"
+      required: [user, walletBalance, totalExamsTaken, totalExamsWon, upcomingRegistrations, recentTransactions, liveExams]
+
+    # ─── EXAM ────────────────────────────────────────────────────────────────
+    Exam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        entryFee:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, completed]
+        solutionPdfUrl:
+          type: ["string", "null"]
+        questionCount:
+          type: integer
+        registeredCount:
+          type: integer
+        prizePool:
+          type: string
+        createdAt:
+          type: string
+      required: [id, title, category, startTime, endTime, entryFee, status, questionCount, registeredCount, prizePool, createdAt]
+
+    ExamDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        entryFee:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, completed]
+        solutionPdfUrl:
+          type: ["string", "null"]
+        questionCount:
+          type: integer
+        registeredCount:
+          type: integer
+        prizePool:
+          type: string
+        isRegistered:
+          type: boolean
+        hasSubmitted:
+          type: boolean
+        myResult:
+          $ref: "#/components/schemas/SubmissionResult"
+        createdAt:
+          type: string
+      required: [id, title, category, startTime, endTime, entryFee, status, questionCount, registeredCount, prizePool, isRegistered, hasSubmitted, createdAt]
+
+    CreateExamBody:
+      type: object
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        entryFee:
+          type: string
+        prizePool:
+          type: string
+        solutionPdfUrl:
+          type: ["string", "null"]
+      required: [title, category, startTime, endTime, entryFee, prizePool]
+
+    UpdateExamBody:
+      type: object
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        entryFee:
+          type: string
+        prizePool:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, completed]
+        solutionPdfUrl:
+          type: ["string", "null"]
+
+    # ─── QUESTION ────────────────────────────────────────────────────────────
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        examId:
+          type: integer
+        questionText:
+          type: string
+        optionA:
+          type: string
+        optionB:
+          type: string
+        optionC:
+          type: string
+        optionD:
+          type: string
+        correctOption:
+          type: string
+          enum: [A, B, C, D]
+        orderIndex:
+          type: integer
+      required: [id, examId, questionText, optionA, optionB, optionC, optionD, correctOption, orderIndex]
+
+    CreateQuestionBody:
+      type: object
+      properties:
+        questionText:
+          type: string
+        optionA:
+          type: string
+        optionB:
+          type: string
+        optionC:
+          type: string
+        optionD:
+          type: string
+        correctOption:
+          type: string
+          enum: [A, B, C, D]
+        orderIndex:
+          type: integer
+      required: [questionText, optionA, optionB, optionC, optionD, correctOption, orderIndex]
+
+    # ─── REGISTRATION ────────────────────────────────────────────────────────
+    Registration:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        examId:
+          type: integer
+        registeredAt:
+          type: string
+        amountPaid:
+          type: string
+      required: [id, userId, examId, registeredAt, amountPaid]
+
+    RegistrationStatus:
+      type: object
+      properties:
+        isRegistered:
+          type: boolean
+        hasSubmitted:
+          type: boolean
+        registeredAt:
+          type: ["string", "null"]
+      required: [isRegistered, hasSubmitted]
+
+    RegistrationWithExam:
+      type: object
+      properties:
+        id:
+          type: integer
+        examId:
+          type: integer
+        registeredAt:
+          type: string
+        amountPaid:
+          type: string
+        exam:
+          $ref: "#/components/schemas/Exam"
+      required: [id, examId, registeredAt, amountPaid, exam]
+
+    # ─── SUBMISSION ──────────────────────────────────────────────────────────
+    SubmitExamBody:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Answer"
+        timeTakenSeconds:
+          type: integer
+      required: [answers, timeTakenSeconds]
+
+    Answer:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        selectedOption:
+          type: string
+          enum: [A, B, C, D]
+      required: [questionId, selectedOption]
+
+    SubmissionResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        examId:
+          type: integer
+        score:
+          type: integer
+        totalQuestions:
+          type: integer
+        correctAnswers:
+          type: integer
+        timeTakenSeconds:
+          type: integer
+        rank:
+          type: ["integer", "null"]
+        submittedAt:
+          type: string
+      required: [id, userId, examId, score, totalQuestions, correctAnswers, timeTakenSeconds, submittedAt]
+
+    # ─── LEADERBOARD ─────────────────────────────────────────────────────────
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        score:
+          type: integer
+        totalQuestions:
+          type: integer
+        timeTakenSeconds:
+          type: integer
+        isCurrentUser:
+          type: boolean
+      required: [rank, userId, userName, score, totalQuestions, timeTakenSeconds, isCurrentUser]
+
+    GlobalLeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        totalScore:
+          type: integer
+        examsParticipated:
+          type: integer
+        totalWinnings:
+          type: string
+        isCurrentUser:
+          type: boolean
+      required: [rank, userId, userName, totalScore, examsParticipated, totalWinnings, isCurrentUser]
+
+    # ─── WALLET ──────────────────────────────────────────────────────────────
+    WalletTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        amount:
+          type: string
+        type:
+          type: string
+          enum: [credit, debit]
+        description:
+          type: string
+        balanceAfter:
+          type: string
+        createdAt:
+          type: string
+      required: [id, userId, amount, type, description, balanceAfter, createdAt]
+
+    WalletBalance:
+      type: object
+      properties:
+        balance:
+          type: string
+      required: [balance]
+
+    # ─── ADMIN ───────────────────────────────────────────────────────────────
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        walletBalance:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        isBlocked:
+          type: boolean
+        createdAt:
+          type: string
+        totalExamsTaken:
+          type: integer
+        totalWinnings:
+          type: string
+      required: [id, name, email, walletBalance, isAdmin, isBlocked, createdAt, totalExamsTaken, totalWinnings]
+
+    AdminUpdateUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        walletBalance:
+          type: string
+        isAdmin:
+          type: boolean
+
+    BlockUserBody:
+      type: object
+      properties:
+        isBlocked:
+          type: boolean
+      required: [isBlocked]
+
+    AdjustWalletBody:
+      type: object
+      properties:
+        amount:
+          type: string
+        type:
+          type: string
+          enum: [credit, debit]
+        description:
+          type: string
+      required: [amount, type, description]
+
+    RewardWinnersBody:
+      type: object
+      properties:
+        prizes:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrizeEntry"
+      required: [prizes]
+
+    PrizeEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        amount:
+          type: string
+      required: [rank, amount]
+
+    RewardResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        rewarded:
+          type: array
+          items:
+            $ref: "#/components/schemas/RewardedUser"
+      required: [success, rewarded]
+
+    RewardedUser:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        amount:
+          type: string
+      required: [rank, userId, userName, amount]
+
+    SolutionPdfBody:
+      type: object
+      properties:
+        solutionPdfUrl:
+          type: ["string", "null"]
+      required: [solutionPdfUrl]
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalExams:
+          type: integer
+        totalRegistrations:
+          type: integer
+        totalWalletVolume:
+          type: string
+        activeExams:
+          type: integer
+        completedExams:
+          type: integer
+      required: [totalUsers, totalExams, totalRegistrations, totalWalletVolume, activeExams, completedExams]
