@@ -43,8 +43,8 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/rankyatra run dev"
-waitForPort = 3000
+args = "PORT=25864 pnpm --filter @workspace/rankyatra run dev"
+waitForPort = 25864
 
 [[workflows.workflow]]
 name = "Start Backend"
@@ -62,13 +62,13 @@ waitForPort = 8080
 name = "RankYatra Mobile"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8008 pnpm --filter @workspace/rankyatra-mobile run dev"
-waitForPort = 8008
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev"
+waitForPort = 25638
 
 [agent]
 stack = "PNPM_WORKSPACE"
