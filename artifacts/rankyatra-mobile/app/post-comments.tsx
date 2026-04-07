@@ -121,7 +121,11 @@ export default function PostCommentsScreen() {
       }
       setText("");
       setReplyTo(null);
-    } catch { showError("Error", "Failed to post comment"); }
+    } catch {
+      // Reload comments silently — server may have saved the comment
+      // even if the network response didn't reach us
+      loadComments();
+    }
     setSubmitting(false);
   };
 

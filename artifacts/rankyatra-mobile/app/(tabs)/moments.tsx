@@ -161,7 +161,7 @@ function LikesModal({ postId, onClose, colors, insets }: { postId: number; onClo
   const [likers, setLikers] = useState<Liker[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    customFetch<Liker[]>(`/api/posts/${postId}/likes`).then(setLikers).catch(() => {}).finally(() => setLoading(false));
+    customFetch<Liker[]>(`/api/posts/${postId}/likers`).then(setLikers).catch(() => {}).finally(() => setLoading(false));
   }, [postId]);
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>

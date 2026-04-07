@@ -11,7 +11,8 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import React, { useEffect, useRef } from "react";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
+import { showAlert } from "@/utils/alert";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setBaseUrl } from "@workspace/api-client-react";
@@ -184,10 +185,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setOnUnauthorized(async () => {
       await logout();
-      Alert.alert(
+      showAlert(
         "Session Expired",
         "Your session has expired. Please log in again.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
+        "warning"
       );
       router.replace("/(auth)/login");
     });
