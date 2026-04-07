@@ -115,7 +115,6 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
 
     // Registered — check submission status ONLY for ended/live exams
     if (hasSubmitted && (timeInfo.status === "ended" || timeInfo.status === "live")) {
-      const hasAnswerSheet = !!solutionPdfUrl;
       return (
         <View style={styles.actionBtnGroup}>
           <TouchableOpacity
@@ -129,19 +128,17 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
             <Feather name="bar-chart-2" size={12} color="#fff" />
             <Text style={styles.actionBtnText}>See Result</Text>
           </TouchableOpacity>
-          {hasAnswerSheet && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
-              onPress={(e) => {
-                e.stopPropagation?.();
-                router.push(`/exam/${exam.id}/answer-sheet`);
-              }}
-              activeOpacity={0.8}
-            >
-              <Feather name="file-text" size={12} color="#fff" />
-              <Text style={styles.actionBtnText}>Answer Sheet</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/answer-sheet`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="file-text" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>Answer Sheet</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -163,28 +160,25 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
       );
     }
 
-    // Registered, ended, not submitted — Missed (+ Answer Sheet if revealed)
+    // Registered, ended, not submitted — Missed + Answer Sheet always visible
     if (timeInfo.status === "ended") {
-      const hasAnswerSheet = !!solutionPdfUrl;
       return (
         <View style={styles.actionBtnGroup}>
           <View style={[styles.actionBadge, { backgroundColor: "#ef444420" }]}>
             <Feather name="x-circle" size={12} color="#ef4444" />
             <Text style={[styles.actionBadgeText, { color: "#ef4444" }]}>Missed</Text>
           </View>
-          {hasAnswerSheet && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
-              onPress={(e) => {
-                e.stopPropagation?.();
-                router.push(`/exam/${exam.id}/answer-sheet`);
-              }}
-              activeOpacity={0.8}
-            >
-              <Feather name="file-text" size={12} color="#fff" />
-              <Text style={styles.actionBtnText}>Answer Sheet</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/answer-sheet`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="file-text" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>Answer Sheet</Text>
+          </TouchableOpacity>
         </View>
       );
     }
