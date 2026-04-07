@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.niskutech.rankyatra",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"

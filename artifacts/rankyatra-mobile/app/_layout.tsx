@@ -120,10 +120,14 @@ function PushNotificationSetup() {
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as any;
-      if (data?.type === "follow") {
-        router.push("/(tabs)/notifications" as any);
+      if (data?.type === "message" && data?.conversationId) {
+        router.push(`/chat/${data.conversationId}` as any);
+      } else if (data?.type === "follow") {
+        router.push("/notifications" as any);
       } else if (data?.postId) {
         router.push(`/post-comments?postId=${data.postId}` as any);
+      } else if (data?.type === "new_post" || data?.type === "like" || data?.type === "comment" || data?.type === "reply") {
+        router.push("/notifications" as any);
       }
     });
 

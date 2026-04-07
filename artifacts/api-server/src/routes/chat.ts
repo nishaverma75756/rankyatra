@@ -3,6 +3,7 @@ import { db, conversationsTable, messagesTable, usersTable, userBlocksTable } fr
 import { eq, and, or, desc, asc, lt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { broadcastToUser } from "../lib/ws";
+import { sendPushToUser, getDisplayName } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -228,6 +229,15 @@ router.post("/chat/messages", requireAuth, async (req: any, res: any) => {
     const payload = JSON.stringify({ type: "new_message", message: msg });
     broadcastToUser(recipientId, payload);
     broadcastToUser(senderId, payload);
+
+    // Push notification to recipient (fire and forget)
+    getDisplayName(senderId).then((senderName) => {
+      const preview = msg.content.length > 60 ? msg.content.slice(0, 60) + "…" : msg.content;
+      sendPushToUser(recipientId, `💬 ${senderName}`, preview, {
+        type: "message",
+        conversationId,
+      });
+    });
 
     res.json(msg);
   } catch (e: any) {
