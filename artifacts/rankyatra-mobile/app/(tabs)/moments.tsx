@@ -655,7 +655,7 @@ export default function MomentsScreen() {
               onUpdated={(id, content) => setPosts((prev) => prev.map((p) => p.id === id ? { ...p, content } : p))}
             />
           )}
-          contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: insets.bottom + 90 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
