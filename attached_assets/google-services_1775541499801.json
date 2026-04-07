@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "306259010380",
+    "project_id": "rankyatra-6366c",
+    "storage_bucket": "rankyatra-6366c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306259010380:android:f7257613e0938e3ae225e9",
+        "android_client_info": {
+          "package_name": "com.niskutech.rankyatra"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCchiIDHnFBKCQVzW6SsiOYsKfC0Ry3y6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
