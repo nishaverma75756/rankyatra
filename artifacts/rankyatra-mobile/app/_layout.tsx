@@ -68,26 +68,30 @@ const queryClient = new QueryClient({
 });
 
 async function registerForPushNotifications(): Promise<string | null> {
-  if (!Device.isDevice) return null;
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== "granted") return null;
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#f97316",
+  try {
+    if (!Device.isDevice) return null;
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") return null;
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#f97316",
+      });
+    }
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: "bbb5d5c2-3437-47d7-b53b-9d438e859888",
     });
+    return tokenData.data;
+  } catch {
+    return null;
   }
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: "bbb5d5c2-3437-47d7-b53b-9d438e859888",
-  });
-  return tokenData.data;
 }
 
 function PushNotificationSetup() {
