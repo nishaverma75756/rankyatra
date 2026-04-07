@@ -318,6 +318,8 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   const [showLikes, setShowLikes] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showReport, setShowReport] = useState<"post" | "profile" | null>(null);
+  const [menuPos, setMenuPos] = useState({ top: 60, right: 16 });
+  const menuBtnRef = useRef<any>(null);
 
   const toggleLike = async () => {
     if (!currentUser) { router.push("/login" as any); return; }
@@ -412,7 +414,16 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
         )}
 
         {/* 3-dot menu */}
-        <TouchableOpacity onPress={() => setShowMenu(true)} style={{ padding: 6 }}>
+        <TouchableOpacity
+          ref={menuBtnRef}
+          onPress={() => {
+            menuBtnRef.current?.measure((_x: number, _y: number, _w: number, _h: number, pageX: number, pageY: number) => {
+              setMenuPos({ top: pageY + _h + 4, right: 16 });
+              setShowMenu(true);
+            });
+          }}
+          style={{ padding: 6 }}
+        >
           <Feather name="more-vertical" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
@@ -473,7 +484,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
       {/* ─── 3-dot Menu Modal ─── */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowMenu(false)} activeOpacity={1} />
-        <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, bottom: 60 + insets.bottom, alignSelf: "flex-end", right: 16 }]}>
+        <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, position: "absolute", top: menuPos.top, right: menuPos.right }]}>
           {isSelf ? (
             <>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); setShowEdit(true); }}>
