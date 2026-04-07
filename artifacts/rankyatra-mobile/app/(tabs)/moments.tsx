@@ -327,7 +327,11 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
     try {
       const res = await customFetch<{ likeCount: number }>(`/api/posts/${post.id}/like`, { method: was ? "DELETE" : "POST" });
       setLikeCount(res.likeCount);
-    } catch { setIsLiked(was); setLikeCount(post.likeCount); }
+    } catch {
+      // Revert optimistic update using functional form (no stale closure)
+      setIsLiked(was);
+      setLikeCount((c) => was ? c + 1 : c - 1);
+    }
   };
 
   const toggleFollow = async () => {
@@ -542,7 +546,7 @@ export default function MomentsScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const { unreadNotifications, unreadMessages, resetNotifications, refreshMessages } = useActivityCount();
+  const { unreadNotifications, unreadMessages, resetNotifications, refreshMessages, refreshNotifications } = useActivityCount();
 
 
   const [showSearch, setShowSearch] = useState(false);
@@ -568,11 +572,12 @@ export default function MomentsScreen() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  // Refresh posts when returning from create-post screen
+  // Refresh posts + counts when screen gains focus
   useFocusEffect(useCallback(() => {
     fetchPosts(undefined, true);
     refreshMessages();
-  }, [fetchPosts, refreshMessages]));
+    refreshNotifications();
+  }, [fetchPosts, refreshMessages, refreshNotifications]));
 
   const onRefresh = () => { setRefreshing(true); fetchPosts(undefined, true); };
   const handleLoadMore = () => { if (!hasMore || loadingMore || !nextCursor) return; setLoadingMore(true); fetchPosts(nextCursor); };

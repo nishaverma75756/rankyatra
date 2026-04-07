@@ -141,6 +141,9 @@ CREATE TABLE IF NOT EXISTS post_comment_likes (
 );
 GRANT ALL PRIVILEGES ON TABLE post_comment_likes TO PUBLIC;
 
+-- Exam reminder notification support (added Apr 2026)
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS exam_id INTEGER;
+
 -- Push notification tokens (added Apr 2026)
 CREATE TABLE IF NOT EXISTS push_tokens (
   id SERIAL PRIMARY KEY,

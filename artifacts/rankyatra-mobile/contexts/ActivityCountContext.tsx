@@ -11,6 +11,7 @@ interface ActivityCountContextValue {
   resetNotifications: () => void;
   resetMessages: () => void;
   refreshMessages: () => void;
+  refreshNotifications: () => void;
 }
 
 const ActivityCountContext = createContext<ActivityCountContextValue>({
@@ -20,6 +21,7 @@ const ActivityCountContext = createContext<ActivityCountContextValue>({
   resetNotifications: () => {},
   resetMessages: () => {},
   refreshMessages: () => {},
+  refreshNotifications: () => {},
 });
 
 export function ActivityCountProvider({ children }: { children: React.ReactNode }) {
@@ -60,8 +62,8 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
 
     // Messages: every 2s — fast enough to feel instant even if WS drops
     intervalMsgRef.current = setInterval(fetchMessageCount, 2000);
-    // Notifications: every 8s — they arrive reliably via WS already
-    intervalNotifRef.current = setInterval(fetchNotifCount, 8000);
+    // Notifications: every 3s — faster polling as backup when WS drops
+    intervalNotifRef.current = setInterval(fetchNotifCount, 3000);
 
     return () => {
       if (intervalMsgRef.current) clearInterval(intervalMsgRef.current);
@@ -96,6 +98,7 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
   const resetNotifications = useCallback(() => setUnreadNotifications(0), []);
   const resetMessages = useCallback(() => setUnreadMessages(0), []);
   const refreshMessages = useCallback(() => fetchMessageCount(), [fetchMessageCount]);
+  const refreshNotifications = useCallback(() => fetchNotifCount(), [fetchNotifCount]);
 
   return (
     <ActivityCountContext.Provider value={{
@@ -105,6 +108,7 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
       resetNotifications,
       resetMessages,
       refreshMessages,
+      refreshNotifications,
     }}>
       {children}
     </ActivityCountContext.Provider>
