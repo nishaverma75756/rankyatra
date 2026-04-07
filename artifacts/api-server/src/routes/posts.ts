@@ -211,8 +211,8 @@ router.post("/posts", requireAuth, async (req: any, res: any) => {
   }
 });
 
-// Edit post
-router.put("/posts/:id", requireAuth, async (req: any, res: any) => {
+// Edit post (supports both PUT and PATCH)
+async function editPostHandler(req: any, res: any) {
   const userId = req.user.id;
   const postId = Number(req.params.id);
   const { content } = req.body;
@@ -229,7 +229,9 @@ router.put("/posts/:id", requireAuth, async (req: any, res: any) => {
   } catch {
     res.status(500).json({ message: "Failed to edit post" });
   }
-});
+}
+router.put("/posts/:id", requireAuth, editPostHandler);
+router.patch("/posts/:id", requireAuth, editPostHandler);
 
 // Delete post
 router.delete("/posts/:id", requireAuth, async (req: any, res: any) => {

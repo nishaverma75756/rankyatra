@@ -103,12 +103,16 @@ export default function PostCommentsScreen() {
   useEffect(() => { loadComments(); }, [loadComments]);
 
   const submit = async () => {
-    if (!text.trim() || submitting || !token) return;
+    const content = text.trim();
+    if (!content || submitting || !token) return;
+    // Clear input immediately to prevent duplicate submissions
+    setText("");
+    setReplyTo(null);
     setSubmitting(true);
     try {
       const c = await customFetch<Comment>(`/api/posts/${postId}/comments`, {
         method: "POST",
-        body: JSON.stringify({ content: text.trim(), parentCommentId: replyTo?.id ?? null }),
+        body: JSON.stringify({ content, parentCommentId: replyTo?.id ?? null }),
         headers: { "Content-Type": "application/json" },
       });
       if (c.parentCommentId) {
@@ -119,11 +123,8 @@ export default function PostCommentsScreen() {
         setComments((prev) => [{ ...c, replies: [] }, ...prev]);
         setPost((p) => p ? { ...p, commentCount: p.commentCount + 1 } : p);
       }
-      setText("");
-      setReplyTo(null);
     } catch {
-      // Reload comments silently — server may have saved the comment
-      // even if the network response didn't reach us
+      // Server may have saved the comment despite network hiccup — reload to confirm
       loadComments();
     }
     setSubmitting(false);
