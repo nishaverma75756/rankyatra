@@ -402,14 +402,14 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
         {!!currentUser && !isSelf && (
           <TouchableOpacity
             style={[styles.followPill, {
-              borderColor: isFollowing ? colors.primary : colors.border,
-              backgroundColor: isFollowing ? colors.primary + "15" : "transparent",
+              borderColor: isFollowing ? "#ef4444" : colors.border,
+              backgroundColor: isFollowing ? "#ef444415" : "transparent",
             }]}
             onPress={toggleFollow}
           >
-            <Feather name={isFollowing ? "user-check" : "user-plus"} size={11} color={isFollowing ? colors.primary : colors.foreground} />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: isFollowing ? colors.primary : colors.foreground }}>
-              {isFollowing ? "Following" : "Follow"}
+            <Feather name={isFollowing ? "user-minus" : "user-plus"} size={11} color={isFollowing ? "#ef4444" : colors.foreground} />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: isFollowing ? "#ef4444" : colors.foreground }}>
+              {isFollowing ? "Unfollow" : "Follow"}
             </Text>
           </TouchableOpacity>
         )}
