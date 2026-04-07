@@ -278,6 +278,8 @@ export default function PostCommentsScreen() {
     </View>
   );
 
+  const isLoading = postLoading || loading;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
@@ -291,8 +293,10 @@ export default function PostCommentsScreen() {
 
       {/* Comments list */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
-        {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        {isLoading ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color={colors.primary} size="large" />
+          </View>
         ) : (
           <FlatList
             data={comments}
