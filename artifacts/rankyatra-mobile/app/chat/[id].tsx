@@ -736,27 +736,25 @@ export default function ChatScreen() {
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Say hello!</Text>
             </View>
           }
-        />
-      )}
-
-      {/* Typing indicator */}
-      {typingVisible && (
-        <View style={[styles.typingRow, { backgroundColor: colors.background }]}>
-          <View style={[styles.msgRow, styles.msgRowLeft]}>
-            <View style={styles.msgAvatar}>
-              {convInfo?.otherUser?.avatarUrl ? (
-                <Image source={{ uri: convInfo.otherUser.avatarUrl }} style={styles.msgAvatarImg} />
-              ) : (
-                <View style={[styles.msgAvatarImg, styles.msgAvatarFallback, { backgroundColor: colors.primary + "20" }]}>
-                  <Text style={[styles.msgAvatarText, { color: colors.primary }]}>{convInfo?.otherUser?.name?.[0]?.toUpperCase()}</Text>
+          ListFooterComponent={typingVisible ? (
+            <View style={[styles.typingRow]}>
+              <View style={[styles.msgRow, styles.msgRowLeft]}>
+                <View style={styles.msgAvatar}>
+                  {convInfo?.otherUser?.avatarUrl ? (
+                    <Image source={{ uri: convInfo.otherUser.avatarUrl }} style={styles.msgAvatarImg} />
+                  ) : (
+                    <View style={[styles.msgAvatarImg, styles.msgAvatarFallback, { backgroundColor: colors.primary + "20" }]}>
+                      <Text style={[styles.msgAvatarText, { color: colors.primary }]}>{convInfo?.otherUser?.name?.[0]?.toUpperCase()}</Text>
+                    </View>
+                  )}
                 </View>
-              )}
+                <View style={[styles.bubble, styles.bubbleOther, styles.typingBubble, { backgroundColor: colors.muted, borderColor: "transparent" }]}>
+                  <TypingDots colors={colors} />
+                </View>
+              </View>
             </View>
-            <View style={[styles.bubble, styles.bubbleOther, styles.typingBubble, { backgroundColor: colors.muted, borderColor: "transparent" }]}>
-              <TypingDots colors={colors} />
-            </View>
-          </View>
-        </View>
+          ) : null}
+        />
       )}
 
       {/* Edit mode banner */}

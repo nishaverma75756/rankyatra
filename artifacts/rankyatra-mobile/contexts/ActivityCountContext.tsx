@@ -51,8 +51,8 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
     fetchMessageCount();
     fetchNotifCount();
 
-    intervalMsgRef.current = setInterval(fetchMessageCount, 15000);
-    intervalNotifRef.current = setInterval(fetchNotifCount, 15000);
+    intervalMsgRef.current = setInterval(fetchMessageCount, 5000);
+    intervalNotifRef.current = setInterval(fetchNotifCount, 10000);
 
     return () => {
       if (intervalMsgRef.current) clearInterval(intervalMsgRef.current);
