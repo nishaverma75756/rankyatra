@@ -62,8 +62,10 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
 
   const handleSocketMessage = useCallback((msg: any) => {
     if (msg.type === "new_message") {
+      setUnreadMessages((c) => c + 1);
       fetchMessageCount();
     } else if (msg.type === "notification") {
+      setUnreadNotifications((c) => c + 1);
       fetchNotifCount();
     }
   }, [fetchMessageCount, fetchNotifCount]);
