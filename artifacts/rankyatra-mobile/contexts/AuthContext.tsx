@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setUnauthorizedHandler } from "@workspace/api-client-react";
 
 interface AuthUser {
   id: number;
@@ -45,10 +45,13 @@ function normalizeUser(raw: any): AuthUser {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const logoutRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -58,8 +61,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(AUTH_USER_KEY),
         ]);
         if (storedToken && storedUser) {
-          setToken(storedToken);
-          setUser(normalizeUser(JSON.parse(storedUser)));
+          // Verify token with server before trusting it
+          const res = await fetch(`${BASE_URL}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${storedToken}` },
+          }).catch(() => null);
+          if (res && res.ok) {
+            const freshUser = await res.json().catch(() => null);
+            if (freshUser) {
+              const normalized = normalizeUser(freshUser);
+              await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
+              setToken(storedToken);
+              setUser(normalized);
+            } else {
+              setToken(storedToken);
+              setUser(normalizeUser(JSON.parse(storedUser)));
+            }
+          } else {
+            // Token rejected by server — clear everything
+            await Promise.all([
+              AsyncStorage.removeItem(AUTH_TOKEN_KEY),
+              AsyncStorage.removeItem(AUTH_USER_KEY),
+            ]);
+          }
         }
       } catch (_) {
       } finally {
@@ -71,6 +94,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setAuthTokenGetter(() => token);
   }, [token]);
+
+  // Register global 401 handler — auto-logout when any API call gets Unauthorized
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (logoutRef.current) logoutRef.current();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   const login = useCallback(async (newToken: string, newUser: AuthUser) => {
     const normalized = normalizeUser(newUser);
@@ -90,6 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
   }, []);
+
+  // Keep ref in sync so the global 401 handler always calls the latest logout
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
 
   const updateUser = useCallback((updates: Partial<AuthUser>) => {
     setUser((prev) => {
