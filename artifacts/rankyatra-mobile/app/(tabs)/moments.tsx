@@ -624,6 +624,14 @@ export default function MomentsScreen() {
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Moments</Text>
         <View style={styles.headerRight}>
+          {/* 1. Create Post — icon + text */}
+          {token && (
+            <TouchableOpacity onPress={() => router.push("/create-post" as any)} style={styles.createPostBtn}>
+              <Feather name="plus" size={16} color={colors.foreground} />
+              <Text style={[styles.createPostText, { color: colors.foreground }]}>Create Post</Text>
+            </TouchableOpacity>
+          )}
+          {/* 2. Notification bell */}
           <TouchableOpacity onPress={openNotifs} style={styles.iconBtn}>
             <Feather name="bell" size={22} color={colors.foreground} />
             {unreadNotifications > 0 && (
@@ -632,19 +640,15 @@ export default function MomentsScreen() {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/chat" as any)} style={styles.iconBtn}>
-            <Feather name="message-circle" size={22} color={colors.foreground} />
+          {/* 3. Messages — orange highlighted */}
+          <TouchableOpacity onPress={() => router.push("/chat" as any)} style={[styles.createBtn, { backgroundColor: colors.primary }]}>
+            <Feather name="message-circle" size={20} color="#fff" />
             {unreadMessages > 0 && (
-              <View style={styles.badge}>
+              <View style={[styles.badge, { top: -4, right: -4 }]}>
                 <Text style={styles.badgeText}>{unreadMessages > 9 ? "9+" : unreadMessages}</Text>
               </View>
             )}
           </TouchableOpacity>
-          {token && (
-            <TouchableOpacity onPress={() => router.push("/create-post" as any)} style={[styles.createBtn, { backgroundColor: colors.primary }]}>
-              <Feather name="plus" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
@@ -764,6 +768,8 @@ const styles = StyleSheet.create({
   badge: { position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
   createBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  createPostBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 16 },
+  createPostText: { fontSize: 12, fontWeight: "600" },
   postCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, paddingBottom: 8 },
   postName: { fontSize: 14, fontWeight: "600" },
