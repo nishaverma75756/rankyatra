@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Image, ActivityIndicator,
-  TouchableOpacity, Platform, FlatList, Dimensions,
+  TouchableOpacity, Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,8 +12,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-const SCREEN_W = Dimensions.get("window").width;
-const GRID_SIZE = (SCREEN_W - 32 - 4) / 3;
 
 function resolveAvatar(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -21,9 +19,143 @@ function resolveAvatar(url: string | null | undefined): string | null {
   return `${BASE_URL}${url}`;
 }
 
+function resolveImage(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${BASE_URL}${url}`;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+function formatUID(id: number) {
+  return `RY${String(id).padStart(10, "0")}`;
+}
+
 const SKILL_COLORS: Record<string, string> = {
   Champion: "#f59e0b", Advanced: "#ef4444", Warrior: "#8b5cf6", Explorer: "#0891b2", Beginner: "#6b7280",
 };
+
+// ─── ProfilePostCard ──────────────────────────────────────────────────────────
+function ProfilePostCard({ post, user, colors }: { post: any; user: any; colors: any }) {
+  const router = useRouter();
+  const [isLiked, setIsLiked] = useState(post.isLiked ?? false);
+  const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
+  const { user: me } = useAuth();
+
+  const toggleLike = async () => {
+    if (!me) { router.push("/login" as any); return; }
+    const was = isLiked;
+    setIsLiked(!was);
+    setLikeCount((c: number) => was ? c - 1 : c + 1);
+    try {
+      const res = await customFetch<{ likeCount: number }>(`/api/posts/${post.id}/like`, { method: was ? "DELETE" : "POST" });
+      setLikeCount(res.likeCount);
+    } catch {
+      setIsLiked(was);
+      setLikeCount(post.likeCount ?? 0);
+    }
+  };
+
+  const rp = user?.rankPoints ?? 0;
+  const skillLabel = rp > 700 ? "🏆 Champion" : rp > 400 ? "🔥 Advanced" : rp > 200 ? "⚔️ Warrior" : rp > 100 ? "⚡ Explorer" : "🌱 Beginner";
+  const skillBg = rp > 700 ? "#fef3c7" : rp > 400 ? "#fee2e2" : rp > 200 ? "#ede9fe" : rp > 100 ? "#e0f2fe" : "#f3f4f6";
+  const skillFg = rp > 700 ? "#92400e" : rp > 400 ? "#991b1b" : rp > 200 ? "#5b21b6" : rp > 100 ? "#075985" : "#374151";
+  const isKyc = user?.verificationStatus === "verified";
+  const avatarUri = resolveAvatar(user?.avatarUrl);
+  const initials = (user?.name ?? "?").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+
+  return (
+    <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* Header */}
+      <View style={styles.postHeader}>
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={styles.postAvatar} />
+        ) : (
+          <View style={[styles.postAvatar, styles.postAvatarFallback, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={{ color: colors.primary, fontWeight: "800", fontSize: 14 }}>{initials}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+            <Text style={[styles.postName, { color: colors.foreground }]} numberOfLines={1}>{user?.name}</Text>
+            {isKyc && (
+              <View style={{ backgroundColor: "#d1fae5", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: "#6ee7b7" }}>
+                <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
+              </View>
+            )}
+            <View style={{ backgroundColor: skillBg, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+              <Text style={{ color: skillFg, fontSize: 9, fontWeight: "700" }}>{skillLabel}</Text>
+            </View>
+          </View>
+          <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
+            UID-{formatUID(user?.id ?? 0)}
+          </Text>
+          <Text style={[styles.postTime, { color: colors.mutedForeground, marginTop: 1 }]}>{timeAgo(post.createdAt)}</Text>
+        </View>
+      </View>
+
+      {/* Content */}
+      {!!post.content && (
+        <Text style={[styles.postContent, { color: colors.foreground }]}>{post.content}</Text>
+      )}
+      {resolveImage(post.imageUrl) && (
+        <Image source={{ uri: resolveImage(post.imageUrl)! }} style={styles.postImage} resizeMode="cover" />
+      )}
+
+      {/* Top comment preview */}
+      {post.topCommentContent && (
+        <TouchableOpacity
+          style={[styles.topCommentRow, { backgroundColor: colors.muted + "80", borderTopColor: colors.border }]}
+          onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
+        >
+          <View style={[styles.commentAvatar, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={{ color: colors.primary, fontWeight: "800", fontSize: 9 }}>
+              {(post.topCommentUser ?? "?")[0]?.toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.foreground, fontSize: 12 }} numberOfLines={1}>
+              <Text style={{ fontWeight: "600" }}>{post.topCommentUser} </Text>
+              <Text style={{ color: colors.mutedForeground }}>{post.topCommentContent}</Text>
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      )}
+
+      {/* Actions */}
+      <View style={[styles.postActions, { borderTopColor: colors.border }]}>
+        <TouchableOpacity style={styles.actionBtn} onPress={toggleLike}>
+          <Feather name="heart" size={18} color={isLiked ? "#ef4444" : colors.mutedForeground} />
+          <Text style={[styles.actionCount, { color: isLiked ? "#ef4444" : colors.mutedForeground }]}>{likeCount}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
+        >
+          <Feather name="message-square" size={18} color={colors.mutedForeground} />
+          <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.commentCount ?? 0}</Text>
+        </TouchableOpacity>
+
+        <View style={styles.actionBtn}>
+          <Feather name="eye" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.viewCount ?? 0}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function UserPublicProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -260,7 +392,7 @@ export default function UserPublicProfile() {
         onPress={() => setActiveTab("posts")}
         activeOpacity={0.8}
       >
-        <Feather name="grid" size={15} color={activeTab === "posts" ? colors.primary : colors.mutedForeground} />
+        <Feather name="align-left" size={15} color={activeTab === "posts" ? colors.primary : colors.mutedForeground} />
         <Text style={[styles.tabText, { color: activeTab === "posts" ? colors.primary : colors.mutedForeground }]}>Posts</Text>
       </TouchableOpacity>
       <TouchableOpacity
@@ -326,31 +458,6 @@ export default function UserPublicProfile() {
     </View>
   );
 
-  const renderPostItem = ({ item, index }: { item: any; index: number }) => {
-    const isMiddle = index % 3 === 1;
-    return (
-      <TouchableOpacity
-        style={[styles.gridItem, { width: GRID_SIZE, height: GRID_SIZE, marginLeft: isMiddle ? 2 : 0, marginRight: isMiddle ? 2 : 0 }]}
-        activeOpacity={0.85}
-        onPress={() => router.push(`/post-comments?id=${item.id}` as any)}
-      >
-        {item.imageUrl ? (
-          <Image source={{ uri: item.imageUrl.startsWith("http") ? item.imageUrl : `${BASE_URL}${item.imageUrl}` }} style={styles.gridImg} />
-        ) : (
-          <View style={[styles.gridTextCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.gridText, { color: colors.foreground }]} numberOfLines={4}>{item.content}</Text>
-          </View>
-        )}
-        <View style={styles.gridOverlay}>
-          <Feather name="heart" size={11} color="#fff" />
-          <Text style={styles.gridOverlayText}>{item.likeCount}</Text>
-          <Feather name="message-circle" size={11} color="#fff" style={{ marginLeft: 6 }} />
-          <Text style={styles.gridOverlayText}>{item.commentCount}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   const PostsContent = postsLoading ? (
     <View style={{ padding: 40, alignItems: "center" }}>
       <ActivityIndicator color={colors.primary} />
@@ -361,11 +468,9 @@ export default function UserPublicProfile() {
       <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No posts yet</Text>
     </View>
   ) : (
-    <View style={styles.gridContainer}>
-      {userPosts.map((item: any, index: number) => (
-        <View key={item.id}>
-          {renderPostItem({ item, index })}
-        </View>
+    <View style={styles.feedContainer}>
+      {userPosts.map((post: any) => (
+        <ProfilePostCard key={post.id} post={post} user={u} colors={colors} />
       ))}
     </View>
   );
@@ -444,11 +549,19 @@ const styles = StyleSheet.create({
   examRight: { alignItems: "flex-end" },
   examPct: { fontSize: 15, fontWeight: "800" },
   examScore: { fontSize: 11, marginTop: 1 },
-  gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingTop: 12, gap: 2 },
-  gridItem: { borderRadius: 8, overflow: "hidden", position: "relative" },
-  gridImg: { width: "100%", height: "100%", borderRadius: 8 },
-  gridTextCard: { width: "100%", height: "100%", borderRadius: 8, borderWidth: 1, padding: 8, justifyContent: "center" },
-  gridText: { fontSize: 11, fontWeight: "500", lineHeight: 16 },
-  gridOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(0,0,0,0.45)", paddingHorizontal: 6, paddingVertical: 4, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
-  gridOverlayText: { color: "#fff", fontSize: 10, fontWeight: "700", marginLeft: 2 },
+  // Feed-style post cards
+  feedContainer: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
+  postCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  postAvatar: { width: 40, height: 40, borderRadius: 20 },
+  postAvatarFallback: { alignItems: "center", justifyContent: "center" },
+  postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, paddingBottom: 8 },
+  postName: { fontSize: 14, fontWeight: "600" },
+  postTime: { fontSize: 11 },
+  postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 10 },
+  postImage: { width: "100%", height: 200, marginBottom: 8 },
+  topCommentRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  commentAvatar: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  postActions: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  actionCount: { fontSize: 13, fontWeight: "500" },
 });
