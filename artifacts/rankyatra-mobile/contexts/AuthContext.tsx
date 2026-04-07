@@ -102,16 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthTokenGetter(() => token);
   }, [token]);
 
-  // Keep isLoggedInRef in sync — with a grace delay after login so the
-  // 401 handler doesn't fire during startup or the notification-permission flow.
-  // 3 seconds is enough for notification dialog + FCM token registration.
+  // Keep isLoggedInRef in sync with auth state (no delay needed — the real
+  // guard is in customFetch which only calls this handler when the request
+  // actually carried a token and the server explicitly rejected it).
   useEffect(() => {
-    if (user && token) {
-      const timer = setTimeout(() => { isLoggedInRef.current = true; }, 3000);
-      return () => clearTimeout(timer);
-    } else {
-      isLoggedInRef.current = false;
-    }
+    isLoggedInRef.current = !!(user && token);
   }, [user, token]);
 
   // Register global 401 handler — auto-logout only when user is truly logged in

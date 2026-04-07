@@ -360,10 +360,16 @@ export async function customFetch<T = unknown>(
 
   // Attach bearer token when an auth getter is configured and no
   // Authorization header has been explicitly provided.
+  // Track whether we actually sent a token so the 401 handler only fires
+  // for genuine session-expiry (token present but rejected) — NOT for
+  // unauthenticated requests that predictably return 401 (e.g. guest user,
+  // race conditions during startup or the notification-permission flow).
+  let requestHadToken = headers.has("authorization");
   if (_authTokenGetter && !headers.has("authorization")) {
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+      requestHadToken = true;
     }
   }
 
@@ -373,7 +379,11 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
-    if (response.status === 401 && _unauthorizedHandler) {
+    // Only call the unauthorized handler when the request carried a token
+    // and the server explicitly rejected it — this means the session has
+    // genuinely expired.  If no token was sent, 401 is expected and must
+    // NOT trigger logout.
+    if (response.status === 401 && _unauthorizedHandler && requestHadToken) {
       _unauthorizedHandler();
     }
     throw new ApiError(response, errorData, requestInfo);
