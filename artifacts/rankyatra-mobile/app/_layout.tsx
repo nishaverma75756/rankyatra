@@ -68,16 +68,17 @@ const queryClient = new QueryClient({
   },
 });
 
-async function registerForPushNotifications(): Promise<string | null> {
+async function registerForPushNotifications(): Promise<{ expoToken: string | null; fcmToken: string | null }> {
+  const result = { expoToken: null as string | null, fcmToken: null as string | null };
   try {
-    if (!Device.isDevice) return null;
+    if (!Device.isDevice) return result;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    if (finalStatus !== "granted") return null;
+    if (finalStatus !== "granted") return result;
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "default",
@@ -86,13 +87,29 @@ async function registerForPushNotifications(): Promise<string | null> {
         lightColor: "#f97316",
       });
     }
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: "bbb5d5c2-3437-47d7-b53b-9d438e859888",
-    });
-    return tokenData.data;
-  } catch {
-    return null;
-  }
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: "bbb5d5c2-3437-47d7-b53b-9d438e859888",
+      });
+      result.expoToken = tokenData.data;
+    } catch {}
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      if (deviceToken?.data) result.fcmToken = deviceToken.data as string;
+    } catch {}
+  } catch {}
+  return result;
+}
+
+function registerToken(authToken: string, pushToken: string) {
+  fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/users/push-token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({ token: pushToken }),
+  }).catch(() => {});
 }
 
 function PushNotificationSetup() {
@@ -104,16 +121,9 @@ function PushNotificationSetup() {
   useEffect(() => {
     if (!user || !token) return;
 
-    registerForPushNotifications().then((pushToken) => {
-      if (!pushToken) return;
-      fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/users/push-token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ token: pushToken }),
-      }).catch(() => {});
+    registerForPushNotifications().then(({ expoToken, fcmToken }) => {
+      if (expoToken) registerToken(token, expoToken);
+      if (fcmToken) registerToken(token, fcmToken);
     });
 
     notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
