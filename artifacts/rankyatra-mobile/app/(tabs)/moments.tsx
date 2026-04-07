@@ -27,6 +27,7 @@ interface Post {
   commentCount: number;
   shareCount: number;
   updatedAt: string;
+  editedAt: string | null;
   verificationStatus: string;
   rankPoints: number;
   isLiked: boolean;
@@ -391,7 +392,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
             <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(post.createdAt)}</Text>
-            {post.updatedAt && new Date(post.updatedAt).getTime() - new Date(post.createdAt).getTime() > 5000 && (
+            {!!post.editedAt && (
               <Text style={{ color: colors.mutedForeground, fontSize: 10, fontStyle: "italic" }}>· edited</Text>
             )}
           </View>

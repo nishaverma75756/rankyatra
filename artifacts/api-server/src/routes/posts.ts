@@ -51,6 +51,7 @@ router.get("/posts", optionalAuth, async (req: any, res: any) => {
           : sql<boolean>`false`,
         shareCount: postsTable.shareCount,
         updatedAt: postsTable.updatedAt,
+        editedAt: postsTable.editedAt,
         verificationStatus: usersTable.verificationStatus,
         rankPoints: sql<number>`(SELECT COALESCE(SUM(score), 0) FROM submissions WHERE user_id = ${postsTable.userId})::int`,
         topCommentContent: sql<string | null>`(SELECT content FROM post_comments WHERE post_id = ${postsTable.id} AND parent_comment_id IS NULL ORDER BY created_at DESC LIMIT 1)`,
@@ -222,7 +223,7 @@ async function editPostHandler(req: any, res: any) {
     if (!post) return res.status(404).json({ message: "Post not found" });
     if (post.userId !== userId) return res.status(403).json({ message: "Forbidden" });
     const [updated] = await db.update(postsTable)
-      .set({ content: content.trim() })
+      .set({ content: content.trim(), editedAt: new Date() })
       .where(eq(postsTable.id, postId))
       .returning();
     res.json(updated);
