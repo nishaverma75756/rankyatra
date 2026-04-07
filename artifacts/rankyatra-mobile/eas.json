@@ -4,13 +4,6 @@
     "appVersionSource": "local"
   },
   "build": {
-    "defaults": {
-      "node": {
-        "pnpm": {
-          "useWorkspace": true
-        }
-      }
-    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
