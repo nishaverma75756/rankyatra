@@ -5,14 +5,13 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import React, { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import { showAlert } from "@/utils/alert";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setBaseUrl } from "@workspace/api-client-react";
@@ -38,27 +37,7 @@ Notifications.setNotificationHandler({
 
 SplashScreen.preventAutoHideAsync();
 
-let _onUnauthorized: (() => void) | null = null;
-let _isLoggedIn = false;
-
-export function setOnUnauthorized(fn: () => void) {
-  _onUnauthorized = fn;
-}
-
-export function setIsLoggedIn(value: boolean) {
-  _isLoggedIn = value;
-}
-
 const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    onError: (error: any) => {
-      // Only redirect to login if there's actually a logged-in user whose session expired.
-      // Guests will always get 401s from protected endpoints — ignore those.
-      if (_isLoggedIn && (error?.response?.status === 401 || error?.status === 401)) {
-        _onUnauthorized?.();
-      }
-    },
-  }),
   defaultOptions: {
     queries: {
       retry: (failureCount, error: any) => {
@@ -172,33 +151,13 @@ function GlobalHeartbeat() {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-
-  // Keep the module-level flag in sync so the QueryCache 401 handler
-  // knows whether to redirect (session expiry) or ignore (guest 401s).
-  useEffect(() => {
-    setIsLoggedIn(!!user);
-  }, [user]);
-
-  useEffect(() => {
-    setOnUnauthorized(async () => {
-      await logout();
-      showAlert(
-        "Session Expired",
-        "Your session has expired. Please log in again.",
-        [{ text: "OK" }],
-        "warning"
-      );
-      router.replace("/(auth)/login");
-    });
-  }, [logout, router]);
 
   useEffect(() => {
     if (isLoading) return;
     const inAuthGroup = segments[0] === "(auth)";
-
     if (user && inAuthGroup) {
       router.replace("/(tabs)/");
     }

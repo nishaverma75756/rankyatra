@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setAuthTokenGetter, setUnauthorizedHandler } from "@workspace/api-client-react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface AuthUser {
   id: number;
@@ -51,10 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const logoutRef = useRef<(() => Promise<void>) | null>(null);
-  // Track if user is truly logged-in so 401 handler doesn't fire during startup or right after login
-  const isLoggedInRef = useRef(false);
 
+  // Startup: load stored session and verify with server
   useEffect(() => {
     (async () => {
       try {
@@ -63,30 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(AUTH_USER_KEY),
         ]);
         if (storedToken && storedUser) {
-          // Verify token with server before trusting it
           const res = await fetch(`${BASE_URL}/api/auth/me`, {
             headers: { Authorization: `Bearer ${storedToken}` },
           }).catch(() => null);
+
           if (res && res.ok) {
             const freshUser = await res.json().catch(() => null);
-            if (freshUser) {
-              const normalized = normalizeUser(freshUser);
-              await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
-              setToken(storedToken);
-              setUser(normalized);
-            } else {
-              setToken(storedToken);
-              setUser(normalizeUser(JSON.parse(storedUser)));
-            }
+            const normalized = normalizeUser(freshUser ?? JSON.parse(storedUser));
+            if (freshUser) await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
+            setToken(storedToken);
+            setUser(normalized);
           } else if (res && res.status === 401) {
-            // Only clear token if server explicitly rejects it (401)
-            // Don't clear on network errors, 5xx, or timeouts
+            // Server explicitly rejected — token is invalid, clear it
             await Promise.all([
               AsyncStorage.removeItem(AUTH_TOKEN_KEY),
               AsyncStorage.removeItem(AUTH_USER_KEY),
             ]);
           } else {
-            // Network issue or server error — keep token, let user stay logged in
+            // Network error or 5xx — keep token, don't kick user out
             setToken(storedToken);
             setUser(normalizeUser(JSON.parse(storedUser)));
           }
@@ -98,24 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Keep customFetch token getter in sync
   useEffect(() => {
     setAuthTokenGetter(() => token);
   }, [token]);
-
-  // Keep isLoggedInRef in sync with auth state (no delay needed — the real
-  // guard is in customFetch which only calls this handler when the request
-  // actually carried a token and the server explicitly rejected it).
-  useEffect(() => {
-    isLoggedInRef.current = !!(user && token);
-  }, [user, token]);
-
-  // Register global 401 handler — auto-logout only when user is truly logged in
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      if (logoutRef.current && isLoggedInRef.current) logoutRef.current();
-    });
-    return () => setUnauthorizedHandler(null);
-  }, []);
 
   const login = useCallback(async (newToken: string, newUser: AuthUser) => {
     const normalized = normalizeUser(newUser);
@@ -135,11 +113,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
   }, []);
-
-  // Keep ref in sync so the global 401 handler always calls the latest logout
-  useEffect(() => {
-    logoutRef.current = logout;
-  }, [logout]);
 
   const updateUser = useCallback((updates: Partial<AuthUser>) => {
     setUser((prev) => {
