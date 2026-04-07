@@ -10,6 +10,7 @@ import {
   Image,
 } from "react-native";
 import { router } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -119,6 +120,12 @@ export default function ChatListScreen() {
     resetMessages();
   }, [fetchConversations, resetMessages]);
 
+  // Refresh conversation list every time this screen is focused (e.g. after coming back from a chat)
+  useFocusEffect(useCallback(() => {
+    fetchConversations();
+    resetMessages();
+  }, [fetchConversations, resetMessages]));
+
   const handleWsMessage = useCallback((msg: any) => {
     if (msg.type === "new_message") fetchConversations();
     if (msg.type === "messages_read") fetchConversations();
@@ -140,7 +147,15 @@ export default function ChatListScreen() {
           { borderBottomColor: colors.border },
           hasUnread && { backgroundColor: "#f0fdf4" },
         ]}
-        onPress={() => router.push(`/chat/${item.id}` as any)}
+        onPress={() => {
+          // Instantly clear unread badge in UI before navigating
+          if (item.unreadCount > 0) {
+            setConversations((prev) =>
+              prev.map((c) => c.id === item.id ? { ...c, unreadCount: 0 } : c)
+            );
+          }
+          router.push(`/chat/${item.id}` as any);
+        }}
         activeOpacity={0.7}
       >
         {/* Avatar with unread dot */}

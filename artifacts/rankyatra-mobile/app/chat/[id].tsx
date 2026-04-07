@@ -299,17 +299,16 @@ export default function ChatScreen() {
 
   const { send } = useChatSocket(token, handleWsMessage);
 
-  // Scroll to bottom on initial load
-  useEffect(() => {
-    if (!loading && messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 150);
-    }
-  }, [loading]);
+  // Track whether initial scroll has happened
+  const initialScrolled = useRef(false);
 
   // Auto-scroll to bottom whenever new messages arrive (send or receive)
   useEffect(() => {
     if (messages.length === 0) return;
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    // After initial load, animate new messages scrolling in
+    if (initialScrolled.current) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
   }, [messages.length]);
 
   // Scroll down when typing indicator appears so it's always visible
@@ -740,6 +739,11 @@ export default function ChatScreen() {
           renderItem={renderMessage}
           contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            // Scroll to end every time content renders; after first scroll mark as done
+            flatListRef.current?.scrollToEnd({ animated: initialScrolled.current });
+            initialScrolled.current = true;
+          }}
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
             <View style={[styles.flex, styles.center, { paddingTop: 60 }]}>
