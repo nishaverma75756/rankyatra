@@ -646,7 +646,7 @@ export default function MomentsScreen() {
     setNotifsLoading(false);
   };
 
-  const notifLabel: Record<string, string> = { like: "liked your post", comment: "commented on your post", follow: "started following you" };
+  const notifLabel: Record<string, string> = { like: "liked your post", comment: "commented on your post", follow: "started following you", reply: "replied to your comment" };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>

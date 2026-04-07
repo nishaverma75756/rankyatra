@@ -250,7 +250,7 @@ router.post("/posts/:id/like", requireAuth, async (req: any, res: any) => {
     const [post] = await db.select({ userId: postsTable.userId }).from(postsTable).where(eq(postsTable.id, postId)).limit(1);
     if (post && post.userId !== userId) {
       await db.insert(notificationsTable).values({ userId: post.userId, type: "like", fromUserId: userId, postId });
-      broadcastToUser(post.userId, { type: "notification", notifType: "like", fromUserId: userId, postId });
+      broadcastToUser(post.userId, JSON.stringify({ type: "notification", notifType: "like", fromUserId: userId, postId }));
       getDisplayName(userId).then((name) => sendPushToUser(post.userId, "New Like ❤️", `${name} liked your post`, { type: "like", postId }));
     }
     const [{ cnt }] = await db.select({ cnt: count() }).from(postLikesTable).where(eq(postLikesTable.postId, postId));
@@ -360,14 +360,14 @@ router.post("/posts/:id/comments", requireAuth, async (req: any, res: any) => {
     const senderName = user?.name ?? "Someone";
     if (post && post.userId !== userId) {
       await db.insert(notificationsTable).values({ userId: post.userId, type: "comment", fromUserId: userId, postId, commentId: comment.id });
-      broadcastToUser(post.userId, { type: "notification", notifType: "comment", fromUserId: userId, postId });
+      broadcastToUser(post.userId, JSON.stringify({ type: "notification", notifType: "comment", fromUserId: userId, postId }));
       sendPushToUser(post.userId, "New Comment 💬", `${senderName} commented on your post`, { type: "comment", postId });
     }
     if (parentCommentId) {
       const [parentComment] = await db.select({ userId: postCommentsTable.userId }).from(postCommentsTable).where(eq(postCommentsTable.id, parentCommentId)).limit(1);
       if (parentComment && parentComment.userId !== userId && parentComment.userId !== post?.userId) {
         await db.insert(notificationsTable).values({ userId: parentComment.userId, type: "reply", fromUserId: userId, postId, commentId: comment.id });
-        broadcastToUser(parentComment.userId, { type: "notification", notifType: "reply", fromUserId: userId, postId });
+        broadcastToUser(parentComment.userId, JSON.stringify({ type: "notification", notifType: "reply", fromUserId: userId, postId }));
         sendPushToUser(parentComment.userId, "New Reply 💬", `${senderName} replied to your comment`, { type: "reply", postId });
       }
     }

@@ -287,7 +287,7 @@ router.post("/users/:userId/follow", requireAuth, async (req, res): Promise<void
 
   await db.insert(followsTable).values({ followerId: currentUserId, followingId: userId }).onConflictDoNothing();
   await db.insert(notificationsTable).values({ userId, type: "follow", fromUserId: currentUserId }).catch(() => {});
-  broadcastToUser(userId, { type: "notification", notifType: "follow", fromUserId: currentUserId });
+  broadcastToUser(userId, JSON.stringify({ type: "notification", notifType: "follow", fromUserId: currentUserId }));
   getDisplayName(currentUserId).then((name) => sendPushToUser(userId, "New Follower 🔔", `${name} started following you`, { type: "follow", fromUserId: currentUserId }));
   res.json({ success: true });
 });
