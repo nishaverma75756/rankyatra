@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const logoutRef = useRef<(() => Promise<void>) | null>(null);
+  // Track if user is truly logged-in so 401 handler doesn't fire during startup or right after login
+  const isLoggedInRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -76,12 +78,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setToken(storedToken);
               setUser(normalizeUser(JSON.parse(storedUser)));
             }
-          } else {
-            // Token rejected by server — clear everything
+          } else if (res && res.status === 401) {
+            // Only clear token if server explicitly rejects it (401)
+            // Don't clear on network errors, 5xx, or timeouts
             await Promise.all([
               AsyncStorage.removeItem(AUTH_TOKEN_KEY),
               AsyncStorage.removeItem(AUTH_USER_KEY),
             ]);
+          } else {
+            // Network issue or server error — keep token, let user stay logged in
+            setToken(storedToken);
+            setUser(normalizeUser(JSON.parse(storedUser)));
           }
         }
       } catch (_) {
@@ -95,10 +102,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthTokenGetter(() => token);
   }, [token]);
 
-  // Register global 401 handler — auto-logout when any API call gets Unauthorized
+  // Keep isLoggedInRef in sync — with a small grace delay after login
+  // so the 401 handler doesn't fire during the startup race condition
+  useEffect(() => {
+    if (user && token) {
+      const timer = setTimeout(() => { isLoggedInRef.current = true; }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      isLoggedInRef.current = false;
+    }
+  }, [user, token]);
+
+  // Register global 401 handler — auto-logout only when user is truly logged in
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      if (logoutRef.current) logoutRef.current();
+      if (logoutRef.current && isLoggedInRef.current) logoutRef.current();
     });
     return () => setUnauthorizedHandler(null);
   }, []);
