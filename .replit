@@ -24,27 +24,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Start Backend"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "RankYatra Mobile"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=25864 pnpm --filter @workspace/rankyatra run dev"
-waitForPort = 25864
 
 [[workflows.workflow]]
 name = "Start Backend"
@@ -57,18 +37,6 @@ outputType = "console"
 task = "shell.exec"
 args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
 waitForPort = 8080
-
-[[workflows.workflow]]
-name = "RankYatra Mobile"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev"
-waitForPort = 25638
 
 [agent]
 stack = "PNPM_WORKSPACE"
