@@ -55,25 +55,29 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function ReadTick({ isRead, delivered, colors, isMine }: { isRead: boolean; delivered: boolean; colors: any; isMine: boolean }) {
+function ReadTick({ isRead, delivered, isMine }: { isRead: boolean; delivered: boolean; colors: any; isMine: boolean }) {
   if (!isMine) return null;
+  // On orange bubble background — use white/green so ticks are visible
+  const singleColor = "rgba(255,255,255,0.55)";
+  const doubleColor = "rgba(255,255,255,0.75)";
+  const readColor = "#4ade80"; // bright green
   if (isRead) {
     return (
-      <View style={{ flexDirection: "row", marginLeft: 3 }}>
-        <Feather name="check" size={12} color={colors.primary} />
-        <Feather name="check" size={12} color={colors.primary} style={{ marginLeft: -6 }} />
+      <View style={{ flexDirection: "row", marginLeft: 3, alignItems: "center" }}>
+        <Feather name="check" size={12} color={readColor} />
+        <Feather name="check" size={12} color={readColor} style={{ marginLeft: -7 }} />
       </View>
     );
   }
   if (delivered) {
     return (
-      <View style={{ flexDirection: "row", marginLeft: 3 }}>
-        <Feather name="check" size={12} color={colors.mutedForeground} />
-        <Feather name="check" size={12} color={colors.mutedForeground} style={{ marginLeft: -6 }} />
+      <View style={{ flexDirection: "row", marginLeft: 3, alignItems: "center" }}>
+        <Feather name="check" size={12} color={doubleColor} />
+        <Feather name="check" size={12} color={doubleColor} style={{ marginLeft: -7 }} />
       </View>
     );
   }
-  return <Feather name="check" size={12} color={colors.mutedForeground} style={{ marginLeft: 3 }} />;
+  return <Feather name="check" size={12} color={singleColor} style={{ marginLeft: 3 }} />;
 }
 
 function TypingDots({ colors }: { colors: any }) {
