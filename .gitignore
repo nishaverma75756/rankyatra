@@ -48,3 +48,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Attached assets (chat uploads, screenshots — never commit these)
+attached_assets/
