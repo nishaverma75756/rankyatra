@@ -267,9 +267,7 @@ export default function ChatScreen() {
     if (msg.type === "new_message" && msg.message.conversationId === convId) {
       setMessages((prev) => {
         if (prev.find((m) => m.id === msg.message.id)) return prev;
-        const next = [...prev, msg.message];
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-        return next;
+        return [...prev, msg.message];
       });
       markRead();
     }
@@ -301,11 +299,25 @@ export default function ChatScreen() {
 
   const { send } = useChatSocket(token, handleWsMessage);
 
+  // Scroll to bottom on initial load
   useEffect(() => {
     if (!loading && messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 150);
     }
   }, [loading]);
+
+  // Auto-scroll to bottom whenever new messages arrive (send or receive)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+  }, [messages.length]);
+
+  // Scroll down when typing indicator appears so it's always visible
+  useEffect(() => {
+    if (typingVisible) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [typingVisible]);
 
   const handleSend = async () => {
     const content = text.trim();
@@ -319,7 +331,6 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json" },
       });
       setMessages((prev) => [...prev, msg]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch {}
     setSending(false);
   };
@@ -729,7 +740,7 @@ export default function ChatScreen() {
           renderItem={renderMessage}
           contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
             <View style={[styles.flex, styles.center, { paddingTop: 60 }]}>
               <Feather name="message-circle" size={42} color={colors.mutedForeground} />
