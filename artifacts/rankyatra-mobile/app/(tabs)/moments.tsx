@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Image, Modal, RefreshControl, Share,
@@ -42,18 +43,6 @@ interface SearchUser {
   id: number;
   name: string;
   avatarUrl: string | null;
-}
-
-interface Notification {
-  id: number;
-  type: string;
-  isRead: boolean;
-  createdAt: string;
-  postId: number | null;
-  examId: number | null;
-  fromUserId: number | null;
-  fromUserName: string | null;
-  fromUserAvatar: string | null;
 }
 
 interface Liker {
@@ -555,9 +544,6 @@ export default function MomentsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const { unreadNotifications, unreadMessages, resetNotifications } = useActivityCount();
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [postText, setPostText] = useState("");
-  const [posting, setPosting] = useState(false);
 
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -566,9 +552,6 @@ export default function MomentsScreen() {
   const [followMap, setFollowMap] = useState<Record<number, boolean>>({});
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const [showNotif, setShowNotif] = useState(false);
-  const [notifs, setNotifs] = useState<Notification[]>([]);
-  const [notifsLoading, setNotifsLoading] = useState(false);
 
   const fetchPosts = useCallback(async (cursor?: number, isRefresh = false) => {
     try {
@@ -585,37 +568,12 @@ export default function MomentsScreen() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
+  // Refresh posts when returning from create-post screen
+  useFocusEffect(useCallback(() => { fetchPosts(undefined, true); }, [fetchPosts]));
 
   const onRefresh = () => { setRefreshing(true); fetchPosts(undefined, true); };
   const handleLoadMore = () => { if (!hasMore || loadingMore || !nextCursor) return; setLoadingMore(true); fetchPosts(nextCursor); };
 
-  const handlePost = async () => {
-    if (!postText.trim() || posting) return;
-    setPosting(true);
-    try {
-      const post = await customFetch<Post>("/api/posts", {
-        method: "POST",
-        body: JSON.stringify({ content: postText.trim() }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const full: Post = {
-        ...post,
-        userName: user?.name ?? "",
-        userAvatar: user?.avatarUrl ?? null,
-        viewCount: 0, likeCount: 0, commentCount: 0, shareCount: 0,
-        updatedAt: new Date().toISOString(),
-        verificationStatus: (user as any)?.verificationStatus ?? "not_submitted",
-        rankPoints: 0,
-        isLiked: false, isFollowing: false,
-        topCommentContent: null, topCommentUser: null, topCommentUserAvatar: null,
-        topReplyContent: null, topReplyUser: null, topReplyUserAvatar: null,
-      };
-      setPosts((prev) => [full, ...prev]);
-      setPostText("");
-      setShowCreate(false);
-    } catch { showError("Error", "Failed to create post"); }
-    setPosting(false);
-  };
 
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
@@ -635,31 +593,7 @@ export default function MomentsScreen() {
     await customFetch(`/api/users/${uid}/follow`, { method: curFollow ? "DELETE" : "POST" }).catch(() => {});
   };
 
-  const openNotifs = async () => {
-    setShowNotif(true);
-    setNotifsLoading(true);
-    try {
-      const data = await customFetch<Notification[]>("/api/notifications");
-      setNotifs(data);
-      await customFetch("/api/notifications/read-all", { method: "POST" });
-      resetNotifications();
-    } catch {}
-    setNotifsLoading(false);
-  };
-
-  const notifLabel: Record<string, string> = {
-    like: "liked your post",
-    comment: "commented on your post",
-    follow: "started following you",
-    reply: "replied to your comment",
-    new_post: "ne naya post kiya",
-  };
-  const examMilestoneLabel: Record<string, string> = {
-    "15min": "⏰ Exam 15 minute mein shuru hoga!",
-    "10min": "⚡ Exam 10 minute mein shuru hoga!",
-    "5min": "🔔 Sirf 5 minute bache!",
-    live: "🚀 Exam ab LIVE hai!",
-  };
+  const openNotifs = () => { router.push("/notifications" as any); };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -687,7 +621,7 @@ export default function MomentsScreen() {
             )}
           </TouchableOpacity>
           {token && (
-            <TouchableOpacity onPress={() => setShowCreate(true)} style={[styles.createBtn, { backgroundColor: colors.primary }]}>
+            <TouchableOpacity onPress={() => router.push("/create-post" as any)} style={[styles.createBtn, { backgroundColor: colors.primary }]}>
               <Feather name="plus" size={20} color="#fff" />
             </TouchableOpacity>
           )}
@@ -723,7 +657,7 @@ export default function MomentsScreen() {
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No posts yet</Text>
               <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Be first to share your journey!</Text>
               {!!token && (
-                <TouchableOpacity onPress={() => setShowCreate(true)} style={[styles.emptyBtn, { backgroundColor: colors.primary }]}>
+                <TouchableOpacity onPress={() => router.push("/create-post" as any)} style={[styles.emptyBtn, { backgroundColor: colors.primary }]}>
                   <Text style={styles.emptyBtnText}>Create Post</Text>
                 </TouchableOpacity>
               )}
@@ -732,49 +666,6 @@ export default function MomentsScreen() {
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} /> : null}
         />
       )}
-
-      {/* ─── Create Post Modal ─── */}
-      <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCreate(false)} />
-          <View style={[styles.sheetCard, { backgroundColor: colors.card, paddingBottom: insets.bottom + 12 }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
-              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Create Post</Text>
-              <TouchableOpacity onPress={() => setShowCreate(false)} style={{ marginLeft: "auto" }}>
-                <Feather name="x" size={20} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Avatar name={user?.name ?? "?"} url={user?.avatarUrl ?? null} colors={colors} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.postName, { color: colors.foreground, marginBottom: 8 }]}>{user?.name}</Text>
-                <TextInput
-                  style={[styles.postInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                  placeholder="What's on your mind?"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={postText}
-                  onChangeText={setPostText}
-                  multiline
-                  maxLength={500}
-                  autoFocus
-                />
-                <Text style={[styles.charCount, { color: colors.mutedForeground }]}>{postText.length}/500</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.postBtn, { backgroundColor: !postText.trim() || posting ? colors.muted : colors.primary }]}
-              onPress={handlePost}
-              disabled={!postText.trim() || posting}
-            >
-              <Feather name="send" size={16} color={!postText.trim() || posting ? colors.mutedForeground : "#fff"} />
-              <Text style={[styles.postBtnText, { color: !postText.trim() || posting ? colors.mutedForeground : "#fff" }]}>
-                {posting ? "Posting..." : "Post"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* ─── Search Modal ─── */}
       <Modal visible={showSearch} animationType="slide" onRequestClose={() => { setShowSearch(false); setSearchQuery(""); setSearchResults([]); }}>
@@ -839,64 +730,6 @@ export default function MomentsScreen() {
         </View>
       </Modal>
 
-      {/* ─── Notifications Modal ─── */}
-      <Modal visible={showNotif} animationType="slide" transparent onRequestClose={() => setShowNotif(false)}>
-        <View style={[styles.modalOverlay, { justifyContent: "flex-end" }]}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowNotif(false)} />
-          <View style={[styles.sheetCard, { backgroundColor: colors.card, maxHeight: "75%", paddingBottom: insets.bottom + 12 }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Notifications</Text>
-              <TouchableOpacity onPress={() => setShowNotif(false)} style={{ marginLeft: "auto" }}>
-                <Feather name="x" size={20} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
-            {notifsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
-              <ScrollView>
-                {notifs.length === 0 && <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 30, fontSize: 14 }}>No notifications yet</Text>}
-                {notifs.map((n) => {
-                  const isExamNotif = n.type === "exam_reminder";
-                  const onPress = () => {
-                    setShowNotif(false);
-                    if (isExamNotif && n.examId) router.push({ pathname: "/exam-detail", params: { id: n.examId } } as any);
-                    else if (n.postId) router.push({ pathname: "/post-comments", params: { id: n.postId } } as any);
-                    else if (n.fromUserId) router.push(`/user/${n.fromUserId}` as any);
-                  };
-                  return (
-                    <TouchableOpacity
-                      key={n.id}
-                      style={[styles.notifRow, { backgroundColor: n.isRead ? "transparent" : colors.primary + "08", borderBottomColor: colors.border }]}
-                      onPress={onPress}
-                    >
-                      {isExamNotif ? (
-                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#f97316" + "20", alignItems: "center", justifyContent: "center" }}>
-                          <Feather name="book-open" size={18} color="#f97316" />
-                        </View>
-                      ) : (
-                        <Avatar name={n.fromUserName ?? "?"} url={n.fromUserAvatar} size={36} colors={colors} />
-                      )}
-                      <View style={{ flex: 1 }}>
-                        {isExamNotif ? (
-                          <Text style={[styles.notifText, { color: colors.foreground }]}>
-                            <Text style={{ fontWeight: "700" }}>Exam Reminder</Text>
-                          </Text>
-                        ) : (
-                          <Text style={[styles.notifText, { color: colors.foreground }]}>
-                            <Text style={{ fontWeight: "700" }}>{n.fromUserName}</Text>
-                            {" "}{notifLabel[n.type] ?? n.type}
-                          </Text>
-                        )}
-                        <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(n.createdAt)}</Text>
-                      </View>
-                      {!n.isRead && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

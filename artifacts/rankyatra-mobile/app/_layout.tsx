@@ -228,6 +228,8 @@ export default function RootLayout() {
                     <Stack.Screen name="verify" options={{ presentation: "card" }} />
                     <Stack.Screen name="wallet/deposit" options={{ presentation: "card" }} />
                     <Stack.Screen name="wallet/withdraw" options={{ presentation: "card" }} />
+                    <Stack.Screen name="notifications" options={{ presentation: "card" }} />
+                    <Stack.Screen name="create-post" options={{ presentation: "card" }} />
                   </Stack>
                   <AppAlert />
                 </AuthGuard>
