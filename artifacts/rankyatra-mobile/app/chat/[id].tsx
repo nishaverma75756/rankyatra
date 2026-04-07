@@ -151,6 +151,7 @@ export default function ChatScreen() {
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
   const flatListRef = useRef<FlatList>(null);
   const isMounted = useRef(true);
 
@@ -227,6 +228,28 @@ export default function ChatScreen() {
     return () => clearInterval(interval);
   }, [fetchOnlineStatus]);
 
+  // Poll typing status every 1.5s (REST fallback — works even when WS drops)
+  useEffect(() => {
+    if (!convId) return;
+    const poll = async () => {
+      if (!isMounted.current) return;
+      try {
+        const data = await customFetch<{ typing: boolean; userId: number | null }>(
+          `/api/chat/conversations/${convId}/typing`
+        );
+        if (data.typing && isMounted.current) {
+          setTypingVisible(true);
+          if (typingTimer.current) clearTimeout(typingTimer.current);
+          typingTimer.current = setTimeout(() => {
+            if (isMounted.current) setTypingVisible(false);
+          }, 3000);
+        }
+      } catch {}
+    };
+    const id = setInterval(poll, 1500);
+    return () => clearInterval(id);
+  }, [convId]);
+
   // Mark as read
   const markRead = useCallback(async () => {
     try { await customFetch(`/api/chat/conversations/${convId}/read`, { method: "POST" }); } catch {}
@@ -299,7 +322,14 @@ export default function ChatScreen() {
 
   const handleTyping = (val: string) => {
     setText(val);
+    // WebSocket path (instant)
     send({ type: "typing", conversationId: convId, userId: user?.id });
+    // REST fallback — throttle to once every 2 seconds
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 2000) {
+      lastTypingSentRef.current = now;
+      customFetch(`/api/chat/conversations/${convId}/typing`, { method: "POST" }).catch(() => {});
+    }
   };
 
   const handleBlockToggle = () => {
