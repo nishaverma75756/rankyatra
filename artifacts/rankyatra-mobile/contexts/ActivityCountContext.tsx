@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { customFetch } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatSocket } from "@/hooks/useChatSocket";
@@ -27,6 +28,7 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const intervalMsgRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const intervalNotifRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const fetchMessageCount = useCallback(() => {
     if (!token) return;
@@ -42,24 +44,43 @@ export function ActivityCountProvider({ children }: { children: React.ReactNode 
       .catch(() => {});
   }, [token]);
 
+  const refreshAll = useCallback(() => {
+    fetchMessageCount();
+    fetchNotifCount();
+  }, [fetchMessageCount, fetchNotifCount]);
+
+  // Polling + initial fetch
   useEffect(() => {
     if (!user || !token) {
       setUnreadMessages(0);
       setUnreadNotifications(0);
       return;
     }
-    fetchMessageCount();
-    fetchNotifCount();
+    refreshAll();
 
-    intervalMsgRef.current = setInterval(fetchMessageCount, 5000);
-    intervalNotifRef.current = setInterval(fetchNotifCount, 10000);
+    // Messages: every 2s — fast enough to feel instant even if WS drops
+    intervalMsgRef.current = setInterval(fetchMessageCount, 2000);
+    // Notifications: every 8s — they arrive reliably via WS already
+    intervalNotifRef.current = setInterval(fetchNotifCount, 8000);
 
     return () => {
       if (intervalMsgRef.current) clearInterval(intervalMsgRef.current);
       if (intervalNotifRef.current) clearInterval(intervalNotifRef.current);
     };
-  }, [user, token, fetchMessageCount, fetchNotifCount]);
+  }, [user, token, fetchMessageCount, fetchNotifCount, refreshAll]);
 
+  // AppState: refresh counts immediately when app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
+        if (user && token) refreshAll();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, [user, token, refreshAll]);
+
+  // WebSocket: instant update on new_message or notification event
   const handleSocketMessage = useCallback((msg: any) => {
     if (msg.type === "new_message") {
       setUnreadMessages((c) => c + 1);
