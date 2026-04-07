@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, notificationsTable, usersTable, postsTable } from "@workspace/db";
+import { db, notificationsTable, usersTable, postsTable, examsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -8,7 +8,6 @@ const router: IRouter = Router();
 // Get notifications for current user
 router.get("/notifications", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
-  const cursor = req.query.cursor ? Number(req.query.cursor) : null;
   const limit = 20;
   try {
     const notifs = await db
@@ -19,12 +18,13 @@ router.get("/notifications", requireAuth, async (req: any, res: any) => {
         createdAt: notificationsTable.createdAt,
         postId: notificationsTable.postId,
         commentId: notificationsTable.commentId,
+        examId: notificationsTable.examId,
         fromUserId: notificationsTable.fromUserId,
         fromUserName: usersTable.name,
         fromUserAvatar: usersTable.avatarUrl,
       })
       .from(notificationsTable)
-      .innerJoin(usersTable, eq(usersTable.id, notificationsTable.fromUserId))
+      .leftJoin(usersTable, eq(usersTable.id, notificationsTable.fromUserId))
       .where(eq(notificationsTable.userId, userId))
       .orderBy(desc(notificationsTable.createdAt))
       .limit(limit);

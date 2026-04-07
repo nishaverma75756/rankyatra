@@ -50,8 +50,9 @@ interface Notification {
   isRead: boolean;
   createdAt: string;
   postId: number | null;
-  fromUserId: number;
-  fromUserName: string;
+  examId: number | null;
+  fromUserId: number | null;
+  fromUserName: string | null;
   fromUserAvatar: string | null;
 }
 
@@ -646,7 +647,19 @@ export default function MomentsScreen() {
     setNotifsLoading(false);
   };
 
-  const notifLabel: Record<string, string> = { like: "liked your post", comment: "commented on your post", follow: "started following you", reply: "replied to your comment" };
+  const notifLabel: Record<string, string> = {
+    like: "liked your post",
+    comment: "commented on your post",
+    follow: "started following you",
+    reply: "replied to your comment",
+    new_post: "ne naya post kiya",
+  };
+  const examMilestoneLabel: Record<string, string> = {
+    "15min": "⏰ Exam 15 minute mein shuru hoga!",
+    "10min": "⚡ Exam 10 minute mein shuru hoga!",
+    "5min": "🔔 Sirf 5 minute bache!",
+    live: "🚀 Exam ab LIVE hai!",
+  };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -841,23 +854,44 @@ export default function MomentsScreen() {
             {notifsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
               <ScrollView>
                 {notifs.length === 0 && <Text style={{ color: colors.mutedForeground, textAlign: "center", marginTop: 30, fontSize: 14 }}>No notifications yet</Text>}
-                {notifs.map((n) => (
-                  <TouchableOpacity
-                    key={n.id}
-                    style={[styles.notifRow, { backgroundColor: n.isRead ? "transparent" : colors.primary + "08", borderBottomColor: colors.border }]}
-                    onPress={() => { router.push(`/user/${n.fromUserId}` as any); setShowNotif(false); }}
-                  >
-                    <Avatar name={n.fromUserName} url={n.fromUserAvatar} size={36} colors={colors} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.notifText, { color: colors.foreground }]}>
-                        <Text style={{ fontWeight: "700" }}>{n.fromUserName}</Text>
-                        {" "}{notifLabel[n.type] ?? n.type}
-                      </Text>
-                      <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(n.createdAt)}</Text>
-                    </View>
-                    {!n.isRead && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />}
-                  </TouchableOpacity>
-                ))}
+                {notifs.map((n) => {
+                  const isExamNotif = n.type === "exam_reminder";
+                  const onPress = () => {
+                    setShowNotif(false);
+                    if (isExamNotif && n.examId) router.push({ pathname: "/exam-detail", params: { id: n.examId } } as any);
+                    else if (n.postId) router.push({ pathname: "/post-comments", params: { id: n.postId } } as any);
+                    else if (n.fromUserId) router.push(`/user/${n.fromUserId}` as any);
+                  };
+                  return (
+                    <TouchableOpacity
+                      key={n.id}
+                      style={[styles.notifRow, { backgroundColor: n.isRead ? "transparent" : colors.primary + "08", borderBottomColor: colors.border }]}
+                      onPress={onPress}
+                    >
+                      {isExamNotif ? (
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#f97316" + "20", alignItems: "center", justifyContent: "center" }}>
+                          <Feather name="book-open" size={18} color="#f97316" />
+                        </View>
+                      ) : (
+                        <Avatar name={n.fromUserName ?? "?"} url={n.fromUserAvatar} size={36} colors={colors} />
+                      )}
+                      <View style={{ flex: 1 }}>
+                        {isExamNotif ? (
+                          <Text style={[styles.notifText, { color: colors.foreground }]}>
+                            <Text style={{ fontWeight: "700" }}>Exam Reminder</Text>
+                          </Text>
+                        ) : (
+                          <Text style={[styles.notifText, { color: colors.foreground }]}>
+                            <Text style={{ fontWeight: "700" }}>{n.fromUserName}</Text>
+                            {" "}{notifLabel[n.type] ?? n.type}
+                          </Text>
+                        )}
+                        <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(n.createdAt)}</Text>
+                      </View>
+                      {!n.isRead && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             )}
           </View>

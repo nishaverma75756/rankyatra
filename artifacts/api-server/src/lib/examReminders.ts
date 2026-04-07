@@ -1,5 +1,6 @@
-import { db, examsTable, registrationsTable, pushTokensTable } from "@workspace/db";
+import { db, examsTable, registrationsTable, pushTokensTable, notificationsTable } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
+import { broadcastToUser } from "./ws";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -60,24 +61,43 @@ async function checkAndSendReminders() {
         if (sentReminders.has(key)) continue;
         sentReminders.add(key);
 
-        // Get all registered users' push tokens
+        // Get all registered users and their push tokens
         const rows = await db
-          .select({ token: pushTokensTable.token })
+          .select({ userId: registrationsTable.userId, token: pushTokensTable.token })
           .from(registrationsTable)
-          .innerJoin(pushTokensTable, eq(pushTokensTable.userId, registrationsTable.userId))
+          .leftJoin(pushTokensTable, eq(pushTokensTable.userId, registrationsTable.userId))
           .where(eq(registrationsTable.examId, exam.id));
 
-        const tokens = rows.map((r) => r.token);
-        if (tokens.length === 0) continue;
+        const userIds = [...new Set(rows.map((r) => r.userId))];
+        const tokens = rows.map((r) => r.token).filter((t): t is string => !!t);
 
-        await sendBatchPush(
-          tokens,
-          milestone.title,
-          milestone.body(exam.title),
-          { type: "exam_reminder", examId: exam.id, milestone: milestone.label }
-        );
+        // Save in-app notification + broadcast real-time badge update for each registered user
+        for (const uid of userIds) {
+          await db.insert(notificationsTable).values({
+            userId: uid,
+            type: "exam_reminder",
+            examId: exam.id,
+          }).catch(() => {});
+          broadcastToUser(uid, JSON.stringify({
+            type: "notification",
+            notifType: "exam_reminder",
+            examId: exam.id,
+            milestone: milestone.label,
+            examTitle: exam.title,
+          }));
+        }
 
-        console.log(`[ExamReminder] Sent ${milestone.label} reminder for exam ${exam.id} to ${tokens.length} users`);
+        // Push notification to devices
+        if (tokens.length > 0) {
+          await sendBatchPush(
+            tokens,
+            milestone.title,
+            milestone.body(exam.title),
+            { type: "exam_reminder", examId: exam.id, milestone: milestone.label }
+          );
+        }
+
+        console.log(`[ExamReminder] Sent ${milestone.label} reminder for exam ${exam.id} to ${userIds.length} users`);
       }
     } catch (err) {
       console.error(`[ExamReminder] Error checking ${milestone.label} reminders:`, err);

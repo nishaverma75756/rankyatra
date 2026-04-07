@@ -198,6 +198,11 @@ router.post("/posts", requireAuth, async (req: any, res: any) => {
         .where(eq(followsTable.followingId, userId));
       const preview = content.trim().length > 60 ? content.trim().slice(0, 57) + "…" : content.trim();
       for (const { followerId } of followers) {
+        // Save to notification panel
+        await db.insert(notificationsTable).values({ userId: followerId, type: "new_post", fromUserId: userId, postId: post.id }).catch(() => {});
+        // Real-time in-app badge update
+        broadcastToUser(followerId, JSON.stringify({ type: "notification", notifType: "new_post", fromUserId: userId, postId: post.id }));
+        // Push notification
         sendPushToUser(followerId, `${name} ne naya post kiya 📝`, preview, { type: "new_post", postId: post.id });
       }
     }).catch(() => {});
