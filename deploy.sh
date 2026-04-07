@@ -161,7 +161,7 @@ pnpm --filter @workspace/api-server build
 
 # 5. Build Web
 echo "[5/8] Building web app..."
-pnpm --filter @workspace/rankyatra build
+NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter @workspace/rankyatra build
 
 # 6. Copy web files
 echo "[6/8] Copying web files..."
