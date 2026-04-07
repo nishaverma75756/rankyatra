@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActivityCount } from "@/contexts/ActivityCountContext";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { customFetch } from "@workspace/api-client-react";
 
@@ -99,6 +100,7 @@ export default function ChatListScreen() {
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
   const myId = user?.id;
+  const { resetMessages } = useActivityCount();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -112,7 +114,10 @@ export default function ChatListScreen() {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  useEffect(() => {
+    fetchConversations();
+    resetMessages();
+  }, [fetchConversations, resetMessages]);
 
   const handleWsMessage = useCallback((msg: any) => {
     if (msg.type === "new_message") fetchConversations();

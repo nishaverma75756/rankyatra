@@ -2,10 +2,11 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useActivityCount } from "@/contexts/ActivityCountContext";
 
 export default function TabLayout() {
   const colors = useColors();
@@ -14,6 +15,7 @@ export default function TabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const { totalUnread } = useActivityCount();
 
   return (
     <Tabs
@@ -65,7 +67,23 @@ export default function TabLayout() {
         name="moments"
         options={{
           title: "Moments",
-          tabBarIcon: ({ color }) => <Feather name="zap" size={22} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <View style={{ position: "relative" }}>
+              <Feather name="zap" size={22} color={color} />
+              {totalUnread > 0 && (
+                <View style={{
+                  position: "absolute", top: -4, right: -6,
+                  backgroundColor: "#ef4444", borderRadius: 8,
+                  minWidth: 16, height: 16, alignItems: "center", justifyContent: "center",
+                  paddingHorizontal: 3,
+                }}>
+                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen

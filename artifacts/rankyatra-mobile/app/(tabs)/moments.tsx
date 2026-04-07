@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActivityCount } from "@/contexts/ActivityCountContext";
 import { customFetch } from "@workspace/api-client-react";
 
 interface Post {
@@ -551,7 +552,7 @@ export default function MomentsScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadNotifications, unreadMessages, resetNotifications } = useActivityCount();
 
   const [showCreate, setShowCreate] = useState(false);
   const [postText, setPostText] = useState("");
@@ -583,13 +584,6 @@ export default function MomentsScreen() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  useEffect(() => {
-    if (!token) return;
-    const doFetch = () => customFetch<{ count: number }>("/api/notifications/unread-count").then((d: { count: number }) => setUnreadCount(d.count)).catch(() => {});
-    doFetch();
-    const interval = setInterval(doFetch, 30000);
-    return () => clearInterval(interval);
-  }, [token]);
 
   const onRefresh = () => { setRefreshing(true); fetchPosts(undefined, true); };
   const handleLoadMore = () => { if (!hasMore || loadingMore || !nextCursor) return; setLoadingMore(true); fetchPosts(nextCursor); };
@@ -647,7 +641,7 @@ export default function MomentsScreen() {
       const data = await customFetch<Notification[]>("/api/notifications");
       setNotifs(data);
       await customFetch("/api/notifications/read-all", { method: "POST" });
-      setUnreadCount(0);
+      resetNotifications();
     } catch {}
     setNotifsLoading(false);
   };
@@ -665,14 +659,19 @@ export default function MomentsScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={openNotifs} style={styles.iconBtn}>
             <Feather name="bell" size={22} color={colors.foreground} />
-            {unreadCount > 0 && (
+            {unreadNotifications > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                <Text style={styles.badgeText}>{unreadNotifications > 9 ? "9+" : unreadNotifications}</Text>
               </View>
             )}
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push("/chat" as any)} style={styles.iconBtn}>
             <Feather name="message-circle" size={22} color={colors.foreground} />
+            {unreadMessages > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadMessages > 9 ? "9+" : unreadMessages}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           {token && (
             <TouchableOpacity onPress={() => setShowCreate(true)} style={[styles.createBtn, { backgroundColor: colors.primary }]}>

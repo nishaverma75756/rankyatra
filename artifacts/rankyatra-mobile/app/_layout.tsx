@@ -19,6 +19,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ActivityCountProvider } from "@/contexts/ActivityCountContext";
 import AppAlert from "@/components/AppAlert";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
@@ -213,6 +214,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
               <AuthProvider>
+                <ActivityCountProvider>
                 <AuthGuard>
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" />
@@ -229,6 +231,7 @@ export default function RootLayout() {
                   </Stack>
                   <AppAlert />
                 </AuthGuard>
+                </ActivityCountProvider>
               </AuthProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

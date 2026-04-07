@@ -10,6 +10,34 @@ const router: IRouter = Router();
 const typingMap = new Map<string, number>();
 const TYPING_TTL_MS = 4000;
 
+// Get total unread message count across all conversations
+router.get("/chat/unread-total", requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  try {
+    const convs = await db
+      .select({ id: conversationsTable.id, user1Id: conversationsTable.user1Id, user2Id: conversationsTable.user2Id })
+      .from(conversationsTable)
+      .where(or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)));
+
+    let total = 0;
+    for (const c of convs) {
+      const otherUserId = c.user1Id === userId ? c.user2Id : c.user1Id;
+      const unreadRows = await db
+        .select({ id: messagesTable.id })
+        .from(messagesTable)
+        .where(and(
+          eq(messagesTable.conversationId, c.id),
+          eq(messagesTable.senderId, otherUserId),
+          eq(messagesTable.isRead, false)
+        ));
+      total += unreadRows.length;
+    }
+    res.json({ count: total });
+  } catch {
+    res.status(500).json({ message: "Failed to fetch unread count" });
+  }
+});
+
 // Get all conversations for current user
 router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
