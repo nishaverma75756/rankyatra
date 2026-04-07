@@ -542,7 +542,7 @@ export default function MomentsScreen() {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const { unreadNotifications, unreadMessages, resetNotifications } = useActivityCount();
+  const { unreadNotifications, unreadMessages, resetNotifications, refreshMessages } = useActivityCount();
 
 
   const [showSearch, setShowSearch] = useState(false);
@@ -569,7 +569,10 @@ export default function MomentsScreen() {
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   // Refresh posts when returning from create-post screen
-  useFocusEffect(useCallback(() => { fetchPosts(undefined, true); }, [fetchPosts]));
+  useFocusEffect(useCallback(() => {
+    fetchPosts(undefined, true);
+    refreshMessages();
+  }, [fetchPosts, refreshMessages]));
 
   const onRefresh = () => { setRefreshing(true); fetchPosts(undefined, true); };
   const handleLoadMore = () => { if (!hasMore || loadingMore || !nextCursor) return; setLoadingMore(true); fetchPosts(nextCursor); };

@@ -42,6 +42,7 @@ router.get("/notifications/unread-count", requireAuth, async (req: any, res: any
       .select()
       .from(notificationsTable)
       .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.isRead, false)));
+    res.set("Cache-Control", "no-store");
     res.json({ count: rows.length });
   } catch {
     res.status(500).json({ message: "Failed to fetch count" });

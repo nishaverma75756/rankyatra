@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, conversationsTable, messagesTable, usersTable, userBlocksTable } from "@workspace/db";
-import { eq, and, or, desc, asc, lt } from "drizzle-orm";
+import { eq, and, or, desc, asc, lt, ne, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { broadcastToUser } from "../lib/ws";
 import { sendPushToUser, getDisplayName } from "../lib/pushNotifications";
@@ -15,25 +15,17 @@ const TYPING_TTL_MS = 4000;
 router.get("/chat/unread-total", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
   try {
-    const convs = await db
-      .select({ id: conversationsTable.id, user1Id: conversationsTable.user1Id, user2Id: conversationsTable.user2Id })
-      .from(conversationsTable)
-      .where(or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)));
-
-    let total = 0;
-    for (const c of convs) {
-      const otherUserId = c.user1Id === userId ? c.user2Id : c.user1Id;
-      const unreadRows = await db
-        .select({ id: messagesTable.id })
-        .from(messagesTable)
-        .where(and(
-          eq(messagesTable.conversationId, c.id),
-          eq(messagesTable.senderId, otherUserId),
-          eq(messagesTable.isRead, false)
-        ));
-      total += unreadRows.length;
-    }
-    res.json({ count: total });
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(messagesTable)
+      .innerJoin(conversationsTable, eq(messagesTable.conversationId, conversationsTable.id))
+      .where(and(
+        or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)),
+        ne(messagesTable.senderId, userId),
+        eq(messagesTable.isRead, false)
+      ));
+    res.set("Cache-Control", "no-store");
+    res.json({ count: result?.count ?? 0 });
   } catch {
     res.status(500).json({ message: "Failed to fetch unread count" });
   }
