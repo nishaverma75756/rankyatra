@@ -742,18 +742,17 @@ export default function ChatScreen() {
       {/* Typing indicator */}
       {typingVisible && (
         <View style={[styles.typingRow, { backgroundColor: colors.background }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            {convInfo?.otherUser?.avatarUrl ? (
-              <Image source={{ uri: convInfo.otherUser.avatarUrl }} style={{ width: 22, height: 22, borderRadius: 11 }} />
-            ) : (
-              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{convInfo?.otherUser?.name?.[0]?.toUpperCase()}</Text>
-              </View>
-            )}
-            <Text style={[styles.typingName, { color: colors.mutedForeground }]}>
-              {convInfo?.otherUser?.name?.split(" ")[0]} is typing
-            </Text>
-            <View style={[styles.typingBubble, { backgroundColor: colors.muted }]}>
+          <View style={[styles.msgRow, styles.msgRowLeft]}>
+            <View style={styles.msgAvatar}>
+              {convInfo?.otherUser?.avatarUrl ? (
+                <Image source={{ uri: convInfo.otherUser.avatarUrl }} style={styles.msgAvatarImg} />
+              ) : (
+                <View style={[styles.msgAvatarImg, styles.msgAvatarFallback, { backgroundColor: colors.primary + "20" }]}>
+                  <Text style={[styles.msgAvatarText, { color: colors.primary }]}>{convInfo?.otherUser?.name?.[0]?.toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+            <View style={[styles.bubble, styles.bubbleOther, styles.typingBubble, { backgroundColor: colors.muted, borderColor: "transparent" }]}>
               <TypingDots colors={colors} />
             </View>
           </View>
@@ -849,8 +848,8 @@ const styles = StyleSheet.create({
   dateLabelPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   dateLabelText: { fontSize: 12 },
   // Typing
-  typingRow: { paddingHorizontal: 14, paddingBottom: 4 },
-  typingBubble: { paddingHorizontal: 12, paddingVertical: 2, borderRadius: 14 },
+  typingRow: { paddingHorizontal: 14, paddingVertical: 4 },
+  typingBubble: { paddingHorizontal: 14, paddingVertical: 10 },
   typingName: { fontSize: 12 },
   // Input
   inputRow: {
