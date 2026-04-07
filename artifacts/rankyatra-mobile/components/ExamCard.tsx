@@ -160,25 +160,12 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
       );
     }
 
-    // Registered, ended, not submitted — Missed + Answer Sheet always visible
+    // Registered, ended, not submitted — Missed only
     if (timeInfo.status === "ended") {
       return (
-        <View style={styles.actionBtnGroup}>
-          <View style={[styles.actionBadge, { backgroundColor: "#ef444420" }]}>
-            <Feather name="x-circle" size={12} color="#ef4444" />
-            <Text style={[styles.actionBadgeText, { color: "#ef4444" }]}>Missed</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              router.push(`/exam/${exam.id}/answer-sheet`);
-            }}
-            activeOpacity={0.8}
-          >
-            <Feather name="file-text" size={12} color="#fff" />
-            <Text style={styles.actionBtnText}>Answer Sheet</Text>
-          </TouchableOpacity>
+        <View style={[styles.actionBadge, { backgroundColor: "#ef444420" }]}>
+          <Feather name="x-circle" size={12} color="#ef4444" />
+          <Text style={[styles.actionBadgeText, { color: "#ef4444" }]}>Missed</Text>
         </View>
       );
     }
