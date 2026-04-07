@@ -155,6 +155,18 @@ GRANT USAGE, SELECT ON SEQUENCE push_tokens_id_seq TO PUBLIC;
 
 echo "    Database schema synced."
 
+# 3.5 Add swap memory if not present (needed for Vite build on low-RAM EC2)
+if [ ! -f /swapfile ]; then
+  echo "[3.5/8] Adding 2GB swap memory..."
+  sudo fallocate -l 2G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo "    Swap added."
+else
+  echo "[3.5/8] Swap already present. Skipping."
+fi
+
 # 4. Build API
 echo "[4/8] Building API server..."
 pnpm --filter @workspace/api-server build
