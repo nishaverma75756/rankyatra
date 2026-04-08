@@ -462,10 +462,14 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
       {/* Actions */}
       <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         {/* Like */}
-        <TouchableOpacity style={styles.actionBtn} onPress={toggleLike} disabled={liking} activeOpacity={0.6}>
-          <Feather name="heart" size={18} color={isLiked ? "#ef4444" : colors.mutedForeground} />
-          <Text style={[styles.actionCount, { color: isLiked ? "#ef4444" : colors.mutedForeground }]}>{likeCount}</Text>
-        </TouchableOpacity>
+        <View style={styles.actionBtn}>
+          <TouchableOpacity onPress={toggleLike} disabled={liking} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 6, right: 4 }}>
+            <Feather name="heart" size={18} color={isLiked ? "#ef4444" : colors.mutedForeground} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push({ pathname: "/post-likes", params: { id: post.id } } as any)} activeOpacity={0.6} hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}>
+            <Text style={[styles.actionCount, { color: isLiked ? "#ef4444" : colors.mutedForeground }]}>{likeCount}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Comment */}
         <TouchableOpacity style={styles.actionBtn} onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}>
