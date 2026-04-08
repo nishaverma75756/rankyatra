@@ -737,7 +737,7 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 80 }}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
             // Scroll to end every time content renders; after first scroll mark as done
