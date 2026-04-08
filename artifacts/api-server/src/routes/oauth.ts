@@ -8,7 +8,8 @@ import { generateToken } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-const APP_URL = process.env.APP_URL || "https://rankyatra.in";
+const FRONTEND_URL = "https://rankyatra.in";
+const APP_URL = process.env.APP_URL || FRONTEND_URL;
 const CALLBACK_HOST = process.env.OAUTH_CALLBACK_HOST || APP_URL;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
@@ -59,7 +60,7 @@ async function findOrCreateOAuthUser(opts: {
 
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
-    const frontendUrl = APP_URL;
+    const frontendUrl = FRONTEND_URL;
     try {
       const oauthUser = (req as any).oauthUser;
       if (!oauthUser) throw new Error("OAuth failed");
