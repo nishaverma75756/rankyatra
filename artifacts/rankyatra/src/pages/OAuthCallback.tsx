@@ -1,17 +1,34 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
 import { setAuthToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
+const MAIN_DOMAIN = "rankyatra.in";
+
 export default function OAuthCallback() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     const error = params.get("error");
+
+    const isMainDomain =
+      window.location.hostname === MAIN_DOMAIN ||
+      window.location.hostname === `www.${MAIN_DOMAIN}`;
+
+    if (!isMainDomain) {
+      if (token) {
+        window.location.replace(
+          `https://${MAIN_DOMAIN}/oauth-callback?token=${encodeURIComponent(token)}`
+        );
+      } else {
+        window.location.replace(
+          `https://${MAIN_DOMAIN}/oauth-callback?error=${encodeURIComponent(error || "OAuth failed")}`
+        );
+      }
+      return;
+    }
 
     if (token) {
       setAuthToken(token);
