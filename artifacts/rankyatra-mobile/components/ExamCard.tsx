@@ -255,9 +255,38 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
           </Text>
         </View>
         <View style={{ marginLeft: "auto" }}>
-          {renderActionBadge()}
+          {/* Only show single-button badges (Joined / Not Joined / Register) in this row */}
+          {!(hasSubmitted && (timeInfo.status === "ended" || timeInfo.status === "live")) && renderActionBadge()}
         </View>
       </View>
+
+      {/* Two-button row: See Result + Answer Sheet — shown below meta row */}
+      {hasSubmitted && (timeInfo.status === "ended" || timeInfo.status === "live") && (
+        <View style={styles.actionBtnRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.success }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/results`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="bar-chart-2" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>See Result</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#7c3aed" }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/answer-sheet`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="file-text" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>Answer Sheet</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -367,5 +396,11 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     gap: 6,
     alignItems: "flex-end",
+  },
+  actionBtnRow: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "flex-end",
+    marginTop: 10,
   },
 });
