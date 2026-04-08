@@ -66,7 +66,7 @@ export default function CreatePostScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 20 }]} keyboardShouldPersistTaps="handled">
         {/* User info row */}
         <View style={styles.userRow}>
           <Avatar name={user?.name ?? "?"} url={(user as any)?.avatarUrl ?? null} size={46} colors={colors} />
@@ -94,7 +94,7 @@ export default function CreatePostScreen() {
       </ScrollView>
 
       {/* Footer char count */}
-      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
+      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : 8 }]}>
         <View style={[styles.charBar, { backgroundColor: colors.muted }]}>
           <View style={[styles.charFill, {
             backgroundColor: text.length > 450 ? (text.length > 480 ? "#ef4444" : "#f97316") : colors.primary,

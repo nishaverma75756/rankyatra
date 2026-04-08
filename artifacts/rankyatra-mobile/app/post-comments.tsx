@@ -316,7 +316,7 @@ export default function PostCommentsScreen() {
         )}
 
         {/* Input area */}
-        <View style={[styles.inputArea, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.inputArea, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : 8 }]}>
           {replyTo && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 6, backgroundColor: colors.primary + "10" }}>
               <Feather name="corner-down-right" size={13} color={colors.primary} />
