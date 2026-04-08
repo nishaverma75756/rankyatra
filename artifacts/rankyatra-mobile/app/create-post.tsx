@@ -94,7 +94,7 @@ export default function CreatePostScreen() {
       </ScrollView>
 
       {/* Footer char count */}
-      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : 8 }]}>
+      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
         <View style={[styles.charBar, { backgroundColor: colors.muted }]}>
           <View style={[styles.charFill, {
             backgroundColor: text.length > 450 ? (text.length > 480 ? "#ef4444" : "#f97316") : colors.primary,
