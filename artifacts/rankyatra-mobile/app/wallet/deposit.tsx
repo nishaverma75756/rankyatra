@@ -7,13 +7,13 @@ import {
   TextInput,
   StyleSheet,
   Platform,
-  Image,
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { showSuccess, showError } from "@/utils/alert";
@@ -25,7 +25,8 @@ const MAX_MONTHLY = 3000;
 interface Deposit {
   id: number;
   amount: string;
-  utrNumber: string;
+  utrNumber?: string | null;
+  paymentMethod?: string;
   status: "pending" | "success" | "approved" | "rejected";
   adminNote: string | null;
   createdAt: string;
@@ -47,24 +48,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-async function fetchPaymentSettings(baseUrl: string) {
-  const res = await fetch(`${baseUrl}/api/payment/settings`);
-  return res.json();
-}
-
-async function submitDeposit(baseUrl: string, token: string, amount: number, utrNumber: string) {
-  const res = await fetch(`${baseUrl}/api/wallet/deposit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ amount, utrNumber }),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error ?? "Failed to submit");
-  }
-  return res.json();
-}
-
 export default function DepositScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -72,12 +55,8 @@ export default function DepositScreen() {
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [tab, setTab] = useState<"add" | "history">("add");
-  const [step, setStep] = useState<"amount" | "payment" | "utr">("amount");
   const [customAmount, setCustomAmount] = useState("");
-  const [utr, setUtr] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [settings, setSettings] = useState<{ qrCodeUrl: string | null; upiId: string | null }>({ qrCodeUrl: null, upiId: null });
-  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
   const [history, setHistory] = useState<Deposit[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [limits, setLimits] = useState<{
@@ -99,10 +78,6 @@ export default function DepositScreen() {
   }, [token]);
 
   useEffect(() => {
-    fetchPaymentSettings(baseUrl)
-      .then(setSettings)
-      .catch(() => {})
-      .finally(() => setSettingsLoading(false));
     fetchLimits();
   }, [fetchLimits]);
 
@@ -126,7 +101,7 @@ export default function DepositScreen() {
     fetchHistory();
   }, [fetchHistory]);
 
-  const handleContinue = () => {
+  const handlePayInstamojo = async () => {
     if (!finalAmount || finalAmount < 10) {
       showError("Invalid Amount", "Please enter a minimum amount of ₹10.");
       return;
@@ -136,46 +111,59 @@ export default function DepositScreen() {
       return;
     }
     if (finalAmount > limits.dailyRemaining) {
-      showError(
-        "Daily Limit Reached",
-        `You can only deposit ₹${limits.dailyRemaining} more today. Daily limit: ₹${MAX_DAILY}.`
-      );
+      showError("Daily Limit Reached", `You can deposit ₹${limits.dailyRemaining} more today.`);
       return;
     }
     if (finalAmount > limits.monthlyRemaining) {
-      showError(
-        "Monthly Limit Reached",
-        `You can only deposit ₹${limits.monthlyRemaining} more this month. Monthly limit: ₹${MAX_MONTHLY}.`
-      );
+      showError("Monthly Limit Reached", `You can deposit ₹${limits.monthlyRemaining} more this month.`);
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setStep("payment");
-  };
 
-  const handleSubmitUtr = async () => {
-    const cleanUtr = utr.trim();
-    if (cleanUtr.length < 6) {
-      showError("Invalid UTR", "Please enter a valid UTR / transaction reference number (minimum 6 characters).");
-      return;
-    }
-    setSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPaying(true);
+
     try {
-      await submitDeposit(baseUrl, token ?? "", finalAmount, cleanUtr);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await Promise.all([fetchHistory(), fetchLimits()]);
-      setCustomAmount("");
-      setUtr("");
-      setStep("amount");
-      setTab("history");
-      showSuccess(
-        "Request Submitted! ✅",
-        `Your payment of ₹${finalAmount} is under review. It will be credited within 1–4 hours after verification.`
-      );
+      const res = await fetch(`${baseUrl}/api/wallet/deposit/instamojo/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: finalAmount, source: "mobile" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError("Payment Error", data.error ?? "Could not initiate payment. Please try again.");
+        return;
+      }
+
+      // Open Instamojo in browser — wait for deep link redirect
+      const result = await WebBrowser.openAuthSessionAsync(data.paymentUrl, "rankyatra://wallet-deposit");
+
+      if (result.type === "success" && result.url) {
+        const params = new URL(result.url).searchParams;
+        const status = params.get("instamojo");
+        const amount = params.get("amount");
+
+        if (status === "success") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await Promise.all([fetchHistory(), fetchLimits()]);
+          setCustomAmount("");
+          setTab("history");
+          showSuccess("Payment Successful! 🎉", `₹${amount || finalAmount} has been added to your wallet.`);
+        } else {
+          const reason = params.get("reason");
+          const msg =
+            reason === "cancelled" ? "Payment was cancelled." :
+            reason === "amount" ? "Amount mismatch. Contact support." :
+            "Payment could not be verified. Contact support if money was deducted.";
+          showError("Payment Failed", msg);
+        }
+      } else if (result.type === "cancel") {
+        // User closed browser without paying — silently refresh
+        await fetchHistory();
+      }
     } catch (e: any) {
-      showError("Submission Failed", e.message ?? "Could not submit your request. Please try again.");
+      showError("Error", e.message ?? "Something went wrong. Please try again.");
     } finally {
-      setSubmitting(false);
+      setPaying(false);
     }
   };
 
@@ -183,38 +171,29 @@ export default function DepositScreen() {
     const date = new Date(d);
     if (isNaN(date.getTime())) return "—";
     return date.toLocaleString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
   };
 
-  const headerTitle = tab === "history"
-    ? "Deposit History"
-    : step === "amount" ? "Add Money" : step === "payment" ? "Scan & Pay" : "Enter UTR";
-
   const handleBack = () => {
-    if (tab === "history") {
-      setTab("add");
-      return;
-    }
-    if (step === "amount") router.back();
-    else if (step === "utr") setStep("payment");
-    else setStep("amount");
+    if (tab === "history") { setTab("add"); return; }
+    router.back();
   };
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{headerTitle}</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          {tab === "history" ? "Deposit History" : "Add Money"}
+        </Text>
         <View style={{ width: 36 }} />
       </View>
 
+      {/* Tabs */}
       <View style={[styles.tabs, { borderColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.tab, tab === "add" && { borderBottomColor: colors.primary, borderBottomWidth: 2.5 }]}
@@ -232,31 +211,18 @@ export default function DepositScreen() {
         </TouchableOpacity>
       </View>
 
-      {tab === "add" && (
-        <View style={styles.steps}>
-          {[1, 2, 3].map((n) => {
-            const stepNum = step === "amount" ? 1 : step === "payment" ? 2 : 3;
-            const active = n === stepNum;
-            const done = n < stepNum;
-            return (
-              <View key={n} style={styles.stepRow}>
-                <View style={[styles.stepCircle, { backgroundColor: done || active ? colors.primary : colors.muted }]}>
-                  {done
-                    ? <Feather name="check" size={12} color="#fff" />
-                    : <Text style={styles.stepNum}>{n}</Text>
-                  }
-                </View>
-                {n < 3 && <View style={[styles.stepLine, { backgroundColor: done ? colors.primary : colors.border }]} />}
-              </View>
-            );
-          })}
-        </View>
-      )}
-
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
-        {tab === "add" && step === "amount" && (
+        {/* ─── ADD MONEY ─── */}
+        {tab === "add" && (
           <>
+            {/* Instamojo badge */}
+            <View style={[styles.imBadge, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+              <Feather name="zap" size={14} color="#2563EB" />
+              <Text style={styles.imBadgeText}>Powered by Instamojo — Instant, secure payment</Text>
+            </View>
+
+            {/* Amount chips */}
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Select Amount</Text>
             <View style={styles.amountGrid}>
               {AMOUNTS.map((amt) => {
@@ -281,8 +247,9 @@ export default function DepositScreen() {
               })}
             </View>
 
+            {/* Custom amount */}
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 20 }]}>Or enter custom amount</Text>
-            <View style={[styles.inputBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inputBox, { backgroundColor: colors.card, borderColor: finalAmount >= 10 ? colors.primary : colors.border }]}>
               <Text style={[styles.rupeeSign, { color: colors.saffron }]}>₹</Text>
               <TextInput
                 style={[styles.amountInput, { color: colors.foreground }]}
@@ -294,6 +261,7 @@ export default function DepositScreen() {
               />
             </View>
 
+            {/* Limits info */}
             <View style={[styles.noteBox, { backgroundColor: colors.saffronLight }]}>
               <Feather name="info" size={14} color={colors.saffron} />
               <Text style={[styles.noteText, { color: colors.saffron }]}>
@@ -302,128 +270,34 @@ export default function DepositScreen() {
               </Text>
             </View>
 
+            {/* Pay button */}
             <TouchableOpacity
               style={[
-                styles.continueBtn,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: finalAmount >= 10 && finalAmount <= limits.dailyRemaining && finalAmount <= limits.monthlyRemaining ? 1 : 0.5,
-                },
+                styles.payBtn,
+                { backgroundColor: colors.primary, opacity: finalAmount >= 10 && !paying ? 1 : 0.5 },
               ]}
-              onPress={handleContinue}
-              disabled={finalAmount < 10}
+              onPress={handlePayInstamojo}
+              disabled={finalAmount < 10 || paying}
             >
-              <Text style={[styles.continueBtnText, { color: colors.primaryForeground }]}>
-                Continue with ₹{finalAmount || "—"}
-              </Text>
-              <Feather name="arrow-right" size={18} color={colors.primaryForeground} />
-            </TouchableOpacity>
-          </>
-        )}
-
-        {tab === "add" && step === "payment" && (
-          <>
-            <View style={[styles.amountBadge, { backgroundColor: colors.saffronLight }]}>
-              <Text style={[styles.amountBadgeText, { color: colors.saffron }]}>Pay ₹{finalAmount}</Text>
-            </View>
-
-            {settingsLoading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 40 }} />
-            ) : settings.qrCodeUrl ? (
-              <View style={[styles.qrCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.qrLabel, { color: colors.mutedForeground }]}>Scan QR to pay</Text>
-                <Image source={{ uri: settings.qrCodeUrl }} style={styles.qrImage} resizeMode="contain" />
-                {settings.upiId && (
-                  <View style={[styles.upiRow, { backgroundColor: colors.secondary }]}>
-                    <Feather name="smartphone" size={14} color={colors.mutedForeground} />
-                    <Text style={[styles.upiText, { color: colors.foreground }]}>{settings.upiId}</Text>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={[styles.noQrBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
-                <Text style={[styles.noQrText, { color: colors.mutedForeground }]}>
-                  Payment QR not set up yet. Contact admin.
-                </Text>
-              </View>
-            )}
-
-            <View style={[styles.instructionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.instrTitle, { color: colors.foreground }]}>How to pay:</Text>
-              {[
-                "Open your UPI app (GPay, PhonePe, Paytm, etc.)",
-                `Scan the QR code above and pay ₹${finalAmount}`,
-                "Copy the UTR/Transaction ID shown after payment",
-                "Click 'I have paid' and enter the UTR below",
-              ].map((s, i) => (
-                <View key={i} style={styles.instrRow}>
-                  <View style={[styles.instrNum, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.instrNumText}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.instrText, { color: colors.mutedForeground }]}>{s}</Text>
-                </View>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.continueBtn, { backgroundColor: "#22c55e" }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setStep("utr"); }}
-            >
-              <Feather name="check-circle" size={18} color="#fff" />
-              <Text style={[styles.continueBtnText, { color: "#fff" }]}>I have Paid — Enter UTR</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {tab === "add" && step === "utr" && (
-          <>
-            <View style={[styles.amountBadge, { backgroundColor: colors.saffronLight }]}>
-              <Text style={[styles.amountBadgeText, { color: colors.saffron }]}>Amount: ₹{finalAmount}</Text>
-            </View>
-
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>UTR / Transaction Reference</Text>
-
-            <View style={[styles.inputBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="hash" size={18} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.utrInput, { color: colors.foreground }]}
-                placeholder="Enter UTR / Ref number"
-                placeholderTextColor={colors.mutedForeground}
-                value={utr}
-                onChangeText={setUtr}
-                autoCapitalize="characters"
-              />
-            </View>
-
-            <View style={[styles.noteBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="info" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
-                UTR is the 12-digit reference number shown in your payment receipt. Example: 123456789012
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.continueBtn, { backgroundColor: colors.primary, opacity: utr.trim().length >= 6 ? 1 : 0.5 }]}
-              onPress={handleSubmitUtr}
-              disabled={submitting || utr.trim().length < 6}
-            >
-              {submitting ? (
+              {paying ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Feather name="send" size={18} color="#fff" />
-                  <Text style={[styles.continueBtnText, { color: "#fff" }]}>Submit Payment Request</Text>
+                  <Feather name="credit-card" size={18} color="#fff" />
+                  <Text style={[styles.payBtnText, { color: "#fff" }]}>
+                    Pay ₹{finalAmount || "—"} via Instamojo
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <Text style={[styles.footerNote, { color: colors.mutedForeground }]}>
-              Your request will be reviewed and money credited within 1–4 hours.
+              You will be redirected to Instamojo's secure page. Money is credited instantly after payment.
             </Text>
           </>
         )}
 
+        {/* ─── HISTORY ─── */}
         {tab === "history" && (
           <>
             {historyLoading ? (
@@ -431,87 +305,85 @@ export default function DepositScreen() {
             ) : history.length === 0 ? (
               <View style={styles.empty}>
                 <Feather name="inbox" size={40} color={colors.mutedForeground} style={{ opacity: 0.3 }} />
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No deposit requests yet</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No deposits yet</Text>
               </View>
             ) : (
-              history.map((d) => (
-                <View
-                  key={d.id}
-                  style={[
-                    styles.historyCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor:
-                        (d.status === "approved" || d.status === "success") ? "#BBF7D0"
-                        : d.status === "rejected" ? "#FECACA"
-                        : colors.border,
-                      borderWidth: 1.5,
-                    },
-                  ]}
-                >
-                  <View style={styles.historyTop}>
-                    <View>
-                      <Text style={[styles.historyAmount, { color: colors.foreground }]}>
-                        ₹{Number(d.amount).toLocaleString("en-IN")}
-                      </Text>
-                      <Text style={[styles.historyDate, { color: colors.mutedForeground }]}>
-                        {formatDate(d.createdAt)}
-                      </Text>
-                    </View>
-                    <StatusBadge status={d.status} />
-                  </View>
-
-                  <View style={[styles.utrRow, { backgroundColor: colors.secondary, borderRadius: 8, padding: 10, marginTop: 10 }]}>
-                    <Feather name="hash" size={13} color={colors.mutedForeground} />
-                    <Text style={[styles.utrText, { color: colors.mutedForeground }]}>
-                      UTR: <Text style={{ fontWeight: "700", color: colors.foreground }}>{d.utrNumber}</Text>
-                    </Text>
-                  </View>
-
-                  {(d.status === "approved" || d.status === "success") && (
-                    <View style={[styles.statusBox, { backgroundColor: "#D1FAE5", borderColor: "#6EE7B7" }]}>
-                      <Feather name="check-circle" size={14} color="#065F46" />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, fontWeight: "800", color: "#065F46" }}>
-                          Payment Verified — Amount Credited ✅
+              history.map((d) => {
+                const isGood = d.status === "approved" || d.status === "success";
+                const isBad = d.status === "rejected";
+                const isInstamojo = d.paymentMethod === "instamojo";
+                return (
+                  <View
+                    key={d.id}
+                    style={[
+                      styles.historyCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: isGood ? "#BBF7D0" : isBad ? "#FECACA" : colors.border,
+                        borderWidth: 1.5,
+                      },
+                    ]}
+                  >
+                    <View style={styles.historyTop}>
+                      <View>
+                        <Text style={[styles.historyAmount, { color: colors.foreground }]}>
+                          ₹{Number(d.amount).toLocaleString("en-IN")}
                         </Text>
-                        <Text style={{ fontSize: 11, color: "#065F46", marginTop: 2 }}>
-                          ₹{Number(d.amount).toLocaleString("en-IN")} added to your wallet
+                        <Text style={[styles.historyDate, { color: colors.mutedForeground }]}>
+                          {formatDate(d.createdAt)}
+                        </Text>
+                        <View style={[styles.methodBadge, { backgroundColor: isInstamojo ? "#DBEAFE" : "#F3F4F6" }]}>
+                          <Text style={[styles.methodBadgeText, { color: isInstamojo ? "#1D4ED8" : "#6B7280" }]}>
+                            {isInstamojo ? "Instamojo" : "UPI Manual"}
+                          </Text>
+                        </View>
+                      </View>
+                      <StatusBadge status={d.status} />
+                    </View>
+
+                    {d.utrNumber && (
+                      <View style={[styles.refRow, { backgroundColor: colors.secondary, borderRadius: 8, padding: 10, marginTop: 10 }]}>
+                        <Text style={[styles.refText, { color: colors.mutedForeground }]}>
+                          Ref: <Text style={{ fontWeight: "700", color: colors.foreground }}>{d.utrNumber}</Text>
                         </Text>
                       </View>
-                    </View>
-                  )}
+                    )}
 
-                  {d.status === "rejected" && (
-                    <View style={[styles.statusBox, { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" }]}>
-                      <Feather name="x-circle" size={14} color="#991B1B" />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, fontWeight: "800", color: "#991B1B" }}>
-                          Payment Rejected
-                        </Text>
-                        {d.adminNote ? (
-                          <Text style={{ fontSize: 11, color: "#991B1B", marginTop: 2 }}>
-                            Reason: {d.adminNote}
+                    {isGood && (
+                      <View style={[styles.statusBox, { backgroundColor: "#D1FAE5", borderColor: "#6EE7B7" }]}>
+                        <Feather name="check-circle" size={14} color="#065F46" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "800", color: "#065F46" }}>
+                            Payment Verified — Amount Credited ✅
                           </Text>
-                        ) : (
-                          <Text style={{ fontSize: 11, color: "#991B1B", marginTop: 2 }}>
-                            Invalid or duplicate UTR. Please contact support.
+                          <Text style={{ fontSize: 11, color: "#065F46", marginTop: 2 }}>
+                            ₹{Number(d.amount).toLocaleString("en-IN")} added to your wallet
                           </Text>
-                        )}
+                        </View>
                       </View>
-                    </View>
-                  )}
-
-                  {d.status !== "approved" && d.status !== "success" && d.status !== "rejected" && (
-                    <View style={[styles.statusBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
-                      <Feather name="clock" size={14} color="#92400E" />
-                      <Text style={{ fontSize: 12, color: "#92400E", flex: 1 }}>
-                        Under review · Will be credited within 1–4 hours
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))
+                    )}
+                    {isBad && (
+                      <View style={[styles.statusBox, { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" }]}>
+                        <Feather name="x-circle" size={14} color="#991B1B" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "800", color: "#991B1B" }}>Payment Failed</Text>
+                          <Text style={{ fontSize: 11, color: "#991B1B", marginTop: 2 }}>
+                            {d.adminNote ?? "Contact support if money was deducted."}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                    {!isGood && !isBad && (
+                      <View style={[styles.statusBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                        <Feather name="clock" size={14} color="#92400E" />
+                        <Text style={{ fontSize: 12, color: "#92400E", flex: 1 }}>
+                          {isInstamojo ? "Payment initiated — verifying..." : "Under review · Will be credited within 1–4 hours"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })
             )}
           </>
         )}
@@ -528,11 +400,8 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: "row", borderBottomWidth: 1, marginHorizontal: 20, marginBottom: 4 },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabText: { fontSize: 14, fontWeight: "700" },
-  steps: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, gap: 0 },
-  stepRow: { flexDirection: "row", alignItems: "center" },
-  stepCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  stepNum: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  stepLine: { width: 48, height: 2 },
+  imBadge: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 20 },
+  imBadgeText: { fontSize: 12, fontWeight: "600", color: "#2563EB", flex: 1 },
   sectionLabel: { fontSize: 13, fontWeight: "600", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   amountGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   amountChip: { width: "30%", paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
@@ -540,36 +409,22 @@ const styles = StyleSheet.create({
   inputBox: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 4, gap: 8, marginBottom: 16 },
   rupeeSign: { fontSize: 22, fontWeight: "800" },
   amountInput: { flex: 1, fontSize: 20, fontWeight: "700", paddingVertical: 12 },
-  utrInput: { flex: 1, fontSize: 16, fontWeight: "600", paddingVertical: 12 },
-  noteBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1 },
-  noteText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  continueBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8 },
-  continueBtnText: { fontSize: 16, fontWeight: "800" },
-  amountBadge: { alignSelf: "center", paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginBottom: 20 },
-  amountBadgeText: { fontSize: 18, fontWeight: "800" },
-  qrCard: { borderRadius: 20, borderWidth: 1.5, padding: 20, alignItems: "center", marginBottom: 20 },
-  qrLabel: { fontSize: 13, marginBottom: 12, fontWeight: "600" },
-  qrImage: { width: 220, height: 220, borderRadius: 12, marginBottom: 12 },
-  upiRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
-  upiText: { fontSize: 14, fontWeight: "600" },
-  noQrBox: { borderRadius: 16, borderWidth: 1, padding: 40, alignItems: "center", gap: 12, marginBottom: 20 },
-  noQrText: { fontSize: 14, textAlign: "center" },
-  instructionCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 20, gap: 12 },
-  instrTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
-  instrRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  instrNum: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  instrNumText: { color: "#fff", fontSize: 11, fontWeight: "700" },
-  instrText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  footerNote: { textAlign: "center", fontSize: 12, marginTop: 16 },
-  empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
+  noteBox: { flexDirection: "row", gap: 10, borderRadius: 12, padding: 14, marginBottom: 20, alignItems: "flex-start" },
+  noteText: { flex: 1, fontSize: 13, fontWeight: "500", lineHeight: 20 },
+  payBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, paddingVertical: 16, marginBottom: 12 },
+  payBtnText: { fontSize: 16, fontWeight: "800" },
+  footerNote: { textAlign: "center", fontSize: 12, lineHeight: 18 },
+  empty: { alignItems: "center", gap: 12, marginTop: 60 },
   emptyText: { fontSize: 14 },
-  historyCard: { borderRadius: 16, padding: 14, marginBottom: 14 },
-  historyTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  historyAmount: { fontSize: 22, fontWeight: "900" },
-  historyDate: { fontSize: 12, marginTop: 3 },
-  utrRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  utrText: { fontSize: 12 },
-  statusBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, padding: 10, marginTop: 10, borderWidth: 1 },
-  badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  historyCard: { borderRadius: 14, padding: 16, marginBottom: 14 },
+  historyTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  historyAmount: { fontSize: 20, fontWeight: "800" },
+  historyDate: { fontSize: 12, marginTop: 2 },
+  methodBadge: { marginTop: 6, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  methodBadgeText: { fontSize: 11, fontWeight: "700" },
+  refRow: {},
+  refText: { fontSize: 12 },
+  statusBox: { flexDirection: "row", gap: 8, borderRadius: 10, borderWidth: 1, padding: 12, marginTop: 10, alignItems: "flex-start" },
+  badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   badgeText: { fontSize: 11, fontWeight: "700" },
 });

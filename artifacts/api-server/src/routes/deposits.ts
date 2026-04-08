@@ -77,7 +77,7 @@ router.get("/wallet/deposit/limits", requireAuth, async (req, res): Promise<void
 
 // ── INSTAMOJO: Create payment request ──────────────────────────────────────
 router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): Promise<void> => {
-  const { amount } = req.body;
+  const { amount, source } = req.body; // source = 'mobile' | undefined
 
   const parsedAmount = parseFloat(String(amount));
   if (isNaN(parsedAmount) || parsedAmount < 10) {
@@ -129,7 +129,7 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
     buyer_name: user.name || "RankYatra User",
     email: user.email || "",
     phone: "9999999999",
-    redirect_url: `${APP_URL}/api/wallet/deposit/instamojo/callback?deposit_id=${deposit.id}`,
+    redirect_url: `${APP_URL}/api/wallet/deposit/instamojo/callback?deposit_id=${deposit.id}${source === "mobile" ? "&source=mobile" : ""}`,
     allow_repeated_payments: "False",
     send_email: "True",
     send_sms: "False",
@@ -174,11 +174,20 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
 
 // ── INSTAMOJO: Callback after payment ──────────────────────────────────────
 router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void> => {
-  const { payment_id, payment_request_id, payment_status, deposit_id } = req.query as Record<string, string>;
-  const frontendBase = APP_URL;
+  const { payment_id, payment_request_id, payment_status, deposit_id, source } = req.query as Record<string, string>;
+  const isMobile = source === "mobile";
+
+  function redirectTo(path: string, params: Record<string, string>) {
+    const qs = new URLSearchParams(params).toString();
+    if (isMobile) {
+      res.redirect(`rankyatra://wallet-deposit?${qs}`);
+    } else {
+      res.redirect(`${APP_URL}/wallet/deposit?${qs}`);
+    }
+  }
 
   if (!deposit_id) {
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=invalid`);
+    redirectTo("", { instamojo: "failed", reason: "invalid" });
     return;
   }
 
@@ -186,12 +195,12 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
   const [deposit] = await db.select().from(walletDepositsTable).where(eq(walletDepositsTable.id, depositIdNum));
 
   if (!deposit) {
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=notfound`);
+    redirectTo("", { instamojo: "failed", reason: "notfound" });
     return;
   }
 
   if (deposit.status === "success") {
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=success`);
+    redirectTo("", { instamojo: "success", amount: String(deposit.amount) });
     return;
   }
 
@@ -199,7 +208,7 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
     await db.update(walletDepositsTable)
       .set({ status: "rejected", adminNote: "Payment cancelled or failed", updatedAt: new Date() })
       .where(eq(walletDepositsTable.id, depositIdNum));
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=cancelled`);
+    redirectTo("", { instamojo: "failed", reason: "cancelled" });
     return;
   }
 
@@ -219,7 +228,7 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
       await db.update(walletDepositsTable)
         .set({ status: "rejected", adminNote: "Payment verification failed", updatedAt: new Date() })
         .where(eq(walletDepositsTable.id, depositIdNum));
-      res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=verify`);
+      redirectTo("", { instamojo: "failed", reason: "verify" });
       return;
     }
 
@@ -231,14 +240,14 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
       await db.update(walletDepositsTable)
         .set({ status: "rejected", adminNote: `Amount mismatch or not credited. Got: ${paidAmount}`, updatedAt: new Date() })
         .where(eq(walletDepositsTable.id, depositIdNum));
-      res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=amount`);
+      redirectTo("", { instamojo: "failed", reason: "amount" });
       return;
     }
 
     // All checks passed — credit the wallet
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, deposit.userId));
     if (!user) {
-      res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=user`);
+      redirectTo("", { instamojo: "failed", reason: "user" });
       return;
     }
 
@@ -264,10 +273,10 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
       await sendDepositConfirmedEmail(user.email, user.name, String(expectedAmount), String(newBalance), payment_id);
     } catch (err) { console.error("Deposit email failed:", err); }
 
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=success&amount=${expectedAmount}`);
+    redirectTo("", { instamojo: "success", amount: String(expectedAmount) });
   } catch (err) {
     console.error("Instamojo callback error:", err);
-    res.redirect(`${frontendBase}/wallet/deposit?instamojo=failed&reason=error`);
+    redirectTo("", { instamojo: "failed", reason: "error" });
   }
 });
 
