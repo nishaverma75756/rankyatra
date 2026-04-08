@@ -47,7 +47,7 @@ export default function CreatePostScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.border }]}>
@@ -94,7 +94,7 @@ export default function CreatePostScreen() {
       </ScrollView>
 
       {/* Footer char count */}
-      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
+      <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 8, backgroundColor: colors.background }]}>
         <View style={[styles.charBar, { backgroundColor: colors.muted }]}>
           <View style={[styles.charFill, {
             backgroundColor: text.length > 450 ? (text.length > 480 ? "#ef4444" : "#f97316") : colors.primary,
