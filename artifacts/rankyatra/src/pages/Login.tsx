@@ -16,9 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, ArrowRight, Loader2, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
+import { ArrowRight, Loader2, X, AlertCircle } from "lucide-react";
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 const loginSchema = z.object({
@@ -31,7 +29,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
+  const [loginError, setLoginError] = useState<{ message: string; notFound?: boolean } | null>(null);
   
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -43,16 +41,17 @@ export default function Login() {
 
   const loginMutation = useLogin();
 
-  function getErrorMessage(error: any): string {
-    if (error?.data?.error) return error.data.error;
-    if (error?.data?.message) return error.data.message;
-    if (error?.message && !error.message.startsWith("HTTP")) return error.message;
-    if (error?.status === 401) return "Invalid email or password";
-    if (error?.status === 403) return "Account is blocked. Contact admin.";
-    return "Login failed. Please try again.";
+  function getErrorMessage(error: any): { message: string; notFound?: boolean } {
+    if (error?.status === 403) return { message: "Account is blocked. Contact admin." };
+    const msg = error?.data?.error || error?.data?.message || (error?.message && !error.message.startsWith("HTTP") ? error.message : null);
+    if (msg === "Invalid email or password" || error?.status === 401) {
+      return { message: "Email ya password sahi nahi hai. Agar account nahi hai to pehle signup karo.", notFound: true };
+    }
+    return { message: msg || "Login failed. Please try again." };
   }
 
   const onSubmit = (data: LoginFormValues) => {
+    setLoginError(null);
     loginMutation.mutate(
       { data },
       {
@@ -61,11 +60,8 @@ export default function Login() {
           setLocation("/dashboard");
         },
         onError: (error: any) => {
-          toast({
-            title: "Login failed",
-            description: getErrorMessage(error),
-            variant: "destructive",
-          });
+          const err = getErrorMessage(error);
+          setLoginError(err);
         },
       }
     );
@@ -104,6 +100,23 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {loginError && (
+              <div className="mb-4 flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{loginError.message}</span>
+                </div>
+                {loginError.notFound && (
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/signup")}
+                    className="ml-6 text-primary font-bold underline underline-offset-2 text-left hover:opacity-80"
+                  >
+                    → Abhi Signup Karo
+                  </button>
+                )}
+              </div>
+            )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
