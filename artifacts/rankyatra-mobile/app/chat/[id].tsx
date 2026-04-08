@@ -154,6 +154,7 @@ export default function ChatScreen() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [inputRowHeight, setInputRowHeight] = useState(70);
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -164,7 +165,10 @@ export default function ChatScreen() {
   useEffect(() => () => { isMounted.current = false; }, []);
 
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardVisible(true);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+    });
     const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
@@ -750,7 +754,7 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: inputRowHeight + 8 }}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
             if (!initialScrolled.current) {
@@ -805,11 +809,14 @@ export default function ChatScreen() {
       )}
 
       {/* Input */}
-      <View style={[styles.inputRow, {
-        paddingBottom: insets.bottom + 8,
-        borderTopColor: editingId ? "#93c5fd" : colors.border,
-        backgroundColor: colors.background,
-      }]}>
+      <View
+        style={[styles.inputRow, {
+          paddingBottom: insets.bottom + 8,
+          borderTopColor: editingId ? "#93c5fd" : colors.border,
+          backgroundColor: colors.background,
+        }]}
+        onLayout={(e) => setInputRowHeight(e.nativeEvent.layout.height)}
+      >
         <TextInput
           style={[styles.input, {
             backgroundColor: colors.card,
