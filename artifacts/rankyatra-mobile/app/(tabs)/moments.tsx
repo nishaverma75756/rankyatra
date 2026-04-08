@@ -310,8 +310,9 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   onDelete: (id: number) => void; onUpdated: (id: number, content: string) => void;
 }) {
   const isSelf = post.userId === currentUser?.id;
-  const [isLiked, setIsLiked] = useState(post.isLiked);
-  const [likeCount, setLikeCount] = useState(post.likeCount);
+  const [isLiked, setIsLiked] = useState(!!post.isLiked);
+  const [likeCount, setLikeCount] = useState(Number(post.likeCount) || 0);
+  const [liking, setLiking] = useState(false);
   const [shareCount, setShareCount] = useState(post.shareCount);
   const [isFollowing, setIsFollowing] = useState(post.isFollowing);
   const [showMenu, setShowMenu] = useState(false);
@@ -324,16 +325,19 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
 
   const toggleLike = async () => {
     if (!currentUser) { router.push("/login" as any); return; }
+    if (liking) return;
     const was = isLiked;
+    setLiking(true);
     setIsLiked(!was);
     setLikeCount((c) => was ? c - 1 : c + 1);
     try {
       const res = await customFetch<{ likeCount: number }>(`/api/posts/${post.id}/like`, { method: was ? "DELETE" : "POST" });
-      setLikeCount(res.likeCount);
+      setLikeCount(Number(res.likeCount) || (was ? likeCount - 1 : likeCount + 1));
     } catch {
-      // Revert optimistic update using functional form (no stale closure)
       setIsLiked(was);
       setLikeCount((c) => was ? c + 1 : c - 1);
+    } finally {
+      setLiking(false);
     }
   };
 
@@ -458,7 +462,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
       {/* Actions */}
       <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         {/* Like */}
-        <TouchableOpacity style={styles.actionBtn} onPress={toggleLike}>
+        <TouchableOpacity style={styles.actionBtn} onPress={toggleLike} disabled={liking} activeOpacity={0.6}>
           <Feather name="heart" size={18} color={isLiked ? "#ef4444" : colors.mutedForeground} />
           <Text style={[styles.actionCount, { color: isLiked ? "#ef4444" : colors.mutedForeground }]}>{likeCount}</Text>
         </TouchableOpacity>
