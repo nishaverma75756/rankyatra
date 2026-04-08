@@ -128,7 +128,6 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
     amount: String(parsedAmount),
     buyer_name: user.name || "RankYatra User",
     email: user.email || "",
-    phone: "9999999999",
     redirect_url: `${APP_URL}/api/wallet/deposit/instamojo/callback?deposit_id=${deposit.id}${source === "mobile" ? "&source=mobile" : ""}`,
     allow_repeated_payments: "False",
     send_email: "True",
