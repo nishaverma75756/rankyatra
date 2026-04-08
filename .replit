@@ -27,3 +27,8 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["eas-cli"]
+
+[userenv]
+
+[userenv.shared]
+APP_URL = "https://rankyatra.in"
