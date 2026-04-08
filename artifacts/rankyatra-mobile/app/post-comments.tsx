@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform, Keyboard,
 } from "react-native";
 import { showError } from "@/utils/alert";
 import { router, useLocalSearchParams } from "expo-router";
@@ -73,7 +73,14 @@ export default function PostCommentsScreen() {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // Load post
   useEffect(() => {
@@ -310,13 +317,13 @@ export default function PostCommentsScreen() {
                 <Text style={{ fontSize: 13, color: colors.mutedForeground, marginTop: 4 }}>Be the first to comment!</Text>
               </View>
             }
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 90 }}
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           />
         )}
 
         {/* Input area */}
-        <View style={[styles.inputArea, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : 8 }]}>
+        <View style={[styles.inputArea, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : keyboardVisible ? 8 : insets.bottom + 8 }]}>
           {replyTo && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 6, backgroundColor: colors.primary + "10" }}>
               <Feather name="corner-down-right" size={13} color={colors.primary} />
