@@ -65,7 +65,7 @@ You can disable cookies in your browser settings, but some features may not work
 • Deletion right: Right to delete your account and data
 • Portability right: Right to export your data
 • Objection right: Right to opt out of marketing emails
-To exercise these rights, email privacy@rankyatra.in.`,
+To exercise these rights, email rankyatra.in@gmail.com.`,
   },
   {
     id: "children",
@@ -94,10 +94,10 @@ Continued use of the platform after changes constitutes acceptance of the new po
     id: "contact-privacy",
     title: "10. Privacy Contact",
     content: `For any privacy-related queries:
-Email: privacy@rankyatra.in
-Grievance Officer: Arjun Sharma
+Email: rankyatra.in@gmail.com
+Grievance Officer: Nisha Verma
 Response time: 30 working days
-Postal: RankYatra Technologies Pvt. Ltd., New Delhi, India 110001`,
+Postal: RankYatra Technologies Pvt. Ltd., 5/955, Viram Khand 5, Gomtinagar, Lucknow - 226010, Uttar Pradesh`,
   },
 ];
 
@@ -144,7 +144,7 @@ export default function PrivacyPolicy() {
 
             <div className="mt-12 p-5 border border-primary/20 rounded-xl bg-primary/5 text-center">
               <p className="text-sm text-muted-foreground">
-                Privacy concerns? Email us at <a href="mailto:privacy@rankyatra.in" className="text-primary font-bold hover:underline">privacy@rankyatra.in</a>
+                Privacy concerns? Email us at <a href="mailto:rankyatra.in@gmail.com" className="text-primary font-bold hover:underline">rankyatra.in@gmail.com</a>
               </p>
             </div>
           </div>

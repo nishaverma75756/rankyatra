@@ -68,7 +68,7 @@ const sections = [
   {
     id: "governing",
     title: "13. Governing Law",
-    content: `These Terms are governed under Indian law. The jurisdiction for disputes will be the courts of New Delhi, India. Any dispute will first be attempted to be resolved through mutual negotiation within 30 days.`,
+    content: `These Terms are governed under Indian law. The jurisdiction for disputes will be the courts of Lucknow, Uttar Pradesh, India. Any dispute will first be attempted to be resolved through mutual negotiation within 30 days.`,
   },
 ];
 
@@ -112,7 +112,7 @@ export default function TermsConditions() {
             <div className="mt-12 p-5 border border-primary/20 rounded-xl bg-primary/5 text-center">
               <p className="text-sm text-muted-foreground">
                 Have questions? <a href="/contact" className="text-primary font-bold hover:underline">Contact Us</a> or email{" "}
-                <a href="mailto:legal@rankyatra.in" className="text-primary font-bold hover:underline">legal@rankyatra.in</a>
+                <a href="mailto:rankyatra.in@gmail.com" className="text-primary font-bold hover:underline">rankyatra.in@gmail.com</a>
               </p>
             </div>
           </div>

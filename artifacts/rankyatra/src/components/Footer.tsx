@@ -50,15 +50,15 @@ export function Footer() {
             </p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-primary shrink-0" />
-              <span>New Delhi, India</span>
+              <span>5/955, Viram Khand 5, Gomtinagar, Lucknow - 226010, UP</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Mail className="h-4 w-4 text-primary shrink-0" />
-              <a href="mailto:support@rankyatra.in" className="hover:text-primary transition-colors">support@rankyatra.in</a>
+              <a href="mailto:rankyatra.in@gmail.com" className="hover:text-primary transition-colors">rankyatra.in@gmail.com</a>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Phone className="h-4 w-4 text-primary shrink-0" />
-              <span>+91 98765 43210</span>
+              <a href="tel:+919006109415" className="hover:text-primary transition-colors">+91 9006109415</a>
             </div>
             {/* Social links */}
             <div className="flex items-center gap-3 pt-2">

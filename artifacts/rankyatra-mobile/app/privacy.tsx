@@ -34,7 +34,7 @@ const sections = [
   },
   {
     title: "6. Your Rights",
-    content: `You have the following rights regarding your data:\n• Access: Request a copy of the data we hold about you\n• Correction: Request correction of incorrect data\n• Deletion: Request deletion of your account and data\n• Portability: Request your data in a portable format\n• Objection: Object to certain types of data processing\n\nTo exercise these rights, email privacy@rankyatra.in.`,
+    content: `You have the following rights regarding your data:\n• Access: Request a copy of the data we hold about you\n• Correction: Request correction of incorrect data\n• Deletion: Request deletion of your account and data\n• Portability: Request your data in a portable format\n• Objection: Object to certain types of data processing\n\nTo exercise these rights, email rankyatra.in@gmail.com.`,
   },
   {
     title: "7. Data Retention",
@@ -42,7 +42,7 @@ const sections = [
   },
   {
     title: "8. Children's Privacy",
-    content: `RankYatra is strictly for users aged 18 and above. We do not knowingly collect data from minors. If you believe a minor has created an account, please report it to support@rankyatra.in immediately.`,
+    content: `RankYatra is strictly for users aged 18 and above. We do not knowingly collect data from minors. If you believe a minor has created an account, please report it to rankyatra.in@gmail.com immediately.`,
   },
   {
     title: "9. Changes to This Policy",
@@ -50,7 +50,7 @@ const sections = [
   },
   {
     title: "10. Contact Us",
-    content: `For privacy-related queries:\n📧 privacy@rankyatra.in\n🌐 www.rankyatra.in/privacy\n📍 RankYatra Technologies Pvt. Ltd., New Delhi, India`,
+    content: `For privacy-related queries:\n📧 rankyatra.in@gmail.com\n📞 +91 9006109415\n🌐 www.rankyatra.in/privacy\n📍 RankYatra Technologies Pvt. Ltd., 5/955, Viram Khand 5, Gomtinagar, Lucknow - 226010, Uttar Pradesh`,
   },
 ];
 

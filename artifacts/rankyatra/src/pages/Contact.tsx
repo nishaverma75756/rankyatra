@@ -6,16 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 const contacts = [
-  { icon: Mail, label: "Email", value: "support@rankyatra.in", sub: "Response within 24 hours", href: "mailto:support@rankyatra.in" },
-  { icon: Phone, label: "Phone", value: "+91 98765 43210", sub: "Mon–Sat, 9 AM – 6 PM", href: "tel:+919876543210" },
-  { icon: MapPin, label: "Address", value: "New Delhi, India 110001", sub: "Head Office", href: "#" },
+  { icon: Mail, label: "Email", value: "rankyatra.in@gmail.com", sub: "Response within 24 hours", href: "mailto:rankyatra.in@gmail.com" },
+  { icon: Phone, label: "Phone", value: "+91 9006109415", sub: "Mon–Sat, 9 AM – 6 PM", href: "tel:+919006109415" },
+  { icon: MapPin, label: "Address", value: "5/955, Viram Khand 5, Gomtinagar, Lucknow - 226010, UP", sub: "Head Office", href: "#" },
   { icon: Clock, label: "Support Hours", value: "Mon – Sat", sub: "9:00 AM – 6:00 PM IST", href: "#" },
 ];
 
 const faqs = [
   { q: "How long does it take to receive prize money?", a: "Prize money is credited to winners' wallets within 24 hours of the exam ending." },
   { q: "What should I do if my deposit fails?", a: "Email support with a screenshot. We will resolve it within 2 working days." },
-  { q: "My account is blocked. What should I do?", a: "Email support@rankyatra.in with your registered email and a description of the problem." },
+  { q: "My account is blocked. What should I do?", a: "Email rankyatra.in@gmail.com with your registered email and a description of the problem." },
 ];
 
 export default function Contact() {
@@ -130,7 +130,7 @@ export default function Contact() {
                 <Card className="border-amber-200 bg-amber-50/50">
                   <CardContent className="p-4">
                     <p className="font-black text-sm text-amber-800 mb-1">Grievance Officer</p>
-                    <p className="text-sm text-amber-700">Arjun Sharma · grievance@rankyatra.in</p>
+                    <p className="text-sm text-amber-700">Nisha Verma · rankyatra.in@gmail.com</p>
                     <p className="text-xs text-amber-600 mt-1">Appointed under Section 79 of the IT Act 2000. Resolved within 30 days.</p>
                   </CardContent>
                 </Card>

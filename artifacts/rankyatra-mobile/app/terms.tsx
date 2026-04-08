@@ -58,7 +58,7 @@ const sections = [
   },
   {
     title: "12. Termination",
-    content: `We reserve the right to suspend or permanently ban accounts that violate these terms. You can close your account at any time by emailing support@rankyatra.in.`,
+    content: `We reserve the right to suspend or permanently ban accounts that violate these terms. You can close your account at any time by emailing rankyatra.in@gmail.com.`,
   },
   {
     title: "13. Governing Law",
@@ -66,7 +66,7 @@ const sections = [
   },
   {
     title: "14. Contact Us",
-    content: `For any questions about these terms:\n📧 legal@rankyatra.in\n🌐 www.rankyatra.in\n📍 RankYatra Technologies Pvt. Ltd., New Delhi, India`,
+    content: `For any questions about these terms:\n📧 rankyatra.in@gmail.com\n📞 +91 9006109415\n🌐 www.rankyatra.in\n📍 RankYatra Technologies Pvt. Ltd., 5/955, Viram Khand 5, Gomtinagar, Lucknow - 226010, Uttar Pradesh`,
   },
 ];
 

@@ -29,7 +29,7 @@ const faqs = [
       { q: "How do I add money to my wallet?", a: "Go to Dashboard → Wallet → Add Money. You can deposit via UPI (PhonePe, GPay, Paytm), Debit/Credit Card or Net Banking. Minimum deposit is ₹10." },
       { q: "How do I withdraw money?", a: "Go to Wallet → Withdraw Money → enter your UPI ID or bank details. KYC verification is required. Amount is credited to your account within 2–3 working days." },
       { q: "What is the minimum withdrawal amount?", a: "The minimum withdrawal amount is ₹100." },
-      { q: "What if my deposit fails?", a: "If the amount was deducted from your payment gateway, an auto-refund is initiated within 5–7 working days. If not received, email support@rankyatra.in with a screenshot." },
+      { q: "What if my deposit fails?", a: "If the amount was deducted from your payment gateway, an auto-refund is initiated within 5–7 working days. If not received, email rankyatra.in@gmail.com with a screenshot." },
     ],
   },
   {
@@ -38,7 +38,7 @@ const faqs = [
       { q: "Why is KYC required?", a: "KYC is mandatory for claiming prizes and withdrawals above ₹500. This is required under RBI and government norms. Verify using a government-issued ID (Aadhaar/PAN)." },
       { q: "How long does KYC approval take?", a: "Usually 24–48 hours. If it is still pending after 3 days, please contact support." },
       { q: "I forgot my password. What should I do?", a: "Go to the Login page → Forgot Password → enter your registered email → you will receive a reset link → set your new password." },
-      { q: "How do I delete my account?", a: "Email support@rankyatra.in. Your account will be deleted within 30 days. Please withdraw any remaining balance first." },
+      { q: "How do I delete my account?", a: "Email rankyatra.in@gmail.com. Your account will be deleted within 30 days. Please withdraw any remaining balance first." },
     ],
   },
   {
