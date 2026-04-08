@@ -32,3 +32,4 @@ packages = ["eas-cli"]
 
 [userenv.shared]
 APP_URL = "https://rankyatra.in"
+OAUTH_CALLBACK_HOST = "https://rankyatra.niskutech.com"

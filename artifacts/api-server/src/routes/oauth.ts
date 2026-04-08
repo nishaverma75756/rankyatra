@@ -9,6 +9,7 @@ import { generateToken } from "../middlewares/auth";
 const router: IRouter = Router();
 
 const APP_URL = process.env.APP_URL || "https://rankyatra.in";
+const CALLBACK_HOST = process.env.OAUTH_CALLBACK_HOST || APP_URL;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || "";
@@ -84,7 +85,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: `${APP_URL}/api/auth/google/callback`,
+        callbackURL: `${CALLBACK_HOST}/api/auth/google/callback`,
         scope: ["profile", "email"],
       },
       async (_accessToken, _refreshToken, profile, done) => {
@@ -133,7 +134,7 @@ if (FACEBOOK_APP_ID && FACEBOOK_APP_SECRET) {
       {
         clientID: FACEBOOK_APP_ID,
         clientSecret: FACEBOOK_APP_SECRET,
-        callbackURL: `${APP_URL}/api/auth/facebook/callback`,
+        callbackURL: `${CALLBACK_HOST}/api/auth/facebook/callback`,
         profileFields: ["id", "displayName", "emails", "photos"],
       },
       async (_accessToken, _refreshToken, profile, done) => {
