@@ -70,7 +70,8 @@ async function findOrCreateOAuthUser(opts: {
 
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
-    const frontendUrl = FRONTEND_URL;
+    const isMobile = (req as any).oauthIsMobile === true;
+    const redirectBase = isMobile ? "rankyatra://oauth-callback" : `${FRONTEND_URL}/oauth-callback`;
     try {
       const oauthUser = (req as any).oauthUser;
       if (!oauthUser) throw new Error("OAuth failed");
@@ -83,9 +84,9 @@ function handleOAuthCallback(provider: "google" | "facebook") {
         isBlocked: oauthUser.isBlocked,
       });
 
-      res.redirect(`${frontendUrl}/oauth-callback?token=${encodeURIComponent(token)}`);
+      res.redirect(`${redirectBase}?token=${encodeURIComponent(token)}`);
     } catch (err: any) {
-      res.redirect(`${frontendUrl}/oauth-callback?error=${encodeURIComponent(err.message || "OAuth failed")}`);
+      res.redirect(`${redirectBase}?error=${encodeURIComponent(err.message || "OAuth failed")}`);
     }
   };
 }
@@ -121,17 +122,28 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     )
   );
 
-  router.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
+  router.get("/auth/google", (req: Request, res: Response, next: any) => {
+    const isMobile = req.query.mobile === "1";
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      session: false,
+      state: isMobile ? "mobile" : "web",
+    } as any)(req, res, next);
+  });
 
   router.get(
     "/auth/google/callback",
     (req: Request, res: Response, next: any) => {
+      const stateParam = (req.query.state as string) || "";
+      const isMobile = stateParam === "mobile";
+      const errorBase = isMobile ? "rankyatra://oauth-callback" : `${FRONTEND_URL}/oauth-callback`;
       passport.authenticate("google", { session: false }, (err: any, user: any) => {
         if (err || !user) {
           console.error("[OAuth Google] Callback error:", err?.message || "No user returned");
-          return res.redirect(`${FRONTEND_URL}/oauth-callback?error=${encodeURIComponent(err?.message || "Google login failed")}`);
+          return res.redirect(`${errorBase}?error=${encodeURIComponent(err?.message || "Google login failed")}`);
         }
         (req as any).oauthUser = user;
+        (req as any).oauthIsMobile = isMobile;
         next();
       })(req, res, next);
     },

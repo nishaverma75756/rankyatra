@@ -38,8 +38,8 @@ export default function SignupScreen() {
     setGoogleLoading(true);
     try {
       const result = await WebBrowser.openAuthSessionAsync(
-        `${PROD_URL}/api/auth/google`,
-        `${PROD_URL}/oauth-callback`
+        `${PROD_URL}/api/auth/google?mobile=1`,
+        `rankyatra://oauth-callback`
       );
 
       if (result.type === "success" && result.url) {
