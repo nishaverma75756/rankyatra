@@ -41,21 +41,31 @@ async function findOrCreateOAuthUser(opts: {
     return existing;
   }
 
-  console.log("[OAuth] Creating new user for:", email);
-  const [created] = await db
-    .insert(usersTable)
-    .values({
-      name,
-      email,
-      passwordHash: null,
-      emailVerified: true,
-      googleId: provider === "google" ? providerId : null,
-      facebookId: provider === "facebook" ? providerId : null,
-      avatarUrl: avatarUrl || null,
-    })
-    .returning();
+  if (!email) throw new Error("Google account ne email provide nahi ki. Please kisi doosre Google account se try karo.");
 
-  return created;
+  console.log("[OAuth] Creating new user for:", email);
+  try {
+    const [created] = await db
+      .insert(usersTable)
+      .values({
+        name,
+        email,
+        passwordHash: null,
+        emailVerified: true,
+        googleId: provider === "google" ? providerId : null,
+        facebookId: provider === "facebook" ? providerId : null,
+        avatarUrl: avatarUrl || null,
+      })
+      .returning();
+    return created;
+  } catch (insertErr: any) {
+    console.error("[OAuth] DB insert failed:", insertErr?.message);
+    const msg = insertErr?.message || "";
+    if (msg.includes("unique") && msg.includes("email")) {
+      throw new Error("Yeh email pehle se registered hai. Please password se login karo.");
+    }
+    throw new Error("Account create nahi ho saka. Please dobara try karo.");
+  }
 }
 
 function handleOAuthCallback(provider: "google" | "facebook") {
@@ -119,7 +129,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       passport.authenticate("google", { session: false }, (err: any, user: any) => {
         if (err || !user) {
           console.error("[OAuth Google] Callback error:", err?.message || "No user returned");
-          return res.redirect(`${APP_URL}/oauth-callback?error=${encodeURIComponent(err?.message || "Google login failed")}`);
+          return res.redirect(`${FRONTEND_URL}/oauth-callback?error=${encodeURIComponent(err?.message || "Google login failed")}`);
         }
         (req as any).oauthUser = user;
         next();
@@ -164,7 +174,7 @@ if (FACEBOOK_APP_ID && FACEBOOK_APP_SECRET) {
     (req: Request, res: Response, next: any) => {
       passport.authenticate("facebook", { session: false }, (err: any, user: any) => {
         if (err || !user) {
-          return res.redirect(`${APP_URL}/oauth-callback?error=${encodeURIComponent("Facebook login failed")}`);
+          return res.redirect(`${FRONTEND_URL}/oauth-callback?error=${encodeURIComponent(err?.message || "Facebook login failed")}`);
         }
         (req as any).oauthUser = user;
         next();
