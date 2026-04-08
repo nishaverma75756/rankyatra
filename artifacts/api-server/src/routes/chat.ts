@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, conversationsTable, messagesTable, usersTable, userBlocksTable } from "@workspace/db";
 import { eq, and, or, desc, asc, lt, ne, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
-import { broadcastToUser } from "../lib/ws";
+import { broadcastToUser, isUserOnline } from "../lib/ws";
 import { sendPushToUser, getDisplayName } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
@@ -121,11 +121,35 @@ router.get("/chat/conversations/:id/messages", requireAuth, async (req: any, res
     // Filter out messages deleted for this specific user
     const filtered = msgs
       .filter((m) => {
-        if (m.isDeletedForEveryone) return true; // Still show but as "deleted"
+        if (m.isDeletedForEveryone) return true;
         if (m.senderId === userId && m.isDeletedForSender) return false;
         if (m.senderId !== userId && m.isDeletedForReceiver) return false;
         return true;
       });
+
+    // Mark undelivered messages sent TO this user as delivered
+    const undelivered = filtered.filter((m) => m.senderId !== userId && !m.deliveredAt);
+    if (undelivered.length > 0) {
+      const ids = undelivered.map((m) => m.id);
+      const now = new Date();
+      await db.update(messagesTable)
+        .set({ deliveredAt: now })
+        .where(and(
+          eq(messagesTable.conversationId, convId),
+          eq(messagesTable.senderId, conv.user1Id === userId ? conv.user2Id : conv.user1Id),
+          sql`${messagesTable.deliveredAt} IS NULL`
+        ));
+      // Notify the sender that messages were delivered
+      const senderIds = [...new Set(undelivered.map((m) => m.senderId))];
+      for (const sid of senderIds) {
+        broadcastToUser(sid, JSON.stringify({
+          type: "messages_delivered",
+          conversationId: convId,
+          messageIds: ids,
+          deliveredAt: now.toISOString(),
+        }));
+      }
+    }
 
     res.json(filtered.reverse());
   } catch (e) {
@@ -201,13 +225,14 @@ router.post("/chat/messages", requireAuth, async (req: any, res: any) => {
     ).limit(1);
     if (block) return res.status(403).json({ message: "Cannot send message: user is blocked" });
 
+    const recipientOnline = isUserOnline(recipientId);
     const [msg] = await db
       .insert(messagesTable)
       .values({
         conversationId,
         senderId,
         content: content.trim(),
-        deliveredAt: new Date(),
+        deliveredAt: recipientOnline ? new Date() : null,
       })
       .returning();
 

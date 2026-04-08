@@ -271,6 +271,12 @@ export default function ChatScreen() {
       });
       markRead();
     }
+    if (msg.type === "messages_delivered" && msg.conversationId === convId) {
+      const ids = new Set<number>(msg.messageIds);
+      setMessages((prev) => prev.map((m) =>
+        ids.has(m.id) ? { ...m, deliveredAt: msg.deliveredAt } : m
+      ));
+    }
     if (msg.type === "messages_read" && msg.conversationId === convId) {
       setMessages((prev) => prev.map((m) =>
         m.senderId === user?.id ? { ...m, isRead: true, readAt: new Date().toISOString() } : m
