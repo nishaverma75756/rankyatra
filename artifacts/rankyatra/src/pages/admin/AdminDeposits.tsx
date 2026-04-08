@@ -13,7 +13,8 @@ import { Link } from "wouter";
 interface Deposit {
   id: number;
   amount: string;
-  utrNumber: string;
+  utrNumber: string | null;
+  paymentMethod: string;
   status: "pending" | "success" | "rejected";
   adminNote: string | null;
   createdAt: string;
@@ -192,7 +193,12 @@ export default function AdminDeposits() {
                           </div>
                           <div className="flex items-center gap-4 mt-1.5 text-sm">
                             <span className="text-2xl font-black text-primary">₹{Number(d.amount).toLocaleString("en-IN")}</span>
-                            <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs text-muted-foreground">UTR: {d.utrNumber}</span>
+                            <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs text-muted-foreground">
+                              {d.paymentMethod === "instamojo" ? "Instamojo" : "UTR"}: {d.utrNumber || "—"}
+                            </span>
+                            {d.paymentMethod === "instamojo" && (
+                              <span className="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs font-bold">Auto</span>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(d.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
