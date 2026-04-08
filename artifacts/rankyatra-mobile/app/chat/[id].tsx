@@ -750,14 +750,22 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: insets.bottom + 90 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
-            // Scroll to end every time content renders; after first scroll mark as done
-            flatListRef.current?.scrollToEnd({ animated: initialScrolled.current });
-            initialScrolled.current = true;
+            if (!initialScrolled.current) {
+              // Delay initial scroll so FlatList layout is settled
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+              initialScrolled.current = true;
+            } else {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
           }}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onLayout={() => {
+            if (initialScrolled.current) {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
           ListEmptyComponent={
             <View style={[styles.flex, styles.center, { paddingTop: 60 }]}>
               <Feather name="message-circle" size={42} color={colors.mutedForeground} />
