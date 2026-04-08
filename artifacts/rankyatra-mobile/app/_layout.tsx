@@ -69,7 +69,7 @@ async function registerForPushNotifications(): Promise<{ expoToken: string | nul
     }
     try {
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: "bbb5d5c2-3437-47d7-b53b-9d438e859888",
+        projectId: "a04e437e-68e7-40e6-871c-15c6a209f2f3",
       });
       result.expoToken = tokenData.data;
     } catch {}
