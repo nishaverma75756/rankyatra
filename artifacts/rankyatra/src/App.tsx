@@ -62,6 +62,17 @@ const queryClient = new QueryClient({
   },
 });
 
+function DomainGuard() {
+  useEffect(() => {
+    const host = window.location.hostname;
+    if (host !== "rankyatra.in" && host !== "www.rankyatra.in") {
+      const path = window.location.pathname + window.location.search + window.location.hash;
+      window.location.replace("https://rankyatra.in" + path);
+    }
+  }, []);
+  return null;
+}
+
 function GlobalHeartbeat() {
   useEffect(() => {
     const send = () => {
@@ -200,6 +211,7 @@ function AppShell() {
   const hiddenNavPaths = /^\/chat\/.+|^\/post\/\d+\/comments/;
   return (
     <>
+      <DomainGuard />
       <GlobalHeartbeat />
       <ScrollToTop />
       <Router />
