@@ -806,9 +806,7 @@ export default function ChatScreen() {
 
       {/* Input */}
       <View style={[styles.inputRow, {
-        paddingBottom: Platform.OS === "ios"
-          ? insets.bottom + 8
-          : keyboardVisible ? 8 : insets.bottom + 8,
+        paddingBottom: insets.bottom + 8,
         borderTopColor: editingId ? "#93c5fd" : colors.border,
         backgroundColor: colors.background,
       }]}>
