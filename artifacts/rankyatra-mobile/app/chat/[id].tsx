@@ -13,6 +13,7 @@ import {
   Modal,
   Share,
   Animated,
+  Keyboard,
 } from "react-native";
 import { showAlert, showSuccess, showError } from "@/utils/alert";
 import { useLocalSearchParams, router } from "expo-router";
@@ -152,6 +153,7 @@ export default function ChatScreen() {
   const [msgActionItem, setMsgActionItem] = useState<Message | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -160,6 +162,12 @@ export default function ChatScreen() {
   const isMounted = useRef(true);
 
   useEffect(() => () => { isMounted.current = false; }, []);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // Load conversation info + messages
   useEffect(() => {
@@ -743,7 +751,7 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 80 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: insets.bottom + 90 }}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
             // Scroll to end every time content renders; after first scroll mark as done
@@ -791,7 +799,9 @@ export default function ChatScreen() {
 
       {/* Input */}
       <View style={[styles.inputRow, {
-        paddingBottom: Platform.OS === "ios" ? insets.bottom + 8 : 8,
+        paddingBottom: Platform.OS === "ios"
+          ? insets.bottom + 8
+          : keyboardVisible ? 8 : insets.bottom + 8,
         borderTopColor: editingId ? "#93c5fd" : colors.border,
         backgroundColor: colors.background,
       }]}>
