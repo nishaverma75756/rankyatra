@@ -5,6 +5,14 @@ try {
   });
 } catch (_) {}
 
+// Load Firebase service account JSON directly from file (avoids dotenv multiline issues)
+let FIREBASE_JSON = "";
+try {
+  const fs = require("fs");
+  const raw = fs.readFileSync("/home/ubuntu/rankyatra/service-account.json", "utf8");
+  FIREBASE_JSON = JSON.stringify(JSON.parse(raw));
+} catch (_) {}
+
 module.exports = {
   apps: [
     {
@@ -21,7 +29,7 @@ module.exports = {
         INSTAMOJO_API_KEY: process.env.INSTAMOJO_API_KEY || "",
         INSTAMOJO_AUTH_TOKEN: process.env.INSTAMOJO_AUTH_TOKEN || "",
         INSTAMOJO_SALT: process.env.INSTAMOJO_SALT || "",
-        FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
+        FIREBASE_SERVICE_ACCOUNT_JSON: FIREBASE_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
         GOOGLE_CLIENT_ID: "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
         SMTP_USER: process.env.SMTP_USER || "",
