@@ -22,7 +22,7 @@ module.exports = {
         INSTAMOJO_AUTH_TOKEN: process.env.INSTAMOJO_AUTH_TOKEN || "",
         INSTAMOJO_SALT: process.env.INSTAMOJO_SALT || "",
         FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
-        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+        GOOGLE_CLIENT_ID: "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
         SMTP_USER: process.env.SMTP_USER || "",
         SMTP_PASS: process.env.SMTP_PASS || "",
