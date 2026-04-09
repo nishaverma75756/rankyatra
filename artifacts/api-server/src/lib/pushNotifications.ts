@@ -1,24 +1,51 @@
 import { db, pushTokensTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import admin from "firebase-admin";
+import { existsSync, readFileSync } from "fs";
 
 let firebaseInitialized = false;
 
+// Known file paths to try for Firebase service account (EC2 production)
+const FIREBASE_FILE_PATHS = [
+  "/home/ubuntu/rankyatra/service-account.json",
+  process.env.FIREBASE_SERVICE_ACCOUNT_FILE,
+].filter(Boolean) as string[];
+
+function loadFirebaseServiceAccount(): object | null {
+  // 1. Try reading from known file paths (avoids PM2 env var encoding issues)
+  for (const filePath of FIREBASE_FILE_PATHS) {
+    try {
+      if (existsSync(filePath)) {
+        const data = JSON.parse(readFileSync(filePath, "utf8"));
+        console.log("[Push] Firebase service account loaded from file:", filePath);
+        return data;
+      }
+    } catch {}
+  }
+  // 2. Fall back to env var
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function getFirebaseApp(): admin.app.App | null {
   if (firebaseInitialized) return admin.app();
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
+  const serviceAccount = loadFirebaseServiceAccount();
+  if (!serviceAccount) {
     console.warn("[Push] FIREBASE_SERVICE_ACCOUNT_JSON not set — FCM direct send disabled");
     return null;
   }
   try {
-    const serviceAccount = JSON.parse(raw);
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount as admin.ServiceAccount) });
     firebaseInitialized = true;
     console.log("[Push] Firebase Admin initialized successfully ✓");
     return admin.app();
   } catch (err) {
-    console.error("[Push] Failed to initialize Firebase Admin (JSON parse/init error):", (err as Error).message);
+    console.error("[Push] Failed to initialize Firebase Admin:", (err as Error).message);
     return null;
   }
 }
