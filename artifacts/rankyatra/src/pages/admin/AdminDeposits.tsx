@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { getApiUrl } from "@/lib/utils";
 import { getAuthToken } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Clock, Upload, Shield, ArrowLeft, QrCode, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Upload, Shield, ArrowLeft, QrCode, RefreshCw, ExternalLink, Search } from "lucide-react";
 import { Link } from "wouter";
 
 interface Deposit {
@@ -15,6 +15,7 @@ interface Deposit {
   amount: string;
   utrNumber: string | null;
   paymentMethod: string;
+  paymentRequestId: string | null;
   status: "pending" | "success" | "rejected";
   adminNote: string | null;
   createdAt: string;
@@ -78,6 +79,18 @@ export default function AdminDeposits() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, adminNote }),
       });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-deposits"] }),
+  });
+
+  const verifyInstamojo = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(getApiUrl(`/api/admin/deposits/${id}/instamojo-verify`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Verification failed");
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-deposits"] }),
@@ -191,15 +204,35 @@ export default function AdminDeposits() {
                             <span className="text-muted-foreground text-xs">{d.user?.email}</span>
                             {statusBadge(d.status)}
                           </div>
-                          <div className="flex items-center gap-4 mt-1.5 text-sm">
+                          <div className="flex items-center gap-4 mt-1.5 text-sm flex-wrap">
                             <span className="text-2xl font-black text-primary">₹{Number(d.amount).toLocaleString("en-IN")}</span>
-                            <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs text-muted-foreground">
-                              {d.paymentMethod === "instamojo" ? "Instamojo" : "UTR"}: {d.utrNumber || "—"}
-                            </span>
-                            {d.paymentMethod === "instamojo" && (
-                              <span className="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs font-bold">Auto</span>
+                            {d.paymentMethod === "instamojo" ? (
+                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">Instamojo</span>
+                            ) : (
+                              <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs text-muted-foreground">
+                                UTR: {d.utrNumber || "—"}
+                              </span>
                             )}
                           </div>
+                          {d.paymentMethod === "instamojo" && d.paymentRequestId && (
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                ID: {d.paymentRequestId}
+                              </span>
+                              <a
+                                href={`https://www.instamojo.com/api/1.1/payment-requests/${d.paymentRequestId}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Check on Instamojo"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          )}
+                          {d.paymentMethod === "instamojo" && d.utrNumber && (
+                            <p className="text-xs text-muted-foreground mt-0.5">Payment ID: <span className="font-mono">{d.utrNumber}</span></p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(d.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -209,6 +242,18 @@ export default function AdminDeposits() {
 
                       {d.status === "pending" && (
                         <div className="mt-3 space-y-2">
+                          {d.paymentMethod === "instamojo" && d.paymentRequestId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                              onClick={() => verifyInstamojo.mutate(d.id)}
+                              disabled={verifyInstamojo.isPending}
+                            >
+                              <Search className="w-4 h-4 mr-1.5" />
+                              {verifyInstamojo.isPending ? "Checking Instamojo..." : "Auto-Verify via Instamojo"}
+                            </Button>
+                          )}
                           <Input
                             placeholder="Admin note (optional)"
                             className="text-sm h-8"

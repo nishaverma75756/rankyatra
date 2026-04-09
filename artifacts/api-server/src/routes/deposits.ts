@@ -555,6 +555,7 @@ router.get("/admin/deposits", requireAdmin, async (_req, res): Promise<void> => 
         amount: d.amount,
         utrNumber: d.utrNumber,
         paymentMethod: d.paymentMethod,
+        paymentRequestId: d.paymentRequestId,
         status: d.status,
         adminNote: d.adminNote,
         createdAt: d.createdAt.toISOString(),
