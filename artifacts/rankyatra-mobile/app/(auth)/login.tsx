@@ -21,6 +21,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { login as loginApi } from "@workspace/api-client-react";
 
 const PROD_URL = "https://rankyatra.in";
+const OAUTH_SERVER = "https://rankyatra.niskutech.com";
+// HTTPS redirect — custom scheme (rankyatra://) not reliable with Chrome Custom Tabs on Android
+const MOBILE_OAUTH_REDIRECT = `${OAUTH_SERVER}/mobile-oauth`;
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -54,10 +57,17 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
+      // Use HTTPS redirect — Chrome Custom Tabs intercepts HTTPS reliably on all Android versions
+      // Custom schemes (rankyatra://) get stuck on many Android/Chrome combinations
       const result = await WebBrowser.openAuthSessionAsync(
-        `${PROD_URL}/api/auth/google?mobile=1`,
-        `rankyatra://oauth-callback`
+        `${OAUTH_SERVER}/api/auth/google?mobile=1`,
+        MOBILE_OAUTH_REDIRECT,
+        { showInRecents: false }
       );
+
+      if (result.type === "cancel" || result.type === "dismiss") {
+        return; // User cancelled — no error
+      }
 
       if (result.type === "success" && result.url) {
         const urlObj = new URL(result.url);
@@ -65,12 +75,12 @@ export default function LoginScreen() {
         const error = urlObj.searchParams.get("error");
 
         if (error) throw new Error(decodeURIComponent(error));
-        if (!token) throw new Error("No token received from Google.");
+        if (!token) throw new Error("Google login se token nahi mila. Dobara try karo.");
 
         const userRes = await fetch(`${PROD_URL}/api/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!userRes.ok) throw new Error("Failed to fetch user info.");
+        if (!userRes.ok) throw new Error("User info load nahi ho saka.");
         const user = await userRes.json();
 
         await login(token, user);
@@ -79,7 +89,7 @@ export default function LoginScreen() {
       }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showError("Google Sign-In Failed", e?.message || "Something went wrong. Please try again.");
+      showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
     } finally {
       setGoogleLoading(false);
     }

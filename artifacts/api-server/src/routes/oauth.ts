@@ -79,10 +79,14 @@ async function findOrCreateOAuthUser(opts: {
   }
 }
 
+// Mobile OAuth uses HTTPS redirect so Chrome Custom Tabs can intercept reliably
+// Custom schemes (rankyatra://) are not reliably caught on all Android versions
+const MOBILE_OAUTH_REDIRECT = `${CALLBACK_HOST}/mobile-oauth`;
+
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
     const isMobile = (req as any).oauthIsMobile === true;
-    const redirectBase = isMobile ? "rankyatra://oauth-callback" : `${FRONTEND_URL}/oauth-callback`;
+    const redirectBase = isMobile ? MOBILE_OAUTH_REDIRECT : `${FRONTEND_URL}/oauth-callback`;
     try {
       const oauthUser = (req as any).oauthUser;
       if (!oauthUser) throw new Error("OAuth failed");
@@ -101,6 +105,14 @@ function handleOAuthCallback(provider: "google" | "facebook") {
     }
   };
 }
+
+// Minimal page for mobile OAuth redirect — just a loading screen, app intercepts immediately
+router.get("/mobile-oauth", (_req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RankYatra</title>
+  <style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#fff7ed;}
+  .logo{font-size:28px;font-weight:900;color:#f97316;}p{color:#64748b;margin-top:8px;}</style></head>
+  <body><div style="text-align:center"><div class="logo">RankYatra</div><p>Completing sign-in...</p></div></body></html>`);
+});
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(
