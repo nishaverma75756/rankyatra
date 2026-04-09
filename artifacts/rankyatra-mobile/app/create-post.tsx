@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Platform, Image, FlatList, ActivityIndicator, KeyboardAvoidingView,
@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 import { showError } from "@/utils/alert";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface MyPost {
   id: number;
   content: string;
@@ -21,6 +22,7 @@ interface MyPost {
   commentCount: number;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function timeAgo(iso: string) {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
@@ -34,7 +36,11 @@ function timeAgo(iso: string) {
   if (days < 7) return `${days}d ago`;
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
+function formatUID(id: number) {
+  return `RY${String(id).padStart(10, "0")}`;
+}
 
+// ─── Avatar ──────────────────────────────────────────────────────────────────
 function Avatar({ name, url, size = 40, colors }: { name: string; url: string | null; size?: number; colors: any }) {
   if (url) return <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   return (
@@ -44,17 +50,75 @@ function Avatar({ name, url, size = 40, colors }: { name: string; url: string | 
   );
 }
 
+// ─── Read-only PostCard (matches moments.tsx style exactly) ──────────────────
+const SEE_MORE_LIMIT = 200;
+
+function ReadOnlyPostCard({ post, user, colors }: { post: MyPost; user: any; colors: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = (post.content?.trim().length ?? 0) > SEE_MORE_LIMIT;
+
+  return (
+    <View style={[pStyles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* Header */}
+      <View style={pStyles.postHeader}>
+        <Avatar name={user?.name ?? "?"} url={(user as any)?.avatarUrl ?? null} size={40} colors={colors} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[pStyles.postName, { color: colors.foreground }]} numberOfLines={1}>{user?.name}</Text>
+          <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 1 }}>
+            UID-{formatUID(user?.id ?? 0)}
+          </Text>
+          <Text style={[pStyles.postTime, { color: colors.mutedForeground }]}>{timeAgo(post.createdAt)}</Text>
+        </View>
+      </View>
+
+      {/* Content */}
+      {post.content?.trim().length > 0 && (
+        <View style={{ marginBottom: post.imageUrl ? 0 : 4 }}>
+          <Text style={[pStyles.postContent, { color: colors.foreground }]} numberOfLines={expanded ? undefined : (isLong ? 4 : undefined)}>
+            {expanded || !isLong ? post.content : post.content.slice(0, SEE_MORE_LIMIT).trimEnd()}
+          </Text>
+          {isLong && (
+            <TouchableOpacity onPress={() => setExpanded(e => !e)}>
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "600", marginTop: 2, paddingHorizontal: 12 }}>
+                {expanded ? "See less" : "...See more"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Image */}
+      {post.imageUrl && (
+        <View style={{ marginTop: 6, marginBottom: 8 }}>
+          <Image source={{ uri: post.imageUrl }} style={{ width: "100%", height: 220 }} resizeMode="cover" />
+        </View>
+      )}
+
+      {/* Action bar */}
+      <View style={[pStyles.postActions, { borderTopColor: colors.border }]}>
+        <View style={pStyles.actionBtn}>
+          <Feather name="heart" size={16} color={colors.mutedForeground} />
+          <Text style={[pStyles.actionCount, { color: colors.mutedForeground }]}>{post.likeCount ?? 0}</Text>
+        </View>
+        <View style={pStyles.actionBtn}>
+          <Feather name="message-square" size={16} color={colors.mutedForeground} />
+          <Text style={[pStyles.actionCount, { color: colors.mutedForeground }]}>{post.commentCount ?? 0}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function CreatePostScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const inputRef = useRef<TextInput>(null);
 
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
@@ -88,12 +152,11 @@ export default function CreatePostScreen() {
         if (asset.base64!.length > 1_500_000) {
           showError("Image Too Large", "Please pick a smaller image (under 1MB).");
         } else {
-          const mimeType = asset.mimeType ?? "image/jpeg";
-          setSelectedImage(`data:${mimeType};base64,${asset.base64}`);
+          setSelectedImage(`data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`);
         }
       }
     } catch {
-      showError("Error", "Could not load the image. Try again.");
+      showError("Error", "Could not load the image.");
     }
     setUploadingImage(false);
   };
@@ -104,10 +167,7 @@ export default function CreatePostScreen() {
     try {
       await customFetch("/api/posts", {
         method: "POST",
-        body: JSON.stringify({
-          content: text.trim(),
-          imageUrl: selectedImage ?? undefined,
-        }),
+        body: JSON.stringify({ content: text.trim(), imageUrl: selectedImage ?? undefined }),
         headers: { "Content-Type": "application/json" },
       });
       router.back();
@@ -117,27 +177,26 @@ export default function CreatePostScreen() {
     setPosting(false);
   };
 
-  // ─── Composer (used as FlatList header) ───────────────────────────────────
+  // ── Composer header (rendered as FlatList ListHeaderComponent) ─────────────
   const ComposerHeader = (
     <View>
-      {/* ── Composer Card ── */}
-      <View style={[styles.composerCard, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      {/* ── Composer card ── */}
+      <View style={[cStyles.composerCard, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {/* User row */}
-        <View style={styles.userRow}>
-          <Avatar name={user?.name ?? "?"} url={(user as any)?.avatarUrl ?? null} size={44} colors={colors} />
+        <View style={cStyles.userRow}>
+          <Avatar name={user?.name ?? "?"} url={(user as any)?.avatarUrl ?? null} size={46} colors={colors} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name}</Text>
-            <View style={[styles.audiencePill, { backgroundColor: colors.muted }]}>
+            <Text style={[cStyles.userName, { color: colors.foreground }]}>{user?.name}</Text>
+            <View style={[cStyles.audiencePill, { backgroundColor: colors.muted }]}>
               <Feather name="globe" size={10} color={colors.mutedForeground} />
-              <Text style={[styles.audienceText, { color: colors.mutedForeground }]}>Everyone</Text>
+              <Text style={[cStyles.audienceText, { color: colors.mutedForeground }]}>Everyone</Text>
             </View>
           </View>
         </View>
 
         {/* Text input */}
         <TextInput
-          ref={inputRef}
-          style={[styles.input, { color: colors.foreground }]}
+          style={[cStyles.input, { color: colors.foreground }]}
           placeholder="What's on your mind?"
           placeholderTextColor={colors.mutedForeground}
           value={text}
@@ -148,117 +207,100 @@ export default function CreatePostScreen() {
           textAlignVertical="top"
         />
 
-        {/* Photo preview */}
+        {/* Selected image preview */}
         {selectedImage && (
-          <View style={styles.previewWrap}>
-            <Image source={{ uri: selectedImage }} style={styles.previewImg} resizeMode="cover" />
-            <TouchableOpacity style={styles.removeBtn} onPress={() => setSelectedImage(null)}>
+          <View style={cStyles.previewWrap}>
+            <Image source={{ uri: selectedImage }} style={cStyles.previewImg} resizeMode="cover" />
+            <TouchableOpacity style={cStyles.removeBtn} onPress={() => setSelectedImage(null)}>
               <Feather name="x" size={15} color="#fff" />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Char count bar */}
-        <View style={styles.charRow}>
-          <View style={[styles.charBar, { backgroundColor: colors.muted }]}>
-            <View style={[styles.charFill, {
+        {/* Char bar */}
+        <View style={cStyles.charRow}>
+          <View style={[cStyles.charTrack, { backgroundColor: colors.muted }]}>
+            <View style={[cStyles.charFill, {
               width: `${Math.min((text.length / 500) * 100, 100)}%`,
               backgroundColor: text.length > 480 ? "#ef4444" : text.length > 450 ? "#f97316" : colors.primary,
             }]} />
           </View>
-          <Text style={[styles.charCount, { color: text.length > 450 ? "#ef4444" : colors.mutedForeground }]}>
+          <Text style={[cStyles.charCount, { color: text.length > 450 ? "#ef4444" : colors.mutedForeground }]}>
             {500 - text.length}
           </Text>
         </View>
 
-        {/* Action bar */}
-        <View style={[styles.actionBar, { borderTopColor: colors.border }]}>
-          <TouchableOpacity style={styles.actionChip} onPress={pickImage} disabled={uploadingImage}>
-            {uploadingImage ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <>
-                <Feather name="image" size={17} color={selectedImage ? colors.primary : colors.mutedForeground} />
-                <Text style={[styles.actionChipText, { color: selectedImage ? colors.primary : colors.mutedForeground }]}>
-                  {selectedImage ? "Change Photo" : "Photo"}
-                </Text>
-              </>
-            )}
+        {/* Action strip */}
+        <View style={[cStyles.actionStrip, { borderTopColor: colors.border }]}>
+          {/* Photo button — prominent with colored background */}
+          <TouchableOpacity
+            style={[cStyles.photoBtn, { backgroundColor: selectedImage ? "#f9731620" : "#f9731615" }]}
+            onPress={pickImage}
+            disabled={uploadingImage}
+            activeOpacity={0.7}
+          >
+            <View style={[cStyles.photoBtnIconWrap, { backgroundColor: selectedImage ? "#f97316" : "#f9731625" }]}>
+              {uploadingImage ? (
+                <ActivityIndicator size="small" color={selectedImage ? "#fff" : "#f97316"} />
+              ) : (
+                <Feather name="camera" size={16} color={selectedImage ? "#fff" : "#f97316"} />
+              )}
+            </View>
+            <Text style={[cStyles.photoBtnText, { color: "#f97316" }]}>
+              {selectedImage ? "Change Photo" : "Photo / Video"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Previous posts header ── */}
-      <View style={[styles.sectionHeader, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <Feather name="clock" size={13} color={colors.mutedForeground} />
-        <Text style={[styles.sectionHeaderText, { color: colors.mutedForeground }]}>Your previous posts</Text>
-      </View>
+      {/* Thin divider */}
+      <View style={{ height: 6, backgroundColor: colors.muted + "50" }} />
 
+      {/* Previous posts loading / empty */}
       {loadingPosts && (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 28 }} />
       )}
       {!loadingPosts && myPosts.length === 0 && (
-        <View style={{ alignItems: "center", paddingTop: 32, paddingBottom: 20 }}>
-          <Feather name="edit-3" size={32} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No posts yet</Text>
+        <View style={{ alignItems: "center", paddingTop: 36 }}>
+          <Feather name="edit-3" size={36} color={colors.mutedForeground} />
+          <Text style={{ color: colors.mutedForeground, fontSize: 14, marginTop: 8 }}>No posts yet</Text>
         </View>
-      )}
-    </View>
-  );
-
-  // ─── Mini post card ────────────────────────────────────────────────────────
-  const renderPost = ({ item }: { item: MyPost }) => (
-    <View style={[styles.miniCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={{ flex: 1, paddingRight: item.imageUrl ? 10 : 0 }}>
-        {item.content?.trim().length > 0 && (
-          <Text style={[styles.miniContent, { color: colors.foreground }]} numberOfLines={2}>
-            {item.content}
-          </Text>
-        )}
-        <View style={styles.miniMeta}>
-          <Text style={[styles.miniTime, { color: colors.mutedForeground }]}>{timeAgo(item.createdAt)}</Text>
-          <View style={styles.miniStats}>
-            <Feather name="heart" size={11} color={colors.mutedForeground} />
-            <Text style={[styles.miniStatText, { color: colors.mutedForeground }]}>{item.likeCount ?? 0}</Text>
-            <Feather name="message-square" size={11} color={colors.mutedForeground} style={{ marginLeft: 8 }} />
-            <Text style={[styles.miniStatText, { color: colors.mutedForeground }]}>{item.commentCount ?? 0}</Text>
-          </View>
-        </View>
-      </View>
-      {item.imageUrl && (
-        <Image source={{ uri: item.imageUrl }} style={styles.miniThumb} resizeMode="cover" />
       )}
     </View>
   );
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
+      style={[{ flex: 1 }, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+      {/* Fixed header */}
+      <View style={[cStyles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+        <TouchableOpacity onPress={() => router.back()} style={cStyles.iconBtn}>
           <Feather name="x" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Create Post</Text>
+        <Text style={[cStyles.headerTitle, { color: colors.foreground }]}>Create Post</Text>
         <TouchableOpacity
-          style={[styles.postBtn, { backgroundColor: canPost ? colors.primary : colors.muted }]}
+          style={[cStyles.postBtn, { backgroundColor: canPost ? "#f97316" : colors.muted }]}
           onPress={handlePost}
           disabled={!canPost}
         >
           {posting
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={[styles.postBtnText, { color: canPost ? "#fff" : colors.mutedForeground }]}>Post</Text>
+            : <Text style={[cStyles.postBtnText, { color: canPost ? "#fff" : colors.mutedForeground }]}>Post</Text>
           }
         </TouchableOpacity>
       </View>
 
-      {/* Posts list with composer as header */}
+      {/* FlatList: composer header + previous posts */}
       <FlatList
         data={myPosts}
         keyExtractor={(p) => String(p.id)}
-        renderItem={renderPost}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: 12, paddingTop: 10 }}>
+            <ReadOnlyPostCard post={item} user={user} colors={colors} />
+          </View>
+        )}
         ListHeaderComponent={ComposerHeader}
         contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
         keyboardShouldPersistTaps="handled"
@@ -268,8 +310,8 @@ export default function CreatePostScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
+// ─── Composer styles ──────────────────────────────────────────────────────────
+const cStyles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -280,22 +322,12 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700" },
   postBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 64,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20,
+    minWidth: 64, alignItems: "center", justifyContent: "center",
   },
   postBtnText: { fontWeight: "700", fontSize: 14 },
 
-  // Composer
-  composerCard: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 0,
-  },
+  composerCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 14 },
   userRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
   userName: { fontWeight: "700", fontSize: 15, marginBottom: 3 },
   audiencePill: {
@@ -305,53 +337,43 @@ const styles = StyleSheet.create({
   audienceText: { fontSize: 11, fontWeight: "600" },
   input: { fontSize: 16, lineHeight: 24, minHeight: 80, maxHeight: 160 },
   previewWrap: { marginTop: 10, borderRadius: 10, overflow: "hidden", position: "relative" },
-  previewImg: { width: "100%", height: 180, borderRadius: 10 },
+  previewImg: { width: "100%", height: 190, borderRadius: 10 },
   removeBtn: {
-    position: "absolute", top: 7, right: 7,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 12, width: 26, height: 26,
-    alignItems: "center", justifyContent: "center",
+    position: "absolute", top: 7, right: 7, backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 13, width: 26, height: 26, alignItems: "center", justifyContent: "center",
   },
-  charRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 2 },
-  charBar: { flex: 1, height: 3, borderRadius: 2, overflow: "hidden" },
+  charRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
+  charTrack: { flex: 1, height: 3, borderRadius: 2, overflow: "hidden" },
   charFill: { height: "100%", borderRadius: 2 },
   charCount: { fontSize: 11, fontWeight: "600", width: 28, textAlign: "right" },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  actionChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 10 },
-  actionChipText: { fontSize: 14, fontWeight: "600" },
 
-  // Section header
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  actionStrip: {
+    flexDirection: "row", alignItems: "center",
+    paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 8,
   },
-  sectionHeaderText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
-  emptyText: { fontSize: 14, marginTop: 8 },
+  photoBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+    flex: 1,
+  },
+  photoBtnIconWrap: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+  },
+  photoBtnText: { fontSize: 14, fontWeight: "600" },
+});
 
-  // Mini post card
-  miniCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginHorizontal: 12,
-    marginTop: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
+// ─── PostCard styles (matches moments.tsx) ────────────────────────────────────
+const pStyles = StyleSheet.create({
+  postCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, paddingBottom: 8 },
+  postName: { fontSize: 14, fontWeight: "600" },
+  postTime: { fontSize: 11, marginTop: 2 },
+  postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 6 },
+  postActions: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1,
   },
-  miniContent: { fontSize: 13, lineHeight: 19, marginBottom: 6 },
-  miniMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  miniTime: { fontSize: 11 },
-  miniStats: { flexDirection: "row", alignItems: "center", gap: 3 },
-  miniStatText: { fontSize: 11, marginRight: 2 },
-  miniThumb: { width: 62, height: 62, borderRadius: 8 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  actionCount: { fontSize: 13, fontWeight: "500" },
 });
