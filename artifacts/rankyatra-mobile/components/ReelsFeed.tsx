@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { customFetch } from "@workspace/api-client-react";
 import { showError, showConfirm } from "@/utils/alert";
 import { useAuth } from "@/contexts/AuthContext";
+import { useReelsUpload } from "@/contexts/ReelsUploadContext";
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
@@ -204,6 +205,7 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
 export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBarHeight: number }) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const upload = useReelsUpload();
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -241,9 +243,48 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
     fetchReels(nextCursor);
   };
 
+  // Refresh feed after upload completes
+  useEffect(() => {
+    if (upload.done) { fetchReels(); }
+  }, [upload.done]);
+
+  // ── Upload Progress Banner ──────────────────────────────────────────────────
+  const UploadBanner = (upload.isUploading || upload.done || upload.error) ? (
+    <View style={[s.uploadBanner, { top: insets.top + 4 }]}>
+      {upload.error ? (
+        // Error state
+        <View style={[s.bannerInner, { backgroundColor: "#ef4444ee" }]}>
+          <Feather name="alert-circle" size={16} color="#fff" />
+          <Text style={s.bannerText} numberOfLines={1}>{upload.error}</Text>
+          <TouchableOpacity onPress={upload.reset} style={s.bannerClose}>
+            <Feather name="x" size={14} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ) : upload.done ? (
+        // Success state
+        <View style={[s.bannerInner, { backgroundColor: "#22c55eee" }]}>
+          <Feather name="check-circle" size={16} color="#fff" />
+          <Text style={s.bannerText}>Reel uploaded successfully!</Text>
+        </View>
+      ) : (
+        // Uploading state
+        <View style={[s.bannerInner, { backgroundColor: "#000000cc" }]}>
+          <ActivityIndicator size="small" color="#f97316" />
+          <View style={{ flex: 1 }}>
+            <Text style={s.bannerText}>Uploading reel... {upload.progress}%</Text>
+            <View style={s.progressTrack}>
+              <View style={[s.progressFill, { width: `${upload.progress}%` as any }]} />
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  ) : null;
+
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000" }}>
+        {UploadBanner}
         <ActivityIndicator color="#f97316" size="large" />
       </View>
     );
@@ -252,6 +293,7 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
   if (reels.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000", paddingHorizontal: 32 }}>
+        {UploadBanner}
         <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#f9731620", alignItems: "center", justifyContent: "center" }}>
           <Feather name="film" size={36} color="#f97316" />
         </View>
@@ -270,6 +312,8 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
   }
 
   return (
+    <View style={{ flex: 1 }}>
+    {UploadBanner}
     <FlatList
       data={reels}
       keyExtractor={(r) => String(r.id)}
@@ -295,6 +339,7 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
       ListFooterComponent={loadingMore ? <View style={{ height: SCREEN_H, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}><ActivityIndicator color="#f97316" /></View> : null}
       getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
     />
+    </View>
   );
 }
 
@@ -323,4 +368,16 @@ const s = StyleSheet.create({
   userName: { color: "#fff", fontWeight: "700", fontSize: 14, textShadowColor: "#0008", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   timeAgo: { color: "#ffffff99", fontSize: 11 },
   caption: { color: "#fff", fontSize: 14, lineHeight: 20, textShadowColor: "#0004", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  uploadBanner: {
+    position: "absolute", left: 12, right: 12, zIndex: 999,
+  },
+  bannerInner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 14, overflow: "hidden",
+  },
+  bannerText: { color: "#fff", fontSize: 13, fontWeight: "600", flex: 1 },
+  bannerClose: { padding: 4 },
+  progressTrack: { height: 3, backgroundColor: "#ffffff30", borderRadius: 2, marginTop: 5, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: "#f97316", borderRadius: 2 },
 });

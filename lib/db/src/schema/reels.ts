@@ -4,6 +4,7 @@ export const reels = pgTable("reels", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   videoUrl: text("video_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
   caption: text("caption").notNull().default(""),
   likeCount: integer("like_count").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),

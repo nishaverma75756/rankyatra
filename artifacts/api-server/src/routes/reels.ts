@@ -58,12 +58,12 @@ router.get("/reels/user/:uid", async (req, res) => {
 // ─── POST /api/reels — create reel ──────────────────────────────────────────
 router.post("/reels", requireAuth, async (req: any, res) => {
   try {
-    const { videoUrl, caption } = req.body;
+    const { videoUrl, caption, thumbnailUrl } = req.body;
     if (!videoUrl) return res.status(400).json({ error: "videoUrl required" });
 
     const [reel] = await db
       .insert(reels)
-      .values({ userId: req.user.id, videoUrl, caption: caption?.trim() ?? "" })
+      .values({ userId: req.user.id, videoUrl, thumbnailUrl: thumbnailUrl ?? null, caption: caption?.trim() ?? "" })
       .returning();
 
     res.status(201).json({ reel });

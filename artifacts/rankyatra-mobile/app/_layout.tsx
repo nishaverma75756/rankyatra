@@ -20,6 +20,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ActivityCountProvider } from "@/contexts/ActivityCountContext";
+import { ReelsUploadProvider } from "@/contexts/ReelsUploadContext";
 import AppAlert from "@/components/AppAlert";
 import NotificationBanner, { BannerNotification } from "@/components/NotificationBanner";
 
@@ -267,6 +268,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
               <AuthProvider>
+                <ReelsUploadProvider>
                 <ActivityCountProvider>
                 <AuthGuard>
                   <Stack screenOptions={{ headerShown: false }}>
@@ -283,10 +285,12 @@ export default function RootLayout() {
                     <Stack.Screen name="wallet/withdraw" options={{ presentation: "card" }} />
                     <Stack.Screen name="notifications" options={{ presentation: "card" }} />
                     <Stack.Screen name="create-post" options={{ presentation: "card" }} />
+                    <Stack.Screen name="create-reel" options={{ presentation: "card" }} />
                   </Stack>
                   <AppAlert />
                 </AuthGuard>
                 </ActivityCountProvider>
+                </ReelsUploadProvider>
               </AuthProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
