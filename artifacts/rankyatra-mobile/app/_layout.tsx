@@ -10,7 +10,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,16 +21,17 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ActivityCountProvider } from "@/contexts/ActivityCountContext";
 import AppAlert from "@/components/AppAlert";
+import NotificationBanner, { BannerNotification } from "@/components/NotificationBanner";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
-// Show notifications when app is in foreground
+// Suppress default system banner — we show our own custom card
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: false,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner: true,
+    shouldShowBanner: false,
     shouldShowList: true,
   }),
 });
@@ -129,6 +130,19 @@ function PushNotificationSetup() {
   const router = useRouter();
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
+  const [banner, setBanner] = useState<BannerNotification | null>(null);
+
+  const navigateFromData = (data: any) => {
+    if (data?.type === "message" && data?.conversationId) {
+      router.push(`/chat/${data.conversationId}` as any);
+    } else if (data?.type === "follow") {
+      router.push("/notifications" as any);
+    } else if (data?.postId) {
+      router.push(`/post-comments?postId=${data.postId}` as any);
+    } else if (data?.type === "new_post" || data?.type === "like" || data?.type === "comment" || data?.type === "reply") {
+      router.push("/notifications" as any);
+    }
+  };
 
   useEffect(() => {
     if (!user || !token) return;
@@ -138,7 +152,21 @@ function PushNotificationSetup() {
       if (fcmToken) registerToken(token, fcmToken);
     });
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
+    // Show custom banner card when notification arrives in foreground
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      const { title, body, data } = notification.request.content;
+      const d = data as any;
+      setBanner({
+        id: notification.request.identifier,
+        title: title ?? "RankYatra",
+        body: body ?? "",
+        avatar: d?.senderAvatar ?? null,
+        type: d?.type,
+        conversationId: d?.conversationId,
+        postId: d?.postId,
+        onPress: () => navigateFromData(d),
+      });
+    });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data as any;
@@ -163,17 +191,7 @@ function PushNotificationSetup() {
       }
 
       if (actionId === "MARK_READ") return;
-
-      // Default tap — navigate to relevant screen
-      if (data?.type === "message" && data?.conversationId) {
-        router.push(`/chat/${data.conversationId}` as any);
-      } else if (data?.type === "follow") {
-        router.push("/notifications" as any);
-      } else if (data?.postId) {
-        router.push(`/post-comments?postId=${data.postId}` as any);
-      } else if (data?.type === "new_post" || data?.type === "like" || data?.type === "comment" || data?.type === "reply") {
-        router.push("/notifications" as any);
-      }
+      navigateFromData(data);
     });
 
     return () => {
@@ -182,7 +200,12 @@ function PushNotificationSetup() {
     };
   }, [user, token]);
 
-  return null;
+  return (
+    <NotificationBanner
+      notification={banner}
+      onDismiss={() => setBanner(null)}
+    />
+  );
 }
 
 function GlobalHeartbeat() {
