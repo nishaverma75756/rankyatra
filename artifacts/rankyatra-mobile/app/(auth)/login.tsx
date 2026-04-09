@@ -23,7 +23,8 @@ import { login as loginApi } from "@workspace/api-client-react";
 const PROD_URL = "https://rankyatra.in";
 const OAUTH_SERVER = "https://rankyatra.niskutech.com";
 // HTTPS redirect — custom scheme (rankyatra://) not reliable with Chrome Custom Tabs on Android
-const MOBILE_OAUTH_REDIRECT = `${OAUTH_SERVER}/mobile-oauth`;
+// Must use /api/mobile-oauth since backend is mounted at /api on EC2
+const MOBILE_OAUTH_REDIRECT = `${OAUTH_SERVER}/api/mobile-oauth`;
 
 export default function LoginScreen() {
   const colors = useColors();

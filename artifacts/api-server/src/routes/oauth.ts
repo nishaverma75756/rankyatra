@@ -81,7 +81,8 @@ async function findOrCreateOAuthUser(opts: {
 
 // Mobile OAuth uses HTTPS redirect so Chrome Custom Tabs can intercept reliably
 // Custom schemes (rankyatra://) are not reliably caught on all Android versions
-const MOBILE_OAUTH_REDIRECT = `${CALLBACK_HOST}/mobile-oauth`;
+// Must include /api prefix since backend is mounted at /api on EC2
+const MOBILE_OAUTH_REDIRECT = `${CALLBACK_HOST}/api/mobile-oauth`;
 
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
