@@ -1,337 +1,205 @@
-# RankYatra — Complete New Replit Setup Guide
+# RankYatra — Dusre Replit Setup Guide
 
-## Project Structure
+> Is guide ko follow karke naya Replit bilkul same taraf se setup kar sakte ho jaise ye wala hai.
 
+---
+
+## STEP 1: GitHub Se Code Clone Karo
+
+Naye Replit mein **Import from GitHub** karo:
 ```
-rankyatra/ (pnpm monorepo)
-├── artifacts/
-│   ├── api-server/        ← Express backend (port 8080)
-│   ├── rankyatra/         ← React + Vite web frontend
-│   └── rankyatra-mobile/  ← Expo React Native mobile app
-├── lib/
-│   ├── db/                ← Drizzle ORM schema + DB client
-│   ├── api-client-react/  ← Shared API fetch utilities
-│   └── shared/            ← Shared types/utils
-└── backup/                ← DB backups (this folder)
+https://github.com/[your-repo]/rankyatra
 ```
 
 ---
 
-## Step 1 — Replit Setup
+## STEP 2: Database Restore Karo (Replit PostgreSQL)
 
-1. Naya Replit banao (Node.js template ya blank)
-2. Git se project clone karo ya zip upload karo
-3. Replit mein **Secrets** tab mein ye sab environment variables add karo:
+Replit mein **PostgreSQL database** already available hai.  
+Backup file: `backups/rankyatra_full_backup_20260409.sql`
 
-### Required Environment Variables (Secrets)
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string (neeche dekho) |
-| `SESSION_SECRET` | Random 64-char string (kuch bhi type karo) |
-| `GOOGLE_CLIENT_ID` | Google OAuth Client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret |
-| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | Replit Object Storage Bucket ID |
-| `PRIVATE_OBJECT_DIR` | Private storage directory name |
-| `PUBLIC_OBJECT_SEARCH_KEY` | Public storage search key |
-
----
-
-## Step 2 — Database Setup
-
-### Option A: Replit PostgreSQL (Recommended)
-1. Replit ke **Database** tab mein jao
-2. "Create Database" click karo
-3. Automatically `DATABASE_URL` secret set ho jayega
-
-### Option B: External DB (Neon, Supabase, etc.)
-```
-DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
-```
-
-### Database Restore (Backup se)
+### Restore command (Replit Shell mein):
 ```bash
-# Naya fresh DB mein full backup restore karo:
-psql $DATABASE_URL < backup/rankyatra_full_backup.sql
-
-# Ya sirf schema chahiye (bina data ke):
-psql $DATABASE_URL < backup/rankyatra_schema_only.sql
+psql $DATABASE_URL < backups/rankyatra_full_backup_20260409.sql
 ```
 
-### Database Push (Schema sync — fresh DB mein)
+---
+
+## STEP 3: Secrets Set Karo
+
+Replit ke **Secrets** (Environment Variables) section mein ye sab add karo:
+
+| Secret Name | Value |
+|---|---|
+| `GOOGLE_CLIENT_ID` | `781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | *(EC2 `.env` file se lo)* |
+| `INSTAMOJO_API_KEY` | `a6c2c2c60308188017b86271f147931e` |
+| `INSTAMOJO_AUTH_TOKEN` | `d49007c9da5701653b5a1fbd097649d6` |
+| `INSTAMOJO_SALT` | `e18d3b6ba1ec4f02ae9b5beb1b0a8365` |
+| `SMTP_USER` | *(EC2 `.env` file se lo)* |
+| `SMTP_PASS` | *(EC2 `.env` file se lo)* |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | *(EC2 `service-account.json` ka content paste karo)* |
+| `EXPO_TOKEN` | *(expo.dev se generate karo — Account → Access Tokens)* |
+
+---
+
+## STEP 4: lib/db `.env` File Banao
+
+```bash
+# lib/db/.env
+DATABASE_URL=postgresql://postgres:password@helium/heliumdb?sslmode=disable
+```
+
+> **Note:** Replit pe `helium` Postgres ka hostname hota hai, aur password `password` hoti hai (default Replit PostgreSQL).
+
+---
+
+## STEP 5: DB Schema Push Karo
+
 ```bash
 cd lib/db && pnpm run push
 ```
 
 ---
 
-## Step 3 — Dependencies Install
+## STEP 6: Dependencies Install Karo
 
 ```bash
-# Root se saari packages install karo
 pnpm install
 ```
 
 ---
 
-## Step 4 — Google OAuth Setup
+## STEP 7: Workflows Setup Karo (Replit Workflows)
 
-1. [Google Cloud Console](https://console.cloud.google.com/) jao
-2. New Project banao ya existing use karo
-3. **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client IDs**
-4. Application type: **Web application**
-5. Authorized redirect URIs mein add karo:
-   ```
-   https://YOUR_REPLIT_DOMAIN/api/auth/google/callback
-   https://rankyatra.in/api/auth/google/callback   ← production ke liye
-   ```
-6. Client ID aur Secret Replit Secrets mein daalo
+Replit mein 2 workflows banao:
 
----
-
-## Step 5 — Replit Object Storage Setup
-
-1. Replit ke **Storage** tab mein jao
-2. "Create Bucket" click karo
-3. Bucket ID copy karo → `DEFAULT_OBJECT_STORAGE_BUCKET_ID` secret mein daalo
-4. `PRIVATE_OBJECT_DIR` = `"private"` (ya kuch bhi)
-5. `PUBLIC_OBJECT_SEARCH_KEY` = bucket ka public search key
-
----
-
-## Step 6 — Workflows Configure
-
-Replit mein 4 workflows banao:
-
-### Workflow 1: API Server
-- **Name**: `artifacts/api-server: API Server`
-- **Command**: `pnpm --filter @workspace/api-server run dev`
-
-### Workflow 2: Web Frontend
-- **Name**: `artifacts/rankyatra: web`
-- **Command**: `pnpm --filter @workspace/rankyatra run dev`
-
-### Workflow 3: Mobile (Expo)
-- **Name**: `artifacts/rankyatra-mobile: expo`
-- **Command**: `pnpm --filter @workspace/rankyatra-mobile run dev`
-
-### Workflow 4: Component Preview (Canvas)
-- **Name**: `artifacts/mockup-sandbox: Component Preview Server`
-- **Command**: `pnpm --filter @workspace/mockup-sandbox run dev`
-
----
-
-## Step 7 — Mobile App (EAS + Push Notifications)
-
-### EAS Account Setup
+### Workflow 1 — Web App
+- **Name:** `artifacts/rankyatra: web`
+- **Command:**
 ```bash
-# EAS CLI install karo
-npm install -g eas-cli
+pnpm --filter @workspace/rankyatra run dev
+```
 
-# Login karo (rankyatra account se)
-eas login
+### Workflow 2 — Mobile (Expo)
+- **Name:** `artifacts/rankyatra-mobile: expo`
+- **Command:**
+```bash
+pnpm --filter @workspace/rankyatra-mobile run dev
+```
 
-# EAS se link karo
+### Workflow 3 — API Server
+- **Name:** `artifacts/api-server: API Server`
+- **Command:**
+```bash
+pnpm --filter @workspace/api-server run dev
+```
+
+---
+
+## STEP 8: EC2 Pe Deploy Karna
+
+### EC2 `.env` file (~/rankyatra/.env) mein ye hona chahiye:
+```env
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+INSTAMOJO_API_KEY=a6c2c2c60308188017b86271f147931e
+INSTAMOJO_AUTH_TOKEN=d49007c9da5701653b5a1fbd097649d6
+INSTAMOJO_SALT=e18d3b6ba1ec4f02ae9b5beb1b0a8365
+SMTP_USER=your_smtp_email
+SMTP_PASS=your_smtp_password
+```
+
+### EC2 pe Firebase Service Account:
+```bash
+# Ye file banana hai EC2 pe
+nano ~/rankyatra/service-account.json
+# Firebase Console se download kiya hua JSON paste karo
+```
+
+### Deploy Command (EC2 SSH mein):
+```bash
+cd ~/rankyatra && git pull origin main && setsid bash deploy.sh > deploy.log 2>&1 &
+```
+
+### Deploy Log Check Karna:
+```bash
+tail -f ~/rankyatra/deploy.log
+```
+
+### Deploy Status Check:
+```bash
+pm2 status
+pm2 logs rankyatra-api --lines 50
+```
+
+---
+
+## STEP 9: Android APK Build Karna (Expo)
+
+### Option A — expo.dev website se (Recommended):
+1. [expo.dev](https://expo.dev) pe login karo (Account: `kundan7781`)
+2. Project `rankyatra` open karo
+3. **Builds → New Build** karo
+4. Platform: **Android**, Profile: **preview**
+5. 15-20 min mein APK ready
+
+### Option B — Command se:
+```bash
 cd artifacts/rankyatra-mobile
-eas init --id bbb5d5c2-3437-47d7-b53b-9d438e859888
-```
-
-### app.json mein ye hona chahiye:
-```json
-{
-  "expo": {
-    "name": "RankYatra",
-    "slug": "rankyatra",
-    "owner": "rankyatra",
-    "extra": {
-      "eas": {
-        "projectId": "bbb5d5c2-3437-47d7-b53b-9d438e859888"
-      }
-    }
-  }
-}
-```
-
-### EAS Build
-```bash
-# Development build (Expo Go alternative)
-eas build --platform android --profile development
-
-# Production APK
-eas build --platform android --profile preview
-
-# Production AAB (Play Store ke liye)
-eas build --platform android --profile production
-```
-
-### Push Notifications
-- Push notifications **automatic** kaam kare ga jab EAS build ho
-- `expo-notifications` already installed hai
-- DB mein `push_tokens` table hai
-- API endpoint: `POST /api/users/push-token`
-- Push token format: `ExponentPushToken[...]`
-
----
-
-## Step 8 — EC2 Production Deploy
-
-### EC2 Server pe ye commands:
-```bash
-# Pehli baar setup
-ssh ubuntu@YOUR_EC2_IP
-cd ~
-git clone https://github.com/YOUR_REPO/rankyatra.git
-cd rankyatra
-npm install -g pnpm
-pnpm install
-
-# .env file banao EC2 pe
-cat > .env << 'EOF'
-DATABASE_URL=postgresql://...
-SESSION_SECRET=your_secret_here
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-# etc...
-EOF
-
-# Deploy script chalao
-bash deploy.sh
-```
-
-### Regular updates (EC2 pe):
-```bash
-cd ~/rankyatra && git pull origin main && bash deploy.sh
+npx eas-cli build --platform android --profile preview --non-interactive
 ```
 
 ---
 
-## Key Config Files
+## Important Info
 
-### `artifacts/api-server/src/index.ts`
-- API server entry point
-- Port: `process.env.PORT || 8080`
-- WebSocket server yahan start hota hai
-- Exam reminder scheduler yahan start hota hai
+| Item | Value |
+|---|---|
+| **EC2 API Port** | `8080` |
+| **Production URL** | `https://rankyatra.in` |
+| **OAuth Callback** | `https://rankyatra.niskutech.com` |
+| **DB Name (EC2)** | `rankyatradb` |
+| **DB User (EC2)** | `rankyatra` |
+| **DB Pass (EC2)** | `StrongPass123` |
+| **Expo Project ID** | `a04e437e-68e7-40e6-871c-15c6a209f2f3` |
+| **Expo Owner** | `kundan7781` |
+| **Android Package** | `com.kundan7781.rankyatra` |
+| **PM2 App Name** | `rankyatra-api` |
 
-### `artifacts/rankyatra-mobile/app.json`
-```json
-{
-  "expo": {
-    "slug": "rankyatra",        ← MUST be "rankyatra"
-    "owner": "rankyatra",      ← MUST be "rankyatra"
-    "projectId": "bbb5d5c2-3437-47d7-b53b-9d438e859888"
-  }
-}
+---
+
+## Mobile App — Important Rules
+
+- **NEVER** use `Alert.alert()` — hamesha `showAlert/showConfirm/showError` use karo `@/utils/alert` se
+- Brand color: `#f97316` (orange)
+- `users` table mein `rank_points` column NAHI hai — kabhi query mat karna
+- Middleware path: `../middlewares/auth` (with 's')
+- Backend body limit: 50MB
+- Video storage: base64 data URL directly `video_url` column mein store hoti hai
+
+---
+
+## Monorepo Structure
+
 ```
-
-### `artifacts/rankyatra-mobile/.env` (local dev)
-```
-EXPO_PUBLIC_DOMAIN=YOUR_REPLIT_DOMAIN_WITHOUT_HTTPS
+rankyatra/
+├── artifacts/
+│   ├── rankyatra/          ← React + Vite Web App
+│   ├── rankyatra-mobile/   ← Expo React Native Mobile App
+│   └── api-server/         ← Express.js Backend API
+├── lib/
+│   └── db/                 ← Drizzle ORM + PostgreSQL Schema
+├── deploy.sh               ← EC2 Full Deploy Script
+├── ecosystem.config.js     ← PM2 Config for EC2
+└── backups/                ← Database Backups
 ```
 
 ---
 
-## Important Notes
+## DB Schema Push (Naye Schema Changes Ke Liye)
 
-### UID Format
-```typescript
-`UID-RY${String(id).padStart(10, "0")}`
-// Example: UID-RY0000000014
-```
-
-### Tier System
-| Points | Tier |
-|--------|------|
-| 0–100 | Beginner 🌱 |
-| 101–200 | Explorer ⚡ |
-| 201–400 | Warrior ⚔️ |
-| 401–700 | Advanced 🔥 |
-| 700+ | Champion 🏆 |
-
-### Brand Color
-- Orange: `#f97316`
-
-### Custom Alert System (Mobile)
-- **NEVER use** `Alert.alert` from react-native
-- **ALWAYS use** `showAlert/showSuccess/showError/showConfirm` from `@/utils/alert`
-- `AppAlert` component `_layout.tsx` mein mounted hai
-
-### EAS-Only Packages (Expo Go mein KAAM NAHI KARTE)
-- `expo-glass-effect`
-- `expo-symbols`
-- `react-native-keyboard-controller`
-
-### Exam Reminder Schedule
-- 15 min pehle → push notification
-- 10 min pehle → push notification
-- 5 min pehle → push notification
-- Live hone pe → push notification
-- Dedup in-memory set ke through (restart pe reset)
-
----
-
-## Database Tables List
-
-```
-users               ← user accounts
-exams               ← exam/contest data
-questions           ← exam questions
-submissions         ← exam submissions
-user_answers        ← per-question answers
-registrations       ← exam registrations
-categories          ← exam categories
-posts               ← moments/social posts
-post_comments       ← post comments + replies
-post_likes          ← post likes
-post_comment_likes  ← comment likes
-follows             ← follow relationships
-notifications       ← in-app notifications
-push_tokens         ← expo push tokens
-conversations       ← chat conversations
-messages            ← chat messages
-user_blocks         ← block list
-reports             ← post/user reports
-wallet_transactions ← wallet history
-wallet_deposits     ← deposit requests
-wallet_withdrawals  ← withdrawal requests
-banners             ← homepage banners
-verifications       ← KYC documents
-email_verifications ← email OTP
-password_resets     ← password reset tokens
-```
-
----
-
-## Troubleshooting
-
-### DB push error
 ```bash
 cd lib/db && pnpm run push
-# Agar error aaye:
-cd lib/db && pnpm run push --force
 ```
 
-### pnpm install fail
-```bash
-# Cache clear karo
-pnpm store prune
-pnpm install
-```
-
-### Expo app domain change
-`artifacts/rankyatra-mobile/.env` mein update karo:
-```
-EXPO_PUBLIC_DOMAIN=new-replit-domain.replit.dev
-```
-
-### WebSocket not connecting
-API server ka domain `EXPO_PUBLIC_DOMAIN` se match karna chahiye
-
-### Google OAuth redirect error
-Google Cloud Console mein naya Replit domain add karo authorized redirect URIs mein
-
----
-
-*Backup created: April 2026*
-*Database: PostgreSQL 16*
-*Stack: Node.js 24, pnpm, Drizzle ORM, Expo SDK 52, React 19, Vite 7*
+> Kabhi manually SQL migration mat likhna — hamesha `pnpm run push` use karo.
