@@ -1,16 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Platform, Image, ActivityIndicator, KeyboardAvoidingView, ScrollView,
+  Platform, Image, ActivityIndicator, KeyboardAvoidingView,
+  ScrollView, Dimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import * as FileSystem from "expo-file-system";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReelsUpload } from "@/contexts/ReelsUploadContext";
 import { showError } from "@/utils/alert";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+const FRAME_COUNT = 8;
+const FRAME_H = 70;
+const FRAME_W = Math.floor((SCREEN_W - 32 - (FRAME_COUNT - 1) * 6) / FRAME_COUNT);
+
+interface VideoFrame {
+  uri: string;
+  time: number;
+}
 
 export default function CreateReelScreen() {
   const colors = useColors();
@@ -23,16 +36,70 @@ export default function CreateReelScreen() {
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoBase64, setVideoBase64] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState("video/mp4");
+  const [videoDuration, setVideoDuration] = useState(0);
   const [loadingVideo, setLoadingVideo] = useState(false);
+
+  const [frames, setFrames] = useState<VideoFrame[]>([]);
+  const [loadingFrames, setLoadingFrames] = useState(false);
+  const [selectedFrameIdx, setSelectedFrameIdx] = useState(0);
 
   const [thumbUri, setThumbUri] = useState<string | null>(null);
   const [thumbBase64, setThumbBase64] = useState<string | null>(null);
-  const [thumbMime, setThumbMime] = useState("image/jpeg");
-  const [loadingThumb, setLoadingThumb] = useState(false);
+  const [thumbMime] = useState("image/jpeg");
 
   const canPost = !!videoBase64 && !!token;
 
-  // ── Pick video ──────────────────────────────────────────────────────────────
+  // ── Extract frames from video ──────────────────────────────────────────────
+  const extractFrames = async (uri: string, durationMs: number) => {
+    setLoadingFrames(true);
+    setFrames([]);
+    setSelectedFrameIdx(0);
+    setThumbUri(null);
+    setThumbBase64(null);
+    try {
+      const dur = Math.max(durationMs, 1000);
+      const step = Math.floor(dur / (FRAME_COUNT + 1));
+      const extracted: VideoFrame[] = [];
+      for (let i = 1; i <= FRAME_COUNT; i++) {
+        const time = step * i;
+        try {
+          const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, {
+            time,
+            quality: 0.6,
+          });
+          extracted.push({ uri: fUri, time });
+        } catch {
+          // skip failed frame
+        }
+      }
+      setFrames(extracted);
+      // Auto-select first frame as thumbnail
+      if (extracted.length > 0) {
+        await selectFrame(0, extracted);
+      }
+    } catch {
+      // frames not critical
+    }
+    setLoadingFrames(false);
+  };
+
+  const selectFrame = async (idx: number, frameList?: VideoFrame[]) => {
+    const list = frameList ?? frames;
+    const frame = list[idx];
+    if (!frame) return;
+    setSelectedFrameIdx(idx);
+    setThumbUri(frame.uri);
+    try {
+      const b64 = await FileSystem.readAsStringAsync(frame.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      setThumbBase64(b64);
+    } catch {
+      setThumbBase64(null);
+    }
+  };
+
+  // ── Pick video ─────────────────────────────────────────────────────────────
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -58,6 +125,12 @@ export default function CreateReelScreen() {
           setVideoUri(asset.uri);
           setVideoBase64(asset.base64);
           setVideoMime(asset.mimeType ?? "video/mp4");
+          const dur = asset.duration ? asset.duration * 1000 : 10000;
+          setVideoDuration(dur);
+          setLoadingVideo(false);
+          // Extract frames after setting video
+          await extractFrames(asset.uri, dur);
+          return;
         }
       }
     } catch {
@@ -66,44 +139,10 @@ export default function CreateReelScreen() {
     setLoadingVideo(false);
   };
 
-  // ── Pick thumbnail ──────────────────────────────────────────────────────────
-  const pickThumbnail = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      showError("Permission Denied", "Photo library access is needed.");
-      return;
-    }
-    setLoadingThumb(true);
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [9, 16],
-        quality: 0.7,
-        base64: true,
-      });
-      if (!result.canceled && result.assets[0]?.base64) {
-        const asset = result.assets[0];
-        if (asset.base64!.length > 2_000_000) {
-          showError("Image Too Large", "Thumbnail should be under 1.5MB.");
-        } else {
-          setThumbUri(asset.uri);
-          setThumbBase64(asset.base64!);
-          setThumbMime(asset.mimeType ?? "image/jpeg");
-        }
-      }
-    } catch {
-      showError("Error", "Could not load image.");
-    }
-    setLoadingThumb(false);
-  };
-
   // ── Share — navigate away immediately, upload in background ────────────────
   const handleShare = () => {
     if (!canPost || !videoBase64) return;
-    // Navigate back to Moments > Reels tab immediately
     router.back();
-    // Start background upload via context
     startUpload({
       videoBase64,
       videoMime,
@@ -139,19 +178,19 @@ export default function CreateReelScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Video + Thumbnail row ── */}
-        <View style={{ flexDirection: "row", gap: 12 }}>
+        {/* ── Video + Preview row ── */}
+        <View style={{ flexDirection: "row", gap: 10 }}>
           {/* Video picker */}
           <TouchableOpacity
-            style={[s.videoPicker, { backgroundColor: colors.card, borderColor: colors.border, flex: 2 }]}
+            style={[s.videoPicker, { backgroundColor: colors.card, borderColor: videoUri ? "#f97316" : colors.border, flex: 2 }]}
             onPress={pickVideo}
-            disabled={loadingVideo}
+            disabled={loadingVideo || loadingFrames}
             activeOpacity={0.8}
           >
             {loadingVideo ? (
               <View style={s.center}>
                 <ActivityIndicator color="#f97316" size="large" />
-                <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Loading...</Text>
+                <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Loading video...</Text>
               </View>
             ) : videoUri ? (
               <View style={s.center}>
@@ -172,36 +211,103 @@ export default function CreateReelScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Thumbnail picker */}
-          <TouchableOpacity
-            style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#a855f7" : colors.border, borderStyle: thumbUri ? "solid" : "dashed", flex: 1 }]}
-            onPress={pickThumbnail}
-            disabled={loadingThumb}
-            activeOpacity={0.8}
+          {/* Thumbnail preview */}
+          <View
+            style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}
           >
-            {loadingThumb ? (
-              <View style={s.center}>
-                <ActivityIndicator color="#a855f7" size="small" />
-              </View>
-            ) : thumbUri ? (
+            {thumbUri ? (
               <>
-                <Image source={{ uri: thumbUri }} style={{ ...StyleSheet.absoluteFillObject, borderRadius: 14 }} resizeMode="cover" />
+                <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
                 <View style={[s.thumbOverlay]}>
-                  <Feather name="edit-2" size={14} color="#fff" />
-                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>Change</Text>
+                  <Feather name="image" size={12} color="#fff" />
+                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>Cover</Text>
                 </View>
               </>
             ) : (
               <View style={s.center}>
-                <View style={[s.iconCircle, { backgroundColor: "#a855f720", width: 44, height: 44 }]}>
-                  <Feather name="image" size={20} color="#a855f7" />
-                </View>
-                <Text style={{ color: "#a855f7", fontSize: 11, fontWeight: "700", marginTop: 6 }}>Thumbnail</Text>
-                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 2, textAlign: "center" }}>Optional</Text>
+                <Feather name="image" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center", opacity: 0.6 }}>Cover preview</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </View>
         </View>
+
+        {/* ── Frame Picker (Instagram-style) ── */}
+        {(loadingFrames || frames.length > 0) && (
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0, padding: 0, overflow: "hidden" }]}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, paddingBottom: 8 }}>
+              <Feather name="film" size={14} color="#f97316" />
+              <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>Select Cover Frame</Text>
+              {loadingFrames && <ActivityIndicator size="small" color="#f97316" style={{ marginLeft: "auto" }} />}
+            </View>
+
+            {/* Frames strip */}
+            {loadingFrames && frames.length === 0 ? (
+              <View style={{ height: FRAME_H + 16, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Extracting frames...</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12, gap: 5, flexDirection: "row" }}
+              >
+                {frames.map((frame, idx) => {
+                  const isSelected = idx === selectedFrameIdx;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => selectFrame(idx)}
+                      activeOpacity={0.8}
+                      style={[
+                        s.frameCell,
+                        {
+                          width: FRAME_W,
+                          height: FRAME_H,
+                          borderColor: isSelected ? "#f97316" : "transparent",
+                          borderWidth: isSelected ? 2.5 : 0,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: frame.uri }}
+                        style={{ width: "100%", height: "100%", borderRadius: 4 }}
+                        resizeMode="cover"
+                      />
+                      {isSelected && (
+                        <View style={s.selectedOverlay}>
+                          <View style={s.selectedDot}>
+                            <Feather name="check" size={9} color="#fff" />
+                          </View>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* Timeline bar */}
+            {frames.length > 0 && (
+              <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
+                <View style={{ height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
+                  <View
+                    style={{
+                      height: "100%",
+                      width: `${((selectedFrameIdx + 1) / frames.length) * 100}%`,
+                      backgroundColor: "#f97316",
+                      borderRadius: 2,
+                    }}
+                  />
+                </View>
+                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center" }}>
+                  Frame {selectedFrameIdx + 1} of {frames.length} · {Math.round(frames[selectedFrameIdx]?.time / 1000)}s
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* ── Caption ── */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -219,11 +325,11 @@ export default function CreateReelScreen() {
           <Text style={[s.charCount, { color: colors.mutedForeground }]}>{300 - caption.length}</Text>
         </View>
 
-        {/* ── Upload info ── */}
+        {/* ── How it works ── */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <Feather name="zap" size={15} color="#f97316" />
-            <Text style={[s.cardLabel, { color: colors.foreground, textTransform: "none" }]}>How it works</Text>
+            <Text style={[s.cardLabel, { color: colors.foreground, textTransform: "none", marginBottom: 0 }]}>How it works</Text>
           </View>
           {[
             ["Tap Share", "Upload starts in the background"],
@@ -241,41 +347,47 @@ export default function CreateReelScreen() {
             </View>
           ))}
         </View>
-
-        {/* ── Tips ── */}
-        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[s.cardLabel, { color: colors.mutedForeground }]}>Tips for best reels</Text>
-          {["Portrait (9:16) ratio is ideal", "15–60 second clips work best", "Add a thumbnail to get more views", "Write a catchy caption"].map((tip, i) => (
-            <View key={i} style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-              <Text style={{ color: "#f97316" }}>•</Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 13, flex: 1 }}>{tip}</Text>
-            </View>
-          ))}
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  header: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700" },
   postBtn: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, minWidth: 64, alignItems: "center" },
   postBtnText: { fontWeight: "700", fontSize: 14 },
   body: { padding: 16, gap: 14 },
-  videoPicker: { height: 200, borderRadius: 16, borderWidth: 1.5, overflow: "hidden", borderStyle: "dashed" },
+  videoPicker: { height: 180, borderRadius: 16, borderWidth: 1.5, overflow: "hidden", borderStyle: "dashed" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 8 },
   iconCircle: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center" },
   pickTitle: { fontSize: 14, fontWeight: "700", marginTop: 8 },
   pickSub: { fontSize: 11, marginTop: 3 },
   thumbOverlay: {
     position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "rgba(0,0,0,0.55)", paddingVertical: 6,
-    alignItems: "center", gap: 2,
+    backgroundColor: "rgba(0,0,0,0.55)", paddingVertical: 5,
+    alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4,
   },
   card: { borderRadius: 16, borderWidth: 1, padding: 14 },
   cardLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   captionInput: { fontSize: 15, lineHeight: 22, minHeight: 70, textAlignVertical: "top" },
   charCount: { fontSize: 11, textAlign: "right", marginTop: 4 },
+  frameCell: {
+    borderRadius: 6, overflow: "hidden",
+  },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(249,115,22,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  selectedDot: {
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: "#f97316",
+    alignItems: "center", justifyContent: "center",
+  },
 });
