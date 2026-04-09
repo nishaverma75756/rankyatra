@@ -99,6 +99,24 @@ export default function WalletDeposit() {
     }
   }, []);
 
+  // Auto-verify pending Instamojo deposits on load
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    fetch("/api/wallet/deposit/instamojo/verify-pending", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.credited > 0) {
+          toast({ title: `₹ credited to your wallet!`, description: `${data.credited} pending Instamojo payment(s) verified and credited.` });
+          fetchHistory();
+        }
+      })
+      .catch(() => {});
+  }, [fetchHistory]);
+
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handlePayInstamojo = async () => {

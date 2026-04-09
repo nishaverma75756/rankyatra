@@ -357,6 +357,53 @@ router.post("/wallet/deposit/instamojo/webhook", async (req, res): Promise<void>
   }
 });
 
+// ── INSTAMOJO: User auto-verify pending deposits ───────────────────────────
+router.post("/wallet/deposit/instamojo/verify-pending", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24 hours
+
+  const pendingDeposits = await db
+    .select()
+    .from(walletDepositsTable)
+    .where(
+      and(
+        eq(walletDepositsTable.userId, userId),
+        eq(walletDepositsTable.paymentMethod, "instamojo"),
+        eq(walletDepositsTable.status, "pending"),
+        gte(walletDepositsTable.createdAt, since)
+      )
+    );
+
+  if (pendingDeposits.length === 0) {
+    res.json({ credited: 0 });
+    return;
+  }
+
+  const { apiKey, authToken } = getInstamojoKeys();
+  let credited = 0;
+
+  for (const deposit of pendingDeposits) {
+    if (!deposit.paymentRequestId) continue;
+    try {
+      const verifyRes = await fetch(`${INSTAMOJO_BASE}/payment-requests/${deposit.paymentRequestId}/`, {
+        headers: { "X-Api-Key": apiKey, "X-Auth-Token": authToken },
+      });
+      if (!verifyRes.ok) continue;
+      const verifyData = await verifyRes.json() as any;
+      if (!verifyData.success) continue;
+
+      const payments: any[] = verifyData.payment_request?.payments || [];
+      const creditedPayment = payments.find((p: any) => p.status === "Credit");
+      if (!creditedPayment) continue;
+
+      const ok = await creditDepositAndWallet(deposit.id, creditedPayment.payment_id);
+      if (ok) credited++;
+    } catch (_) {}
+  }
+
+  res.json({ credited });
+});
+
 // ── INSTAMOJO: Admin manual re-verify ──────────────────────────────────────
 router.post("/admin/deposits/:id/instamojo-verify", requireAdmin, async (req, res): Promise<void> => {
   const depositId = parseInt(req.params.id);
