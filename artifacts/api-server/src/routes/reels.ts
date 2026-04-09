@@ -19,7 +19,7 @@ router.get("/reels", async (req, res) => {
         r.caption, r.like_count AS "likeCount", r.comment_count AS "commentCount",
         r.view_count AS "viewCount", r.created_at AS "createdAt",
         u.name AS "userName", u.avatar_url AS "userAvatar",
-        u.rank_points AS "rankPoints", u.verification_status AS "verificationStatus",
+        u.verification_status AS "verificationStatus",
         ${userId ? sql`(SELECT COUNT(*)::int > 0 FROM reel_likes rl WHERE rl.reel_id = r.id AND rl.user_id = ${userId})` : sql`false`} AS "isLiked"
       FROM reels r
       JOIN users u ON u.id = r.user_id
@@ -34,7 +34,7 @@ router.get("/reels", async (req, res) => {
     const nextCursor = hasMore ? data[data.length - 1].id : null;
 
     res.json({ reels: data, hasMore, nextCursor });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch reels" });
   }
 });

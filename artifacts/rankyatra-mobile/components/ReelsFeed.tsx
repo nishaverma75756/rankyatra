@@ -27,7 +27,6 @@ interface Reel {
   createdAt: string;
   userName: string;
   userAvatar: string | null;
-  rankPoints: number;
   verificationStatus: string;
   isLiked: boolean;
 }
