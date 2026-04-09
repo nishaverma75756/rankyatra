@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 
+const RANKYATRA_LOGO = require("../assets/images/notification-icon.png");
+
 export type BannerNotification = {
   id: string;
   title: string;
@@ -119,7 +121,7 @@ export default function NotificationBanner({ notification, onDismiss }: Props) {
             </View>
           )}
           <View style={styles.appIconBadge}>
-            <Text style={styles.appIconText}>R</Text>
+            <Image source={RANKYATRA_LOGO} style={styles.appIconImage} resizeMode="contain" />
           </View>
         </View>
         <View style={styles.content}>
@@ -198,19 +200,20 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -2,
     right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#f97316",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#fff",
+    borderColor: "#f0f0f0",
+    overflow: "hidden",
   },
-  appIconText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#fff",
+  appIconImage: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
   },
   content: {
     flex: 1,
