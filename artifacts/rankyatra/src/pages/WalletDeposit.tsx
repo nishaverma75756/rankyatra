@@ -63,6 +63,10 @@ export default function WalletDeposit() {
       toast({ title: `₹${amount || ""} added to your wallet!`, description: "Payment verified. Amount credited instantly." });
       window.history.replaceState({}, "", window.location.pathname);
       setTab("history");
+    } else if (status === "pending") {
+      toast({ title: "Payment received — under review", description: "Your payment was received by Instamojo. It will be credited shortly. If not, contact support with your Instamojo receipt." });
+      window.history.replaceState({}, "", window.location.pathname);
+      setTab("history");
     } else if (status === "failed") {
       const reason = params.get("reason");
       const msg =

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
 import {
   db,
   walletDepositsTable,
@@ -13,9 +14,44 @@ import { sendDepositConfirmedEmail, sendDepositRejectedEmail } from "../lib/emai
 const router: IRouter = Router();
 
 const APP_URL = process.env.APP_URL || "https://rankyatra.in";
-const INSTAMOJO_API_KEY = process.env.INSTAMOJO_API_KEY || "";
-const INSTAMOJO_AUTH_TOKEN = process.env.INSTAMOJO_AUTH_TOKEN || "";
 const INSTAMOJO_BASE = "https://www.instamojo.com/api/1.1";
+
+function getInstamojoKeys() {
+  return {
+    apiKey: process.env.INSTAMOJO_API_KEY || "",
+    authToken: process.env.INSTAMOJO_AUTH_TOKEN || "",
+    salt: process.env.INSTAMOJO_SALT || "",
+  };
+}
+
+async function creditDepositAndWallet(depositId: number, paymentId: string): Promise<boolean> {
+  const [deposit] = await db.select().from(walletDepositsTable).where(eq(walletDepositsTable.id, depositId));
+  if (!deposit || deposit.status === "success") return false;
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, deposit.userId));
+  if (!user) return false;
+
+  const amount = parseFloat(String(deposit.amount));
+  const newBalance = parseFloat(String(user.walletBalance)) + amount;
+
+  await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
+  await db.update(walletDepositsTable)
+    .set({ status: "success", utrNumber: paymentId, updatedAt: new Date() })
+    .where(eq(walletDepositsTable.id, depositId));
+  await db.insert(walletTransactionsTable).values({
+    userId: user.id,
+    amount: String(amount),
+    type: "credit",
+    description: `Wallet top-up via Instamojo (ID: ${paymentId})`,
+    balanceAfter: String(newBalance),
+  });
+
+  try {
+    await sendDepositConfirmedEmail(user.email, user.name, String(amount), String(newBalance), paymentId);
+  } catch (_) {}
+
+  return true;
+}
 
 router.get("/payment/settings", async (_req, res): Promise<void> => {
   const [settings] = await db.select().from(paymentSettingsTable).limit(1);
@@ -134,12 +170,14 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
     send_sms: "False",
   });
 
+  const { apiKey, authToken } = getInstamojoKeys();
+
   try {
     const imRes = await fetch(`${INSTAMOJO_BASE}/payment-requests/`, {
       method: "POST",
       headers: {
-        "X-Api-Key": INSTAMOJO_API_KEY,
-        "X-Auth-Token": INSTAMOJO_AUTH_TOKEN,
+        "X-Api-Key": apiKey,
+        "X-Auth-Token": authToken,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: formData.toString(),
@@ -212,11 +250,12 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
   }
 
   // Verify payment with Instamojo
+  const { apiKey, authToken } = getInstamojoKeys();
   try {
     const verifyRes = await fetch(`${INSTAMOJO_BASE}/payments/${payment_id}/`, {
       headers: {
-        "X-Api-Key": INSTAMOJO_API_KEY,
-        "X-Auth-Token": INSTAMOJO_AUTH_TOKEN,
+        "X-Api-Key": apiKey,
+        "X-Auth-Token": authToken,
       },
     });
 
@@ -244,38 +283,125 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
     }
 
     // All checks passed — credit the wallet
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, deposit.userId));
-    if (!user) {
-      redirectTo("", { instamojo: "failed", reason: "user" });
-      return;
-    }
-
-    const newBalance = parseFloat(String(user.walletBalance)) + expectedAmount;
-
-    await db.update(usersTable)
-      .set({ walletBalance: String(newBalance) })
-      .where(eq(usersTable.id, user.id));
-
-    await db.update(walletDepositsTable)
-      .set({ status: "success", utrNumber: payment_id, updatedAt: new Date() })
-      .where(eq(walletDepositsTable.id, depositIdNum));
-
-    await db.insert(walletTransactionsTable).values({
-      userId: user.id,
-      amount: String(expectedAmount),
-      type: "credit",
-      description: `Wallet top-up via Instamojo (ID: ${payment_id})`,
-      balanceAfter: String(newBalance),
-    });
-
-    try {
-      await sendDepositConfirmedEmail(user.email, user.name, String(expectedAmount), String(newBalance), payment_id);
-    } catch (err) { console.error("Deposit email failed:", err); }
-
+    await creditDepositAndWallet(depositIdNum, payment_id);
     redirectTo("", { instamojo: "success", amount: String(expectedAmount) });
   } catch (err) {
     console.error("Instamojo callback error:", err);
-    redirectTo("", { instamojo: "failed", reason: "error" });
+    // Leave deposit as "pending" so admin can manually verify — do NOT reject
+    await db.update(walletDepositsTable)
+      .set({ adminNote: "Callback error — awaiting admin review", updatedAt: new Date() })
+      .where(eq(walletDepositsTable.id, depositIdNum))
+      .catch(() => {});
+    redirectTo("", { instamojo: "pending" });
+  }
+});
+
+// ── INSTAMOJO: Webhook (server-to-server, browser-independent) ──────────────
+router.post("/wallet/deposit/instamojo/webhook", async (req, res): Promise<void> => {
+  const { salt } = getInstamojoKeys();
+
+  const {
+    payment_id,
+    payment_request_id,
+    buyer,
+    buyer_name,
+    buyer_phone,
+    amount,
+    fees,
+    status,
+    longurl,
+    mac,
+  } = req.body as Record<string, string>;
+
+  // Verify MAC signature (Instamojo security)
+  if (salt) {
+    const fields = { payment_id, payment_request_id, buyer, buyer_name, buyer_phone, amount, fees, status, longurl };
+    const sortedValues = Object.keys(fields).sort().map((k) => (fields as any)[k]).join("|");
+    const expectedMac = crypto.createHmac("sha1", salt).update(sortedValues).digest("hex");
+    if (mac !== expectedMac) {
+      console.error("Instamojo webhook MAC mismatch");
+      res.status(400).json({ error: "Invalid MAC" });
+      return;
+    }
+  }
+
+  if (status !== "Credit" || !payment_request_id) {
+    res.json({ ok: true });
+    return;
+  }
+
+  // Find deposit by payment_request_id
+  const [deposit] = await db
+    .select()
+    .from(walletDepositsTable)
+    .where(eq(walletDepositsTable.paymentRequestId, payment_request_id));
+
+  if (!deposit) {
+    console.error("Instamojo webhook: deposit not found for payment_request_id", payment_request_id);
+    res.json({ ok: true });
+    return;
+  }
+
+  if (deposit.status === "success") {
+    res.json({ ok: true, already: true });
+    return;
+  }
+
+  try {
+    const credited = await creditDepositAndWallet(deposit.id, payment_id);
+    console.log(`[Webhook] Deposit ${deposit.id} ${credited ? "credited" : "already credited"}`);
+    res.json({ ok: true, credited });
+  } catch (err) {
+    console.error("Instamojo webhook credit error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ── INSTAMOJO: Admin manual re-verify ──────────────────────────────────────
+router.post("/admin/deposits/:id/instamojo-verify", requireAdmin, async (req, res): Promise<void> => {
+  const depositId = parseInt(req.params.id);
+  const [deposit] = await db.select().from(walletDepositsTable).where(eq(walletDepositsTable.id, depositId));
+
+  if (!deposit || deposit.paymentMethod !== "instamojo") {
+    res.status(404).json({ error: "Instamojo deposit not found" });
+    return;
+  }
+
+  if (deposit.status === "success") {
+    res.json({ success: true, message: "Already credited" });
+    return;
+  }
+
+  if (!deposit.paymentRequestId) {
+    res.status(400).json({ error: "No payment_request_id — cannot verify" });
+    return;
+  }
+
+  const { apiKey, authToken } = getInstamojoKeys();
+  try {
+    const verifyRes = await fetch(`${INSTAMOJO_BASE}/payment-requests/${deposit.paymentRequestId}/`, {
+      headers: { "X-Api-Key": apiKey, "X-Auth-Token": authToken },
+    });
+    const verifyData = await verifyRes.json() as any;
+
+    if (!verifyRes.ok || !verifyData.success) {
+      res.status(502).json({ error: "Instamojo verification failed", detail: verifyData });
+      return;
+    }
+
+    const payments: any[] = verifyData.payment_request?.payments || [];
+    const credited = payments.find((p: any) => p.status === "Credit");
+
+    if (!credited) {
+      res.status(400).json({ error: "No credited payment found on Instamojo" });
+      return;
+    }
+
+    await creditDepositAndWallet(depositId, credited.payment_id);
+    res.json({ success: true, message: "Wallet credited successfully" });
+  } catch (err) {
+    console.error("Admin re-verify error:", err);
+    res.status(500).json({ error: "Internal error" });
   }
 });
 
