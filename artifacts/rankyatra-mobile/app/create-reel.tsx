@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Platform, Image, ActivityIndicator, KeyboardAvoidingView,
@@ -8,8 +8,6 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as VideoThumbnails from "expo-video-thumbnails";
-import * as FileSystem from "expo-file-system";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReelsUpload } from "@/contexts/ReelsUploadContext";
@@ -21,8 +19,73 @@ const FRAME_H = 70;
 const FRAME_W = Math.floor((SCREEN_W - 32 - (FRAME_COUNT - 1) * 6) / FRAME_COUNT);
 
 interface VideoFrame {
-  uri: string;
-  time: number;
+  uri: string;      // file URI (native) or data URL (web)
+  time: number;     // ms
+  b64?: string;     // pre-extracted base64 (web only)
+}
+
+// ── Web: HTML5 Canvas frame extraction ────────────────────────────────────────
+async function seekTo(video: HTMLVideoElement, timeSec: number): Promise<void> {
+  return new Promise((resolve) => {
+    const handler = () => resolve();
+    video.addEventListener("seeked", handler, { once: true });
+    video.currentTime = timeSec;
+  });
+}
+
+async function extractFramesWeb(blobUrl: string): Promise<VideoFrame[]> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.src = blobUrl;
+    video.muted = true;
+    video.playsInline = true;
+
+    video.addEventListener("loadedmetadata", async () => {
+      const durMs = video.duration * 1000;
+      const step = durMs / (FRAME_COUNT + 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = 180;
+      canvas.height = 320;
+      const ctx = canvas.getContext("2d")!;
+      const frames: VideoFrame[] = [];
+
+      for (let i = 1; i <= FRAME_COUNT; i++) {
+        const timeSec = (step * i) / 1000;
+        try {
+          await seekTo(video, timeSec);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.65);
+          const b64 = dataUrl.split(",")[1];
+          frames.push({ uri: dataUrl, time: step * i, b64 });
+        } catch {
+          // skip failed frame
+        }
+      }
+      resolve(frames);
+    });
+
+    video.addEventListener("error", () => resolve([]));
+    video.load();
+  });
+}
+
+// ── Native: expo-video-thumbnails ──────────────────────────────────────────────
+async function extractFramesNative(uri: string, durationMs: number): Promise<VideoFrame[]> {
+  const VideoThumbnails = await import("expo-video-thumbnails");
+  const FileSystem = await import("expo-file-system");
+  const dur = Math.max(durationMs, 1000);
+  const step = Math.floor(dur / (FRAME_COUNT + 1));
+  const frames: VideoFrame[] = [];
+  for (let i = 1; i <= FRAME_COUNT; i++) {
+    const time = step * i;
+    try {
+      const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, { time, quality: 0.6 });
+      frames.push({ uri: fUri, time });
+    } catch {
+      // skip
+    }
+  }
+  return frames;
 }
 
 export default function CreateReelScreen() {
@@ -32,11 +95,9 @@ export default function CreateReelScreen() {
   const { startUpload } = useReelsUpload();
 
   const [caption, setCaption] = useState("");
-
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoBase64, setVideoBase64] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState("video/mp4");
-  const [videoDuration, setVideoDuration] = useState(0);
   const [loadingVideo, setLoadingVideo] = useState(false);
 
   const [frames, setFrames] = useState<VideoFrame[]>([]);
@@ -45,61 +106,59 @@ export default function CreateReelScreen() {
 
   const [thumbUri, setThumbUri] = useState<string | null>(null);
   const [thumbBase64, setThumbBase64] = useState<string | null>(null);
-  const [thumbMime] = useState("image/jpeg");
+  const thumbMime = "image/jpeg";
 
   const canPost = !!videoBase64 && !!token;
 
-  // ── Extract frames from video ──────────────────────────────────────────────
+  // ── Extract frames ──────────────────────────────────────────────────────────
   const extractFrames = async (uri: string, durationMs: number) => {
     setLoadingFrames(true);
     setFrames([]);
-    setSelectedFrameIdx(0);
     setThumbUri(null);
     setThumbBase64(null);
+    setSelectedFrameIdx(0);
     try {
-      const dur = Math.max(durationMs, 1000);
-      const step = Math.floor(dur / (FRAME_COUNT + 1));
-      const extracted: VideoFrame[] = [];
-      for (let i = 1; i <= FRAME_COUNT; i++) {
-        const time = step * i;
-        try {
-          const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, {
-            time,
-            quality: 0.6,
-          });
-          extracted.push({ uri: fUri, time });
-        } catch {
-          // skip failed frame
-        }
+      let extracted: VideoFrame[] = [];
+      if (Platform.OS === "web") {
+        extracted = await extractFramesWeb(uri);
+      } else {
+        extracted = await extractFramesNative(uri, durationMs);
       }
       setFrames(extracted);
-      // Auto-select first frame as thumbnail
       if (extracted.length > 0) {
-        await selectFrame(0, extracted);
+        await applyFrame(0, extracted);
       }
     } catch {
-      // frames not critical
+      // non-critical
     }
     setLoadingFrames(false);
   };
 
-  const selectFrame = async (idx: number, frameList?: VideoFrame[]) => {
+  const applyFrame = async (idx: number, frameList?: VideoFrame[]) => {
     const list = frameList ?? frames;
     const frame = list[idx];
     if (!frame) return;
     setSelectedFrameIdx(idx);
     setThumbUri(frame.uri);
-    try {
-      const b64 = await FileSystem.readAsStringAsync(frame.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      setThumbBase64(b64);
-    } catch {
-      setThumbBase64(null);
+
+    if (frame.b64) {
+      // web — b64 already extracted from canvas dataURL
+      setThumbBase64(frame.b64);
+    } else {
+      // native — read file as base64
+      try {
+        const FileSystem = await import("expo-file-system");
+        const b64 = await FileSystem.readAsStringAsync(frame.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        setThumbBase64(b64);
+      } catch {
+        setThumbBase64(null);
+      }
     }
   };
 
-  // ── Pick video ─────────────────────────────────────────────────────────────
+  // ── Pick video ──────────────────────────────────────────────────────────────
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -126,9 +185,7 @@ export default function CreateReelScreen() {
           setVideoBase64(asset.base64);
           setVideoMime(asset.mimeType ?? "video/mp4");
           const dur = asset.duration ? asset.duration * 1000 : 10000;
-          setVideoDuration(dur);
           setLoadingVideo(false);
-          // Extract frames after setting video
           await extractFrames(asset.uri, dur);
           return;
         }
@@ -139,7 +196,7 @@ export default function CreateReelScreen() {
     setLoadingVideo(false);
   };
 
-  // ── Share — navigate away immediately, upload in background ────────────────
+  // ── Share ───────────────────────────────────────────────────────────────────
   const handleShare = () => {
     if (!canPost || !videoBase64) return;
     router.back();
@@ -158,7 +215,7 @@ export default function CreateReelScreen() {
       style={[{ flex: 1 }, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* ── Header ── */}
+      {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 10, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Feather name="x" size={22} color={colors.foreground} />
@@ -178,9 +235,8 @@ export default function CreateReelScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Video + Preview row ── */}
+        {/* Video + Cover preview */}
         <View style={{ flexDirection: "row", gap: 10 }}>
-          {/* Video picker */}
           <TouchableOpacity
             style={[s.videoPicker, { backgroundColor: colors.card, borderColor: videoUri ? "#f97316" : colors.border, flex: 2 }]}
             onPress={pickVideo}
@@ -191,6 +247,11 @@ export default function CreateReelScreen() {
               <View style={s.center}>
                 <ActivityIndicator color="#f97316" size="large" />
                 <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Loading video...</Text>
+              </View>
+            ) : loadingFrames && !videoUri ? (
+              <View style={s.center}>
+                <ActivityIndicator color="#f97316" size="large" />
+                <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Extracting frames...</Text>
               </View>
             ) : videoUri ? (
               <View style={s.center}>
@@ -211,14 +272,12 @@ export default function CreateReelScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Thumbnail preview */}
-          <View
-            style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}
-          >
+          {/* Cover preview */}
+          <View style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}>
             {thumbUri ? (
               <>
                 <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-                <View style={[s.thumbOverlay]}>
+                <View style={s.thumbOverlay}>
                   <Feather name="image" size={12} color="#fff" />
                   <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>Cover</Text>
                 </View>
@@ -226,26 +285,28 @@ export default function CreateReelScreen() {
             ) : (
               <View style={s.center}>
                 <Feather name="image" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
-                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center", opacity: 0.6 }}>Cover preview</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center", opacity: 0.6 }}>
+                  {loadingFrames ? "Extracting..." : "Cover preview"}
+                </Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* ── Frame Picker (Instagram-style) ── */}
+        {/* ── Frame Picker ── */}
         {(loadingFrames || frames.length > 0) && (
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0, padding: 0, overflow: "hidden" }]}>
-            {/* Header */}
+          <View style={[s.card, { padding: 0, overflow: "hidden", backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, paddingBottom: 8 }}>
               <Feather name="film" size={14} color="#f97316" />
               <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>Select Cover Frame</Text>
-              {loadingFrames && <ActivityIndicator size="small" color="#f97316" style={{ marginLeft: "auto" }} />}
+              {loadingFrames && (
+                <ActivityIndicator size="small" color="#f97316" style={{ marginLeft: "auto" }} />
+              )}
             </View>
 
-            {/* Frames strip */}
             {loadingFrames && frames.length === 0 ? (
               <View style={{ height: FRAME_H + 16, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Extracting frames...</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Extracting frames from video...</Text>
               </View>
             ) : (
               <ScrollView
@@ -258,7 +319,7 @@ export default function CreateReelScreen() {
                   return (
                     <TouchableOpacity
                       key={idx}
-                      onPress={() => selectFrame(idx)}
+                      onPress={() => applyFrame(idx)}
                       activeOpacity={0.8}
                       style={[
                         s.frameCell,
@@ -302,14 +363,14 @@ export default function CreateReelScreen() {
                   />
                 </View>
                 <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center" }}>
-                  Frame {selectedFrameIdx + 1} of {frames.length} · {Math.round(frames[selectedFrameIdx]?.time / 1000)}s
+                  Frame {selectedFrameIdx + 1} of {frames.length} · {Math.round((frames[selectedFrameIdx]?.time ?? 0) / 1000)}s
                 </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* ── Caption ── */}
+        {/* Caption */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[s.cardLabel, { color: colors.mutedForeground }]}>Caption</Text>
           <TextInput
@@ -325,7 +386,7 @@ export default function CreateReelScreen() {
           <Text style={[s.charCount, { color: colors.mutedForeground }]}>{300 - caption.length}</Text>
         </View>
 
-        {/* ── How it works ── */}
+        {/* How it works */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <Feather name="zap" size={15} color="#f97316" />
@@ -377,9 +438,7 @@ const s = StyleSheet.create({
   cardLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   captionInput: { fontSize: 15, lineHeight: 22, minHeight: 70, textAlignVertical: "top" },
   charCount: { fontSize: 11, textAlign: "right", marginTop: 4 },
-  frameCell: {
-    borderRadius: 6, overflow: "hidden",
-  },
+  frameCell: { borderRadius: 6, overflow: "hidden" },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(249,115,22,0.18)",
