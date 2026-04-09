@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Image, ActivityIndicator,
-  TouchableOpacity, Platform,
+  TouchableOpacity, Platform, Dimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -166,7 +166,7 @@ export default function UserPublicProfile() {
   const { token, user: me } = useAuth();
   const queryClient = useQueryClient();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0) + 16;
-  const [activeTab, setActiveTab] = useState<"posts" | "stats">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "stats">("posts");
 
   const { data: profile, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/users", userId, "public-profile"],
@@ -185,6 +185,19 @@ export default function UserPublicProfile() {
     queryKey: ["/api/posts/user", userId],
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/api/posts/user/${userId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: userId > 0,
+    staleTime: 30_000,
+  });
+
+  const { data: userReelsData, isLoading: reelsLoading } = useQuery<any>({
+    queryKey: ["/api/reels/user", userId],
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/api/reels/user/${userId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("Failed");
@@ -233,6 +246,7 @@ export default function UserPublicProfile() {
   const followsYou: boolean = u?.followsYou ?? false;
   const isMutating = followMutation.isPending || unfollowMutation.isPending;
   const userPosts: any[] = userPostsData?.posts ?? [];
+  const userReels: any[] = userReelsData?.reels ?? [];
 
   function MessageBtn() {
     if (!me || isSelf) return null;
@@ -396,6 +410,14 @@ export default function UserPublicProfile() {
         <Text style={[styles.tabText, { color: activeTab === "posts" ? colors.primary : colors.mutedForeground }]}>Posts</Text>
       </TouchableOpacity>
       <TouchableOpacity
+        style={[styles.tab, activeTab === "reels" && { borderBottomColor: colors.primary, borderBottomWidth: 2.5 }]}
+        onPress={() => setActiveTab("reels")}
+        activeOpacity={0.8}
+      >
+        <Feather name="film" size={15} color={activeTab === "reels" ? colors.primary : colors.mutedForeground} />
+        <Text style={[styles.tabText, { color: activeTab === "reels" ? colors.primary : colors.mutedForeground }]}>Reels</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
         style={[styles.tab, activeTab === "stats" && { borderBottomColor: colors.primary, borderBottomWidth: 2.5 }]}
         onPress={() => setActiveTab("stats")}
         activeOpacity={0.8}
@@ -458,6 +480,69 @@ export default function UserPublicProfile() {
     </View>
   );
 
+  const REEL_CELL = (Dimensions.get("window").width - 32 - 4) / 3;
+
+  const ReelsContent = reelsLoading ? (
+    <View style={{ padding: 40, alignItems: "center" }}>
+      <ActivityIndicator color={colors.primary} />
+    </View>
+  ) : userReels.length === 0 ? (
+    <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
+      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
+        <Feather name="film" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
+      </View>
+      <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No reels yet</Text>
+    </View>
+  ) : (
+    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: insets.bottom + 32 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2 }}>
+        {userReels.map((reel: any) => (
+          <View
+            key={reel.id}
+            style={{
+              width: REEL_CELL, height: REEL_CELL * 1.5,
+              backgroundColor: "#111",
+              borderRadius: 8, overflow: "hidden",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {reel.thumbnailUrl ? (
+              <Image source={{ uri: reel.thumbnailUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            ) : (
+              <View style={{ alignItems: "center", gap: 4 }}>
+                <Feather name="play-circle" size={28} color="#ffffff60" />
+              </View>
+            )}
+            {/* Overlay — like + eye count */}
+            <View style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              paddingHorizontal: 6, paddingVertical: 5,
+              backgroundColor: "rgba(0,0,0,0.45)",
+              flexDirection: "row", alignItems: "center", gap: 8,
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                <Feather name="heart" size={11} color="#fff" />
+                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+                  {reel.likeCount > 999 ? `${(reel.likeCount / 1000).toFixed(1)}k` : reel.likeCount}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                <Feather name="eye" size={11} color="#ffffff99" />
+                <Text style={{ color: "#ffffff99", fontSize: 10 }}>
+                  {reel.viewCount > 999 ? `${(reel.viewCount / 1000).toFixed(1)}k` : reel.viewCount}
+                </Text>
+              </View>
+            </View>
+            {/* Play icon on top-right */}
+            <View style={{ position: "absolute", top: 6, right: 6 }}>
+              <Feather name="play" size={13} color="#ffffffcc" />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
   const PostsContent = postsLoading ? (
     <View style={{ padding: 40, alignItems: "center" }}>
       <ActivityIndicator color={colors.primary} />
@@ -490,7 +575,7 @@ export default function UserPublicProfile() {
           {HeroSection}
         </View>
         {TabBar}
-        {activeTab === "posts" ? PostsContent : StatsContent}
+        {activeTab === "posts" ? PostsContent : activeTab === "reels" ? ReelsContent : StatsContent}
       </ScrollView>
     </View>
   );
