@@ -305,6 +305,8 @@ function ReportModal({ type, postId, reportedUserId, onClose, colors, insets }: 
 }
 
 // ─── PostCard ────────────────────────────────────────────────────────────────
+const SEE_MORE_LIMIT = 200;
+
 function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   post: Post; currentUser: any; colors: any; insets: any;
   onDelete: (id: number) => void; onUpdated: (id: number, content: string) => void;
@@ -322,6 +324,8 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   const [showReport, setShowReport] = useState<"post" | "profile" | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 60, right: 16 });
   const menuBtnRef = useRef<any>(null);
+  const [textExpanded, setTextExpanded] = useState(false);
+  const isLongText = post.content.trim().length > SEE_MORE_LIMIT;
 
   const toggleLike = async () => {
     if (!currentUser) { router.push("/login" as any); return; }
@@ -433,9 +437,30 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
-      <Text style={[styles.postContent, { color: colors.foreground }]}>{post.content}</Text>
-      {post.imageUrl && <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />}
+      {/* Content with See More */}
+      {post.content.trim().length > 0 && post.content.trim() !== " " && (
+        <View style={{ marginBottom: post.imageUrl ? 0 : 4 }}>
+          <Text style={[styles.postContent, { color: colors.foreground }]} numberOfLines={textExpanded ? undefined : (isLongText ? 4 : undefined)}>
+            {textExpanded || !isLongText
+              ? post.content
+              : post.content.slice(0, SEE_MORE_LIMIT).trimEnd()}
+          </Text>
+          {isLongText && (
+            <TouchableOpacity onPress={() => setTextExpanded((e) => !e)}>
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "600", marginTop: 2 }}>
+                {textExpanded ? "See less" : "...See more"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Post image */}
+      {post.imageUrl && (
+        <View style={styles.postImageWrap}>
+          <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
+        </View>
+      )}
 
       {/* Top comment preview */}
       {post.topCommentContent && (
@@ -783,8 +808,9 @@ const styles = StyleSheet.create({
   postName: { fontSize: 14, fontWeight: "600" },
   postTime: { fontSize: 11 },
   followPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1 },
-  postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 10 },
-  postImage: { width: "100%", height: 200, marginBottom: 8 },
+  postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 6 },
+  postImageWrap: { marginHorizontal: 0, marginTop: 6, marginBottom: 8 },
+  postImage: { width: "100%", height: 260 },
   topCommentRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
   postActions: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
