@@ -22,6 +22,7 @@ import chatRouter from "./chat";
 import blocksRouter from "./blocks";
 import reportsRouter from "./reports";
 import postsRouter from "./posts";
+import reelsRouter from "./reels";
 import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
@@ -49,6 +50,7 @@ router.use(chatRouter);
 router.use(blocksRouter);
 router.use(reportsRouter);
 router.use(postsRouter);
+router.use(reelsRouter);
 router.use(notificationsRouter);
 
 export default router;

@@ -32,9 +32,9 @@ app.use(
   }),
 );
 app.use(cors());
-// Increase JSON body limit for base64 avatar uploads
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Increase JSON body limit for base64 image/video uploads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(passport.initialize());
 
 const uploadsDir = path.join(process.cwd(), "uploads");

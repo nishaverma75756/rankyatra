@@ -21,4 +21,5 @@ export * from "./post_likes";
 export * from "./post_comments";
 export * from "./notifications";
 export * from "./push_tokens";
+export * from "./reels";
 

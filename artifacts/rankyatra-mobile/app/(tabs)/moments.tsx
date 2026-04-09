@@ -13,6 +13,7 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useActivityCount } from "@/contexts/ActivityCountContext";
 import { customFetch } from "@workspace/api-client-react";
+import ReelsFeed from "@/components/ReelsFeed";
 
 interface Post {
   id: number;
@@ -649,6 +650,7 @@ export default function MomentsScreen() {
   const openNotifs = () => { router.push("/notifications" as any); };
 
   const [activeTab, setActiveTab] = useState<"posts" | "reels">("posts");
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -659,11 +661,11 @@ export default function MomentsScreen() {
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Moments</Text>
         <View style={styles.headerRight}>
-          {/* 1. Create Post — icon + text */}
+          {/* 1. Create button — opens action sheet */}
           {token && (
-            <TouchableOpacity onPress={() => router.push("/create-post" as any)} style={styles.createPostBtn}>
+            <TouchableOpacity onPress={() => setShowCreateMenu(true)} style={styles.createPostBtn}>
               <Feather name="plus" size={16} color={colors.foreground} />
-              <Text style={[styles.createPostText, { color: colors.foreground }]}>Create Post</Text>
+              <Text style={[styles.createPostText, { color: colors.foreground }]}>Create</Text>
             </TouchableOpacity>
           )}
           {/* 2. Notification bell */}
@@ -711,16 +713,10 @@ export default function MomentsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Reels placeholder ── */}
+      {/* ── Reels Feed ── */}
       {activeTab === "reels" && (
-        <View style={[styles.flex, styles.center, { paddingHorizontal: 32 }]}>
-          <View style={[styles.reelsIconWrap, { backgroundColor: colors.primary + "15" }]}>
-            <Feather name="film" size={40} color={colors.primary} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground, marginTop: 16 }]}>Reels Coming Soon</Text>
-          <Text style={[styles.emptySub, { color: colors.mutedForeground, textAlign: "center", marginTop: 6 }]}>
-            Short video reels will be available in the next update. Stay tuned!
-          </Text>
+        <View style={styles.flex}>
+          <ReelsFeed colors={colors} tabBarHeight={insets.bottom + 60} />
         </View>
       )}
 
@@ -826,6 +822,57 @@ export default function MomentsScreen() {
         </View>
       </Modal>
 
+      {/* ── Create Menu Action Sheet ── */}
+      <Modal
+        visible={showCreateMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCreateMenu(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCreateMenu(false)}>
+          <View style={[styles.sheetCard, { backgroundColor: colors.card, paddingBottom: insets.bottom + 8 }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.muted }]} />
+            <Text style={[styles.sheetTitle, { color: colors.foreground, marginBottom: 16 }]}>Create</Text>
+
+            {/* Create Post */}
+            <TouchableOpacity
+              style={[styles.createOption, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}
+              onPress={() => { setShowCreateMenu(false); router.push("/create-post" as any); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.createOptionIcon, { backgroundColor: colors.primary + "20" }]}>
+                <Feather name="file-text" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.createOptionTitle, { color: colors.foreground }]}>Create Post</Text>
+                <Text style={[styles.createOptionSub, { color: colors.mutedForeground }]}>Share thoughts, images & updates</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            {/* Create Reel */}
+            <TouchableOpacity
+              style={[styles.createOption, { backgroundColor: "#a855f710", borderColor: "#a855f730", marginTop: 10 }]}
+              onPress={() => { setShowCreateMenu(false); router.push("/create-reel" as any); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.createOptionIcon, { backgroundColor: "#a855f720" }]}>
+                <Feather name="film" size={22} color="#a855f7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.createOptionTitle, { color: colors.foreground }]}>Create Reel</Text>
+                <Text style={[styles.createOptionSub, { color: colors.mutedForeground }]}>Upload a short video (up to 60s)</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setShowCreateMenu(false)} style={[styles.cancelBtn, { borderColor: colors.border }]}>
+              <Text style={{ color: colors.mutedForeground, fontWeight: "600", fontSize: 15 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -860,6 +907,20 @@ const styles = StyleSheet.create({
   reelsIconWrap: {
     width: 80, height: 80, borderRadius: 40,
     alignItems: "center", justifyContent: "center",
+  },
+  createOption: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    padding: 14, borderRadius: 16, borderWidth: 1,
+  },
+  createOptionIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+  },
+  createOptionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  createOptionSub: { fontSize: 12 },
+  cancelBtn: {
+    marginTop: 14, paddingVertical: 14, borderRadius: 14,
+    alignItems: "center", borderWidth: 1,
   },
   postCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, paddingBottom: 8 },
