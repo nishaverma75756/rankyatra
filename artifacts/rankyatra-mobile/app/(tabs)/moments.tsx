@@ -438,7 +438,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
       </View>
 
       {/* Content with See More */}
-      {post.content.trim().length > 0 && post.content.trim() !== " " && (
+      {post.content?.trim().length > 0 && (
         <View style={{ marginBottom: post.imageUrl ? 0 : 4 }}>
           <Text style={[styles.postContent, { color: colors.foreground }]} numberOfLines={textExpanded ? undefined : (isLongText ? 4 : undefined)}>
             {textExpanded || !isLongText

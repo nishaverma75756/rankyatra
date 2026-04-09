@@ -182,11 +182,13 @@ router.post("/posts/:id/share", optionalAuth, async (req: any, res: any) => {
 router.post("/posts", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
   const { content, imageUrl } = req.body;
-  if (!content?.trim()) return res.status(400).json({ message: "Content required" });
+  const trimmedContent = content?.trim() ?? "";
+  // At least one of content or imageUrl must be present
+  if (!trimmedContent && !imageUrl) return res.status(400).json({ message: "Content or image required" });
   try {
     const [post] = await db.insert(postsTable).values({
       userId,
-      content: content.trim(),
+      content: trimmedContent,
       imageUrl: imageUrl ?? null,
     }).returning();
     res.json(post);
@@ -197,7 +199,8 @@ router.post("/posts", requireAuth, async (req: any, res: any) => {
         .select({ followerId: followsTable.followerId })
         .from(followsTable)
         .where(eq(followsTable.followingId, userId));
-      const preview = content.trim().length > 60 ? content.trim().slice(0, 57) + "…" : content.trim();
+      const previewBase = trimmedContent || (imageUrl ? "📷 Photo" : "");
+      const preview = previewBase.length > 60 ? previewBase.slice(0, 57) + "…" : previewBase;
       for (const { followerId } of followers) {
         // Save to notification panel
         await db.insert(notificationsTable).values({ userId: followerId, type: "new_post", fromUserId: userId, postId: post.id }).catch(() => {});

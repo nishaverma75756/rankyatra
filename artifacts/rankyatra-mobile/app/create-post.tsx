@@ -73,7 +73,7 @@ export default function CreatePostScreen() {
       await customFetch("/api/posts", {
         method: "POST",
         body: JSON.stringify({
-          content: text.trim() || " ",
+          content: text.trim(),
           imageUrl: selectedImage ?? undefined,
         }),
         headers: { "Content-Type": "application/json" },
