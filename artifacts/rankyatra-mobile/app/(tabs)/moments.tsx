@@ -648,6 +648,8 @@ export default function MomentsScreen() {
 
   const openNotifs = () => { router.push("/notifications" as any); };
 
+  const [activeTab, setActiveTab] = useState<"posts" | "reels">("posts");
+
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -685,8 +687,45 @@ export default function MomentsScreen() {
         </View>
       </View>
 
-      {/* Feed */}
-      {loading ? (
+      {/* ── Tab bar ── */}
+      <View style={[styles.tabBar, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === "posts" && { borderBottomColor: colors.primary, borderBottomWidth: 2.5 }]}
+          onPress={() => setActiveTab("posts")}
+          activeOpacity={0.7}
+        >
+          <Feather name="grid" size={15} color={activeTab === "posts" ? colors.primary : colors.mutedForeground} />
+          <Text style={[styles.tabLabel, { color: activeTab === "posts" ? colors.primary : colors.mutedForeground, fontWeight: activeTab === "posts" ? "700" : "500" }]}>
+            Posts
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === "reels" && { borderBottomColor: colors.primary, borderBottomWidth: 2.5 }]}
+          onPress={() => setActiveTab("reels")}
+          activeOpacity={0.7}
+        >
+          <Feather name="film" size={15} color={activeTab === "reels" ? colors.primary : colors.mutedForeground} />
+          <Text style={[styles.tabLabel, { color: activeTab === "reels" ? colors.primary : colors.mutedForeground, fontWeight: activeTab === "reels" ? "700" : "500" }]}>
+            Reels
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Reels placeholder ── */}
+      {activeTab === "reels" && (
+        <View style={[styles.flex, styles.center, { paddingHorizontal: 32 }]}>
+          <View style={[styles.reelsIconWrap, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="film" size={40} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.foreground, marginTop: 16 }]}>Reels Coming Soon</Text>
+          <Text style={[styles.emptySub, { color: colors.mutedForeground, textAlign: "center", marginTop: 6 }]}>
+            Short video reels will be available in the next update. Stay tuned!
+          </Text>
+        </View>
+      )}
+
+      {/* ── Posts Feed ── */}
+      {activeTab === "posts" && (loading ? (
         <View style={[styles.flex, styles.center]}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -722,7 +761,7 @@ export default function MomentsScreen() {
           }
           ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} /> : null}
         />
-      )}
+      ))}
 
       {/* ─── Search Modal ─── */}
       <Modal visible={showSearch} animationType="slide" onRequestClose={() => { setShowSearch(false); setSearchQuery(""); setSearchResults([]); }}>
@@ -803,6 +842,25 @@ const styles = StyleSheet.create({
   createBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   createPostBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 16 },
   createPostText: { fontSize: 12, fontWeight: "600" },
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderBottomWidth: 2.5,
+    borderBottomColor: "transparent",
+  },
+  tabLabel: { fontSize: 14 },
+  reelsIconWrap: {
+    width: 80, height: 80, borderRadius: 40,
+    alignItems: "center", justifyContent: "center",
+  },
   postCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, paddingBottom: 8 },
   postName: { fontSize: 14, fontWeight: "600" },
