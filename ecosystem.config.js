@@ -1,9 +1,15 @@
+// Load .env from project root using dotenv (already installed in api-server)
+try {
+  require("/home/ubuntu/rankyatra/artifacts/api-server/node_modules/dotenv").config({
+    path: "/home/ubuntu/rankyatra/.env",
+  });
+} catch (_) {}
+
 module.exports = {
   apps: [
     {
       name: "rankyatra-api",
       script: "/home/ubuntu/rankyatra/artifacts/api-server/dist/index.mjs",
-      env_file: "/home/ubuntu/rankyatra/.env",
       env: {
         NODE_ENV: "production",
         PORT: 8080,
@@ -11,6 +17,15 @@ module.exports = {
         DATABASE_URL: "postgresql://rankyatra:StrongPass123@localhost:5432/rankyatradb",
         SESSION_SECRET: "rankyatra-secret-key",
         OAUTH_CALLBACK_HOST: "https://rankyatra.niskutech.com",
+        // INSTAMOJO, FIREBASE, GOOGLE, SMTP are loaded from .env above via dotenv
+        INSTAMOJO_API_KEY: process.env.INSTAMOJO_API_KEY || "",
+        INSTAMOJO_AUTH_TOKEN: process.env.INSTAMOJO_AUTH_TOKEN || "",
+        INSTAMOJO_SALT: process.env.INSTAMOJO_SALT || "",
+        FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
+        SMTP_USER: process.env.SMTP_USER || "",
+        SMTP_PASS: process.env.SMTP_PASS || "",
       },
     },
   ],
