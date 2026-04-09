@@ -8,6 +8,17 @@ import { generateToken } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+// Debug endpoint: check OAuth config (no secrets exposed)
+router.get("/auth/debug", (_req, res) => {
+  res.json({
+    googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    callbackURL: `${process.env.OAUTH_CALLBACK_HOST || process.env.APP_URL || "https://rankyatra.in"}/api/auth/google/callback`,
+    clientIdPrefix: process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID.slice(0, 12) + "..." : "NOT SET",
+    appUrl: process.env.APP_URL || "NOT SET",
+    oauthCallbackHost: process.env.OAUTH_CALLBACK_HOST || "NOT SET",
+  });
+});
+
 const FRONTEND_URL = "https://rankyatra.in";
 const APP_URL = process.env.APP_URL || FRONTEND_URL;
 const CALLBACK_HOST = process.env.OAUTH_CALLBACK_HOST || APP_URL;
