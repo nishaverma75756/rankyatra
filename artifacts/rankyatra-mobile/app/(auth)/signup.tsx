@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -16,11 +16,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { signup as signupApi } from "@workspace/api-client-react";
 
 const PROD_URL = "https://rankyatra.in";
+const OAUTH_SERVER = "https://rankyatra.niskutech.com";
+const MOBILE_OAUTH_REDIRECT = `rankyatra://oauth-callback`;
 
 export default function SignupScreen() {
   const colors = useColors();
@@ -34,36 +37,67 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  const oauthHandledRef = useRef(false);
+
+  useEffect(() => {
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      if (!url.startsWith("rankyatra://oauth-callback")) return;
+      if (oauthHandledRef.current) return;
+      oauthHandledRef.current = true;
+      handleOAuthUrl(url);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const handleOAuthUrl = async (url: string) => {
+    try {
+      const parsed = Linking.parse(url);
+      const token = parsed.queryParams?.token as string | undefined;
+      const error = parsed.queryParams?.error as string | undefined;
+      if (error) throw new Error(decodeURIComponent(error));
+      if (!token) throw new Error("Google login se token nahi mila. Dobara try karo.");
+      const userRes = await fetch(`${PROD_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!userRes.ok) throw new Error("User info load nahi ho saka.");
+      const user = await userRes.json();
+      await login(token, user);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace("/(tabs)/");
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    oauthHandledRef.current = false;
     try {
       const result = await WebBrowser.openAuthSessionAsync(
-        `${PROD_URL}/api/auth/google?mobile=1`,
-        `rankyatra://oauth-callback`
+        `${OAUTH_SERVER}/api/auth/google?mobile=1`,
+        MOBILE_OAUTH_REDIRECT,
+        { showInRecents: false }
       );
 
+      if (result.type === "cancel" || result.type === "dismiss") {
+        await new Promise((r) => setTimeout(r, 600));
+        if (!oauthHandledRef.current) setGoogleLoading(false);
+        return;
+      }
+
       if (result.type === "success" && result.url) {
-        const urlObj = new URL(result.url);
-        const token = urlObj.searchParams.get("token");
-        const error = urlObj.searchParams.get("error");
-
-        if (error) throw new Error(decodeURIComponent(error));
-        if (!token) throw new Error("No token received from Google.");
-
-        const userRes = await fetch(`${PROD_URL}/api/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!userRes.ok) throw new Error("Failed to fetch user info.");
-        const user = await userRes.json();
-
-        await login(token, user);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace("/(tabs)/");
+        if (oauthHandledRef.current) return;
+        oauthHandledRef.current = true;
+        await handleOAuthUrl(result.url);
+      } else {
+        setGoogleLoading(false);
       }
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showError("Google Sign-In Failed", e?.message || "Something went wrong. Please try again.");
-    } finally {
+      showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
       setGoogleLoading(false);
     }
   };

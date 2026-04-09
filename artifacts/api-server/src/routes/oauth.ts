@@ -79,10 +79,8 @@ async function findOrCreateOAuthUser(opts: {
   }
 }
 
-// Mobile OAuth uses HTTPS redirect so Chrome Custom Tabs can intercept reliably
-// Custom schemes (rankyatra://) are not reliably caught on all Android versions
-// Must include /api prefix since backend is mounted at /api on EC2
-const MOBILE_OAUTH_REDIRECT = `${CALLBACK_HOST}/api/mobile-oauth`;
+// Mobile OAuth uses deep link scheme — Chrome Custom Tabs fires this as intent on Android
+const MOBILE_OAUTH_REDIRECT = `rankyatra://oauth-callback`;
 
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
@@ -107,11 +105,23 @@ function handleOAuthCallback(provider: "google" | "facebook") {
   };
 }
 
-// Minimal page for mobile OAuth redirect — just a loading screen, app intercepts immediately
-router.get("/mobile-oauth", (_req, res) => {
+// Fallback page — shown if redirect to rankyatra:// deep link is slow or fails
+// Includes JS redirect so old app builds also work
+router.get("/mobile-oauth", (req, res) => {
+  const token = req.query.token || "";
+  const error = req.query.error || "";
+  const deepLink = token
+    ? `rankyatra://oauth-callback?token=${encodeURIComponent(token as string)}`
+    : `rankyatra://oauth-callback?error=${encodeURIComponent(error as string)}`;
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RankYatra</title>
   <style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#fff7ed;}
-  .logo{font-size:28px;font-weight:900;color:#f97316;}p{color:#64748b;margin-top:8px;}</style></head>
+  .logo{font-size:28px;font-weight:900;color:#f97316;}p{color:#64748b;margin-top:8px;}</style>
+  <script>
+    try { window.location.href = ${JSON.stringify(deepLink)}; } catch(e) {}
+    setTimeout(function() {
+      try { window.location.href = ${JSON.stringify(deepLink)}; } catch(e) {}
+    }, 300);
+  </script></head>
   <body><div style="text-align:center"><div class="logo">RankYatra</div><p>Completing sign-in...</p></div></body></html>`);
 });
 
