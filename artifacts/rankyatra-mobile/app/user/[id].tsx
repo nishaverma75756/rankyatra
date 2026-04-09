@@ -21,7 +21,7 @@ function resolveAvatar(url: string | null | undefined): string | null {
 
 function resolveImage(url: string | null | undefined): string | null {
   if (!url) return null;
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("data:") || url.startsWith("http")) return url;
   return `${BASE_URL}${url}`;
 }
 
