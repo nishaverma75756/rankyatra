@@ -9,9 +9,17 @@ try {
 let FIREBASE_JSON = "";
 try {
   const fs = require("fs");
-  const raw = fs.readFileSync("/home/ubuntu/rankyatra/service-account.json", "utf8");
-  FIREBASE_JSON = JSON.stringify(JSON.parse(raw));
-} catch (_) {}
+  const path = "/home/ubuntu/rankyatra/service-account.json";
+  if (fs.existsSync(path)) {
+    const raw = fs.readFileSync(path, "utf8");
+    FIREBASE_JSON = JSON.stringify(JSON.parse(raw));
+    console.log("[ecosystem] Firebase JSON loaded from file, length:", FIREBASE_JSON.length);
+  } else {
+    console.warn("[ecosystem] service-account.json NOT FOUND at:", path);
+  }
+} catch (e) {
+  console.error("[ecosystem] Firebase JSON load error:", e.message);
+}
 
 module.exports = {
   apps: [
@@ -26,9 +34,9 @@ module.exports = {
         SESSION_SECRET: "rankyatra-secret-key",
         OAUTH_CALLBACK_HOST: "https://rankyatra.niskutech.com",
         // INSTAMOJO, FIREBASE, GOOGLE, SMTP are loaded from .env above via dotenv
-        INSTAMOJO_API_KEY: process.env.INSTAMOJO_API_KEY || "",
-        INSTAMOJO_AUTH_TOKEN: process.env.INSTAMOJO_AUTH_TOKEN || "",
-        INSTAMOJO_SALT: process.env.INSTAMOJO_SALT || "",
+        INSTAMOJO_API_KEY: process.env.INSTAMOJO_API_KEY || "a6c2c2c60308188017b86271f147931e",
+        INSTAMOJO_AUTH_TOKEN: process.env.INSTAMOJO_AUTH_TOKEN || "d49007c9da5701653b5a1fbd097649d6",
+        INSTAMOJO_SALT: process.env.INSTAMOJO_SALT || "e18d3b6ba1ec4f02ae9b5beb1b0a8365",
         FIREBASE_SERVICE_ACCOUNT_JSON: FIREBASE_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "",
         GOOGLE_CLIENT_ID: "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
