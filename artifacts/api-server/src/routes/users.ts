@@ -301,11 +301,13 @@ router.delete("/users/:userId/follow", requireAuth, async (req, res): Promise<vo
   res.json({ success: true });
 });
 
-// Register Expo push token for current user
+// Register push token (Expo or FCM) for current user
 router.post("/users/push-token", requireAuth, async (req: any, res: any): Promise<void> => {
   const userId = req.user.id;
   const { token } = req.body;
-  if (!token || typeof token !== "string" || !token.startsWith("ExponentPushToken")) {
+  const isExpoToken = typeof token === "string" && token.startsWith("ExponentPushToken");
+  const isFcmToken = typeof token === "string" && token.length > 20 && !token.startsWith("ExponentPushToken");
+  if (!token || typeof token !== "string" || (!isExpoToken && !isFcmToken)) {
     res.status(400).json({ error: "Invalid push token" });
     return;
   }
@@ -314,6 +316,7 @@ router.post("/users/push-token", requireAuth, async (req: any, res: any): Promis
       target: pushTokensTable.token,
       set: { userId, updatedAt: new Date() },
     });
+    console.log(`[Push] Token saved for user ${userId}: ${isExpoToken ? "Expo" : "FCM"}`);
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to save push token" });

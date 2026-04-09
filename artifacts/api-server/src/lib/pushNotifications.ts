@@ -96,7 +96,7 @@ export async function sendPushToUser(
         data: data ?? {},
         sound: "default",
       }));
-      await fetch(EXPO_PUSH_URL, {
+      const expoRes = await fetch(EXPO_PUSH_URL, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -105,6 +105,12 @@ export async function sendPushToUser(
         },
         body: JSON.stringify(messages),
       });
+      const expoJson = await expoRes.json().catch(() => null);
+      console.log(`[Push] Expo push sent to ${expoTokens.length} token(s):`, JSON.stringify(expoJson));
+    }
+
+    if (expoTokens.length === 0 && fcmTokens.length === 0) {
+      console.warn(`[Push] No tokens found for user ${userId}`);
     }
   } catch (err) {
     console.error("[Push] Failed to send push notification:", err);
