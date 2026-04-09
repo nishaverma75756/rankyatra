@@ -155,6 +155,11 @@ CREATE TABLE IF NOT EXISTS push_tokens (
 );
 GRANT ALL PRIVILEGES ON TABLE push_tokens TO PUBLIC;
 GRANT USAGE, SELECT ON SEQUENCE push_tokens_id_seq TO PUBLIC;
+
+-- Instamojo payment gateway support (added Apr 2026)
+ALTER TABLE wallet_deposits ALTER COLUMN utr_number DROP NOT NULL;
+ALTER TABLE wallet_deposits ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'manual';
+ALTER TABLE wallet_deposits ADD COLUMN IF NOT EXISTS payment_request_id VARCHAR(100);
 "
 
 echo "    Database schema synced."
@@ -203,9 +208,10 @@ else
   echo "[7/8] Nginx WebSocket config already present. Skipping."
 fi
 
-# 8. Restart pm2
+# 8. Restart pm2 using ecosystem config (loads .env via env_file)
 echo "[8/8] Restarting services..."
-pm2 restart all
+pm2 stop rankyatra-api 2>/dev/null || true
+pm2 start ecosystem.config.js --update-env
 
 echo ""
 echo "=== Deploy complete! RankYatra is live ==="
