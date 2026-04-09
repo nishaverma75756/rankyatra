@@ -15,9 +15,10 @@ function getFirebaseApp(): admin.app.App | null {
     const serviceAccount = JSON.parse(raw);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
     firebaseInitialized = true;
+    console.log("[Push] Firebase Admin initialized successfully ✓");
     return admin.app();
   } catch (err) {
-    console.error("[Push] Failed to initialize Firebase Admin:", err);
+    console.error("[Push] Failed to initialize Firebase Admin (JSON parse/init error):", (err as Error).message);
     return null;
   }
 }

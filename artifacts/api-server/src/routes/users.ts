@@ -301,6 +301,20 @@ router.delete("/users/:userId/follow", requireAuth, async (req, res): Promise<vo
   res.json({ success: true });
 });
 
+// Debug: Send a test push to self
+router.post("/push/test", requireAuth, async (req: any, res: any): Promise<void> => {
+  const userId = req.user.id;
+  const tokens = await db.select().from(pushTokensTable).where(eq(pushTokensTable.userId, userId));
+  console.log(`[Push/Test] User ${userId} has ${tokens.length} token(s):`, tokens.map(t => t.token.slice(0, 30) + "..."));
+  if (tokens.length === 0) {
+    res.json({ ok: false, reason: "No push tokens registered for this user. Log out and log back in." });
+    return;
+  }
+  const { sendPushToUser } = await import("../lib/pushNotifications");
+  await sendPushToUser(userId, "🔔 Test Notification", "Push notifications are working!", { type: "test" });
+  res.json({ ok: true, tokenCount: tokens.length, tokens: tokens.map(t => ({ type: t.token.startsWith("Expo") ? "expo" : "fcm", preview: t.token.slice(0, 30) + "..." })) });
+});
+
 // Register push token (Expo or FCM) for current user
 router.post("/users/push-token", requireAuth, async (req: any, res: any): Promise<void> => {
   const userId = req.user.id;
