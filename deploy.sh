@@ -160,6 +160,28 @@ GRANT USAGE, SELECT ON SEQUENCE push_tokens_id_seq TO PUBLIC;
 ALTER TABLE wallet_deposits ALTER COLUMN utr_number DROP NOT NULL;
 ALTER TABLE wallet_deposits ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NOT NULL DEFAULT 'manual';
 ALTER TABLE wallet_deposits ADD COLUMN IF NOT EXISTS payment_request_id VARCHAR(100);
+
+-- Reels / Moments video system (added Apr 2026)
+CREATE TABLE IF NOT EXISTS reels (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  caption TEXT NOT NULL DEFAULT '',
+  like_count INTEGER NOT NULL DEFAULT 0,
+  comment_count INTEGER NOT NULL DEFAULT 0,
+  view_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS reel_likes (
+  reel_id INTEGER NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (reel_id, user_id)
+);
+GRANT ALL PRIVILEGES ON TABLE reels TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE reels_id_seq TO PUBLIC;
+GRANT ALL PRIVILEGES ON TABLE reel_likes TO PUBLIC;
 "
 
 echo "    Database schema synced."

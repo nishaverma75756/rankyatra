@@ -172,26 +172,48 @@ export default function CreateReelScreen() {
         allowsEditing: true,
         videoMaxDuration: 60,
         quality: 0.6,
-        base64: true,
+        // NOTE: base64:true for videos is unreliable on Android — we read manually below
       });
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        if (!asset.base64) {
-          showError("Error", "Could not read video. Try a shorter clip.");
-        } else if (asset.base64.length > 35_000_000) {
+        const uri = asset.uri;
+        const mime = asset.mimeType ?? "video/mp4";
+        const dur = asset.duration ? asset.duration * 1000 : 10000;
+
+        let b64: string;
+        if (Platform.OS === "web") {
+          // Web: fetch blob and convert to base64
+          const resp = await fetch(uri);
+          const blob = await resp.blob();
+          b64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          // Native (Android/iOS): use expo-file-system — much more reliable than picker base64
+          const FileSystem = await import("expo-file-system");
+          b64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        }
+
+        if (!b64 || b64.length === 0) {
+          showError("Error", "Could not read video file. Please try again.");
+        } else if (b64.length > 40_000_000) {
           showError("Too Large", "Video is too large. Please pick a clip under 30MB.");
         } else {
-          setVideoUri(asset.uri);
-          setVideoBase64(asset.base64);
-          setVideoMime(asset.mimeType ?? "video/mp4");
-          const dur = asset.duration ? asset.duration * 1000 : 10000;
+          setVideoUri(uri);
+          setVideoBase64(b64);
+          setVideoMime(mime);
           setLoadingVideo(false);
-          await extractFrames(asset.uri, dur);
+          await extractFrames(uri, dur);
           return;
         }
       }
-    } catch {
-      showError("Error", "Could not load video.");
+    } catch (e: any) {
+      showError("Error", "Could not load video. Please try a different clip.");
     }
     setLoadingVideo(false);
   };
