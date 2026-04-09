@@ -154,7 +154,9 @@ export default function ChatScreen() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [inputRowHeight, setInputRowHeight] = useState(70);
+  const isAtBottomRef = useRef(true);
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -165,11 +167,18 @@ export default function ChatScreen() {
   useEffect(() => () => { isMounted.current = false; }, []);
 
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => {
+    const show = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardVisible(true);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+      setKeyboardHeight(e.endCoordinates.height);
+      // Only auto-scroll if user was already at the bottom
+      if (isAtBottomRef.current) {
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+      }
     });
-    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardVisible(false);
+      setKeyboardHeight(0);
+    });
     return () => { show.remove(); hide.remove(); };
   }, []);
 
@@ -320,12 +329,11 @@ export default function ChatScreen() {
   // Track whether initial scroll has happened
   const initialScrolled = useRef(false);
 
-  // Auto-scroll to bottom whenever new messages arrive (send or receive)
+  // Auto-scroll to bottom only when new message arrives AND user is already at bottom
   useEffect(() => {
     if (messages.length === 0) return;
-    // After initial load, animate new messages scrolling in
-    if (initialScrolled.current) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    if (initialScrolled.current && isAtBottomRef.current) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
     }
   }, [messages.length]);
 
@@ -341,6 +349,7 @@ export default function ChatScreen() {
     if (!content || sending) return;
     setText("");
     setSending(true);
+    isAtBottomRef.current = true; // Always scroll after sending
     try {
       const msg = await customFetch<Message>("/api/chat/messages", {
         method: "POST",
@@ -348,6 +357,7 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json" },
       });
       setMessages((prev) => [...prev, msg]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
     } catch {}
     setSending(false);
   };
@@ -558,7 +568,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
       {/* 3-dot Menu Modal */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
@@ -754,20 +765,26 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: inputRowHeight + 8 }}
+          contentContainerStyle={{
+            paddingHorizontal: 12,
+            paddingTop: 12,
+            paddingBottom: inputRowHeight + 12,
+          }}
           showsVerticalScrollIndicator={false}
+          onScroll={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+            isAtBottomRef.current = distanceFromBottom < 60;
+          }}
+          scrollEventThrottle={100}
           onContentSizeChange={() => {
             if (!initialScrolled.current) {
-              // Delay initial scroll so FlatList layout is settled
-              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
-              initialScrolled.current = true;
-            } else {
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: false });
+                initialScrolled.current = true;
+              }, 80);
+            } else if (isAtBottomRef.current) {
               flatListRef.current?.scrollToEnd({ animated: true });
-            }
-          }}
-          onLayout={() => {
-            if (initialScrolled.current) {
-              flatListRef.current?.scrollToEnd({ animated: false });
             }
           }}
           ListEmptyComponent={
