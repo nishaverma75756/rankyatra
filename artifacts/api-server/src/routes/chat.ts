@@ -253,7 +253,7 @@ router.post("/chat/messages", requireAuth, async (req: any, res: any) => {
       sendPushToUser(recipientId, `💬 ${senderName}`, preview, {
         type: "message",
         conversationId,
-      });
+      }, { category: "message" });
     });
 
     res.json(msg);

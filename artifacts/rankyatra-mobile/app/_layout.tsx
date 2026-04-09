@@ -48,6 +48,44 @@ const queryClient = new QueryClient({
   },
 });
 
+async function setupNotificationChannels() {
+  if (Platform.OS !== "android") return;
+  await Notifications.setNotificationChannelAsync("default", {
+    name: "RankYatra",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 300, 150, 300],
+    lightColor: "#f97316",
+    sound: "default",
+    showBadge: true,
+  });
+  await Notifications.setNotificationChannelAsync("messages", {
+    name: "Messages",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 300, 150, 300],
+    lightColor: "#f97316",
+    sound: "default",
+    showBadge: true,
+  });
+}
+
+async function setupNotificationCategories() {
+  await Notifications.setNotificationCategoryAsync("message", [
+    {
+      identifier: "REPLY",
+      buttonTitle: "Reply",
+      textInput: {
+        submitButtonTitle: "Send",
+        placeholder: "Type a message...",
+      },
+    },
+    {
+      identifier: "MARK_READ",
+      buttonTitle: "Mark as Read",
+      options: { isDestructive: false, isAuthenticationRequired: false },
+    },
+  ]);
+}
+
 async function registerForPushNotifications(): Promise<{ expoToken: string | null; fcmToken: string | null }> {
   const result = { expoToken: null as string | null, fcmToken: null as string | null };
   try {
@@ -59,14 +97,8 @@ async function registerForPushNotifications(): Promise<{ expoToken: string | nul
       finalStatus = status;
     }
     if (finalStatus !== "granted") return result;
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#f97316",
-      });
-    }
+    await setupNotificationChannels();
+    await setupNotificationCategories();
     try {
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: "a04e437e-68e7-40e6-871c-15c6a209f2f3",
@@ -108,8 +140,31 @@ function PushNotificationSetup() {
 
     notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data as any;
+      const actionId = response.actionIdentifier;
+
+      // Handle inline reply action from notification
+      if (actionId === "REPLY" && data?.conversationId) {
+        const replyText = (response as any).userText?.trim();
+        if (replyText && token) {
+          try {
+            await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/messages`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ conversationId: data.conversationId, content: replyText }),
+            });
+          } catch {}
+        }
+        return;
+      }
+
+      if (actionId === "MARK_READ") return;
+
+      // Default tap — navigate to relevant screen
       if (data?.type === "message" && data?.conversationId) {
         router.push(`/chat/${data.conversationId}` as any);
       } else if (data?.type === "follow") {

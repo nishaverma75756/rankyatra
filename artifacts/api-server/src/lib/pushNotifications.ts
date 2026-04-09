@@ -59,13 +59,20 @@ type PushMessage = {
   data?: Record<string, unknown>;
   sound?: "default" | null;
   badge?: number;
+  categoryId?: string;
+};
+
+type PushOptions = {
+  category?: "message" | "default";
+  channelId?: string;
 };
 
 export async function sendPushToUser(
   userId: number,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  options: PushOptions = {}
 ) {
   try {
     const tokens = await db
@@ -86,22 +93,30 @@ export async function sendPushToUser(
       }
     }
 
+    const isMessage = options.category === "message";
+    const channelId = options.channelId ?? (isMessage ? "messages" : "default");
+
     // Send via Firebase Admin SDK (direct FCM) — works when app is offline
     if (fcmTokens.length > 0) {
       const app = getFirebaseApp();
       if (app) {
         const messaging = admin.messaging(app);
+        const fcmData: Record<string, string> = data
+          ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+          : {};
+        if (options.category) fcmData["categoryId"] = options.category;
+
         const results = await Promise.allSettled(
           fcmTokens.map((token) =>
             messaging.send({
               token,
               notification: { title, body },
-              data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
+              data: fcmData,
               android: {
                 priority: "high",
                 notification: {
                   sound: "default",
-                  channelId: "default",
+                  channelId,
                 },
               },
             })
@@ -123,6 +138,7 @@ export async function sendPushToUser(
         body,
         data: data ?? {},
         sound: "default",
+        ...(options.category ? { categoryId: options.category } : {}),
       }));
       const expoRes = await fetch(EXPO_PUSH_URL, {
         method: "POST",
