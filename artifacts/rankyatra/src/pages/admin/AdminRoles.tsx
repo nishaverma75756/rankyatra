@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCurrency, formatUID } from "@/lib/utils";
-import axios from "axios";
+
 
 const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string; border: string }> = {
   teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
@@ -23,8 +23,9 @@ export default function AdminRoles() {
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
-    axios.get("/api/admin/roles", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => setAllRoles(r.data))
+    fetch("/api/admin/roles", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setAllRoles(data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

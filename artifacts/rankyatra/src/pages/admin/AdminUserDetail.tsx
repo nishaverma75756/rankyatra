@@ -19,7 +19,6 @@ import {
 import { useAdminGetUser, useAdminUpdateUser, useAdminBlockUser, useAdminAdjustWallet } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatUID } from "@/lib/utils";
-import axios from "axios";
 
 const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff" },
@@ -50,9 +49,10 @@ export default function AdminUserDetail() {
   const fetchRoles = async () => {
     if (!userId) return;
     try {
-      const { data } = await axios.get(`/api/admin/users/${userId}/roles`, {
+      const res = await fetch(`/api/admin/users/${userId}/roles`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
       });
+      const data = await res.json();
       setUserRoles(data.map((r: any) => r.role));
     } catch {}
   };
@@ -69,26 +69,31 @@ export default function AdminUserDetail() {
   const handleAssignRole = async (role: string) => {
     setRolesLoading(true);
     try {
-      await axios.post(`/api/admin/users/${userId}/roles`, { role }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+      const res = await fetch(`/api/admin/users/${userId}/roles`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
       });
+      if (!res.ok) { const e = await res.json(); throw e; }
       toast({ title: `${ROLE_META[role]?.label} role assigned!` });
       fetchRoles();
     } catch (e: any) {
-      toast({ title: "Error", description: e?.response?.data?.error ?? "Failed", variant: "destructive" });
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
     } finally { setRolesLoading(false); }
   };
 
   const handleRevokeRole = async (role: string) => {
     setRolesLoading(true);
     try {
-      await axios.delete(`/api/admin/users/${userId}/roles/${role}`, {
+      const res = await fetch(`/api/admin/users/${userId}/roles/${role}`, {
+        method: "DELETE",
         headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
       });
+      if (!res.ok) { const e = await res.json(); throw e; }
       toast({ title: `${ROLE_META[role]?.label} role revoked.` });
       fetchRoles();
     } catch (e: any) {
-      toast({ title: "Error", description: e?.response?.data?.error ?? "Failed", variant: "destructive" });
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
     } finally { setRolesLoading(false); }
   };
 
