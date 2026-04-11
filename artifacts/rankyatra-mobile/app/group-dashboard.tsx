@@ -10,6 +10,7 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { showError, showConfirm } from "@/utils/alert";
 import { useFocusEffect } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -49,6 +50,39 @@ export default function GroupDashboardScreen() {
   const [searching, setSearching] = useState(false);
   const [foundUser, setFoundUser] = useState<any>(null);
   const [inviting, setInviting] = useState(false);
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const pickGroupPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { showError("Gallery permission chahiye"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.6,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (!asset.base64) { showError("Image convert nahi hui"); return; }
+    const mimeType = asset.mimeType ?? "image/jpeg";
+    setUploadingPhoto(true);
+    try {
+      const h = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const res = await fetch(`${BASE_URL}/api/groups/my/photo`, {
+        method: "POST", headers: h,
+        body: JSON.stringify({ photoBase64: asset.base64, mimeType }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setGroup((prev: any) => prev ? { ...prev, photoUrl: data.photoUrl } : prev);
+    } catch {
+      showError("Photo upload nahi hui");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
@@ -294,10 +328,32 @@ export default function GroupDashboardScreen() {
             ) : (
               isOwner ? (
                 <View>
-                  {/* Group name + rename */}
+                  {/* Group photo + name + rename */}
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                      {/* Group photo with upload button */}
+                      <TouchableOpacity onPress={pickGroupPhoto} disabled={uploadingPhoto} style={{ position: "relative" }}>
+                        {group?.photoUrl ? (
+                          <Image source={{ uri: group.photoUrl }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                        ) : (
+                          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#f9731620", alignItems: "center", justifyContent: "center" }}>
+                            <Feather name="users" size={28} color="#f97316" />
+                          </View>
+                        )}
+                        <View style={{
+                          position: "absolute", bottom: 0, right: 0,
+                          width: 22, height: 22, borderRadius: 11,
+                          backgroundColor: "#f97316", alignItems: "center", justifyContent: "center",
+                          borderWidth: 2, borderColor: colors.card,
+                        }}>
+                          {uploadingPhoto
+                            ? <ActivityIndicator size="small" color="#fff" style={{ transform: [{ scale: 0.6 }] }} />
+                            : <Feather name="camera" size={11} color="#fff" />
+                          }
+                        </View>
+                      </TouchableOpacity>
+                      {/* Group info */}
+                      <View style={{ flex: 1 }}>
                         <Text style={[s.groupName, { color: colors.foreground }]}>{group?.name ?? "My Group"}</Text>
                         <Text style={[s.sub, { color: colors.mutedForeground }]}>{group?.members?.filter((m: any) => m.status === "accepted").length ?? 0} active members</Text>
                       </View>
@@ -306,6 +362,7 @@ export default function GroupDashboardScreen() {
                         <Feather name="edit-2" size={15} color={colors.foreground} />
                       </TouchableOpacity>
                     </View>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 8 }}>Photo pe tap karo group photo change karne ke liye</Text>
                   </View>
 
                   {/* Commission card */}

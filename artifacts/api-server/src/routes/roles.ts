@@ -587,6 +587,21 @@ router.post("/groups/my/commission/withdraw", requireAuth, async (req: any, res)
   }
 });
 
+// ─── GROUP PHOTO UPLOAD (owner only, base64) ─────────────────────────────────
+router.post("/groups/my/photo", requireAuth, async (req: any, res) => {
+  const { photoBase64, mimeType } = req.body;
+  if (!photoBase64 || !mimeType) { res.status(400).json({ error: "Missing photoBase64 or mimeType" }); return; }
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+    const photoUrl = `data:${mimeType};base64,${photoBase64}`;
+    await db.update(groupsTable).set({ photoUrl, updatedAt: new Date() }).where(eq(groupsTable.id, group.id));
+    res.json({ ok: true, photoUrl });
+  } catch {
+    res.status(500).json({ error: "Failed to upload group photo" });
+  }
+});
+
 // ─── EXPLORE ALL GROUPS (public browse + search) ─────────────────────────────
 router.get("/groups/explore", requireAuth, async (req: any, res) => {
   const q = String(req.query.q ?? "").trim();
@@ -598,6 +613,7 @@ router.get("/groups/explore", requireAuth, async (req: any, res) => {
       .select({
         id: groupsTable.id,
         name: groupsTable.name,
+        photoUrl: groupsTable.photoUrl,
         ownerId: groupsTable.ownerId,
         ownerName: usersTable.name,
         ownerAvatar: usersTable.avatarUrl,

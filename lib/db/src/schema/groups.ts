@@ -5,6 +5,7 @@ export const groupsTable = pgTable("groups", {
   id: serial("id").primaryKey(),
   ownerId: integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  photoUrl: text("photo_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

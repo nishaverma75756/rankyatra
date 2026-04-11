@@ -14,6 +14,7 @@ import { showError, showSuccess, showAlert } from "@/utils/alert";
 interface GroupCard {
   id: number;
   name: string;
+  photoUrl: string | null;
   ownerId: number;
   ownerName: string | null;
   ownerAvatar: string | null;
@@ -57,10 +58,14 @@ function GroupCardItem({ group, colors, onJoin, onLeave, loading }: {
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Left: Group avatar */}
-      <View style={[styles.groupAvatar, { backgroundColor: "#f9731615" }]}>
-        <Feather name="users" size={22} color="#f97316" />
-      </View>
+      {/* Left: Group photo / avatar */}
+      {group.photoUrl ? (
+        <Image source={{ uri: group.photoUrl }} style={{ width: 52, height: 52, borderRadius: 26, flexShrink: 0 }} />
+      ) : (
+        <View style={[styles.groupAvatar, { backgroundColor: "#f9731615" }]}>
+          <Feather name="users" size={22} color="#f97316" />
+        </View>
+      )}
 
       {/* Middle: Info */}
       <View style={{ flex: 1, minWidth: 0 }}>
