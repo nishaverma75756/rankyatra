@@ -379,26 +379,24 @@ export default function ProfileScreen() {
         <View style={[styles.header, { paddingTop: topPad }]}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Profile</Text>
           <View style={styles.headerBtns}>
-            {(myRoles.length > 0 || pendingInvitesCount > 0) && (
-              <TouchableOpacity
-                onPress={() => { router.push("/group-dashboard"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                style={[styles.themeToggle, {
-                  backgroundColor: pendingInvitesCount > 0 ? "#f9731620" : (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20",
-                  borderColor: pendingInvitesCount > 0 ? "#f97316" : (ROLE_COLORS[myRoles[0]] ?? "#f97316"),
-                }]}
-              >
-                <Feather name="users" size={17} color={pendingInvitesCount > 0 ? "#f97316" : (ROLE_COLORS[myRoles[0]] ?? "#f97316")} />
-                {pendingInvitesCount > 0 && (
-                  <View style={{
-                    position: "absolute", top: -4, right: -4,
-                    backgroundColor: "#ef4444", borderRadius: 8, minWidth: 16, height: 16,
-                    alignItems: "center", justifyContent: "center", paddingHorizontal: 2,
-                  }}>
-                    <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900" }}>{pendingInvitesCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={() => { router.push("/groups-explore" as any); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              style={[styles.themeToggle, {
+                backgroundColor: pendingInvitesCount > 0 ? "#f9731620" : myRoles.length > 0 ? (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20" : colors.card,
+                borderColor: pendingInvitesCount > 0 ? "#f97316" : myRoles.length > 0 ? (ROLE_COLORS[myRoles[0]] ?? "#f97316") : colors.border,
+              }]}
+            >
+              <Feather name="users" size={17} color={pendingInvitesCount > 0 ? "#f97316" : myRoles.length > 0 ? (ROLE_COLORS[myRoles[0]] ?? "#f97316") : colors.foreground} />
+              {pendingInvitesCount > 0 && (
+                <View style={{
+                  position: "absolute", top: -4, right: -4,
+                  backgroundColor: "#ef4444", borderRadius: 8, minWidth: 16, height: 16,
+                  alignItems: "center", justifyContent: "center", paddingHorizontal: 2,
+                }}>
+                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900" }}>{pendingInvitesCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { openSettings(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
               style={[styles.themeToggle, { backgroundColor: colors.card, borderColor: colors.border }]}

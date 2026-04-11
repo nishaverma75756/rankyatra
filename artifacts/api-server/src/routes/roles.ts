@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, userRolesTable, groupsTable, groupMembersTable, groupCommissionWithdrawalsTable, registrationsTable, notificationsTable, examsTable, submissionsTable } from "@workspace/db";
-import { eq, and, sum, count, desc, ne } from "drizzle-orm";
+import { eq, and, sum, count, desc, ne, sql, ilike, or } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { sendGroupInviteEmail } from "../lib/email";
 
@@ -584,6 +584,100 @@ router.post("/groups/my/commission/withdraw", requireAuth, async (req: any, res)
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Failed to request withdrawal" });
+  }
+});
+
+// ─── EXPLORE ALL GROUPS (public browse + search) ─────────────────────────────
+router.get("/groups/explore", requireAuth, async (req: any, res) => {
+  const q = String(req.query.q ?? "").trim();
+  const limit = 30;
+  try {
+    const userId = req.user.id;
+
+    const rows = await db
+      .select({
+        id: groupsTable.id,
+        name: groupsTable.name,
+        ownerId: groupsTable.ownerId,
+        ownerName: usersTable.name,
+        ownerAvatar: usersTable.avatarUrl,
+        createdAt: groupsTable.createdAt,
+        memberCount: sql<number>`(SELECT COUNT(*) FROM group_members WHERE group_id = ${groupsTable.id} AND status = 'accepted')::int`,
+        isJoined: sql<boolean>`EXISTS(SELECT 1 FROM group_members WHERE group_id = ${groupsTable.id} AND user_id = ${userId} AND status = 'accepted')`,
+        isOwner: sql<boolean>`${groupsTable.ownerId} = ${userId}`,
+      })
+      .from(groupsTable)
+      .leftJoin(usersTable, eq(groupsTable.ownerId, usersTable.id))
+      .where(q
+        ? or(
+            ilike(groupsTable.name, `%${q}%`),
+            !isNaN(Number(q)) ? eq(groupsTable.id, Number(q)) : sql`false`,
+          )
+        : undefined
+      )
+      .orderBy(desc(sql<number>`(SELECT COUNT(*) FROM group_members WHERE group_id = ${groupsTable.id} AND status = 'accepted')`))
+      .limit(limit);
+
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch groups" });
+  }
+});
+
+// ─── SELF-JOIN A GROUP (auto-accept) ─────────────────────────────────────────
+router.post("/groups/:groupId/join", requireAuth, async (req: any, res) => {
+  const groupId = parseInt(req.params.groupId, 10);
+  if (isNaN(groupId)) { res.status(400).json({ error: "Invalid group ID" }); return; }
+
+  try {
+    const userId = req.user.id;
+
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+    if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+    if (group.ownerId === userId) { res.status(400).json({ error: "Aap is group ke owner hain" }); return; }
+
+    const [existing] = await db.select().from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId)));
+
+    if (existing) {
+      if (existing.status === "accepted") { res.status(400).json({ error: "Aap pehle se is group mein hain" }); return; }
+      await db.update(groupMembersTable)
+        .set({ status: "accepted", joinedAt: new Date() })
+        .where(eq(groupMembersTable.id, existing.id));
+    } else {
+      await db.insert(groupMembersTable).values({ groupId, userId, status: "accepted", joinedAt: new Date() });
+    }
+
+    res.json({ ok: true, groupName: group.name });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to join group" });
+  }
+});
+
+// ─── LEAVE A GROUP ────────────────────────────────────────────────────────────
+router.delete("/groups/:groupId/leave", requireAuth, async (req: any, res) => {
+  const groupId = parseInt(req.params.groupId, 10);
+  if (isNaN(groupId)) { res.status(400).json({ error: "Invalid group ID" }); return; }
+
+  try {
+    const userId = req.user.id;
+
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+    if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+    if (group.ownerId === userId) { res.status(400).json({ error: "Owner group nahi chhod sakta" }); return; }
+
+    const [member] = await db.select().from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId)));
+    if (!member) { res.status(404).json({ error: "Aap is group ke member nahi hain" }); return; }
+
+    await db.delete(groupMembersTable).where(eq(groupMembersTable.id, member.id));
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to leave group" });
   }
 });
 
