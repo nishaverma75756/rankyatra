@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, varchar, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, boolean, timestamp, text } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const notificationsTable = pgTable("notifications", {
@@ -11,4 +11,7 @@ export const notificationsTable = pgTable("notifications", {
   examId: integer("exam_id"),
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  title: text("title"),
+  body: text("body"),
+  data: text("data"),
 });

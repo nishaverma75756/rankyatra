@@ -411,7 +411,7 @@ router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
       res.status(400).json({ error: msg }); return;
     }
 
-    await db.insert(groupMembersTable).values({ groupId: group.id, userId: target.id, status: "pending" });
+    const [newMember] = await db.insert(groupMembersTable).values({ groupId: group.id, userId: target.id, status: "pending" }).returning({ id: groupMembersTable.id });
 
     // Send in-app notification + email to target user
     try {
@@ -421,7 +421,7 @@ router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
         type: "group_invite",
         title: "Group Invitation",
         body: `${ownerUser.name} ne aapko "${group.name}" group mein invite kiya hai`,
-        data: JSON.stringify({ groupId: group.id, groupName: group.name, inviterId: req.user.id }),
+        data: JSON.stringify({ groupId: group.id, groupName: group.name, inviterId: req.user.id, inviteId: newMember?.id }),
         isRead: false,
       });
       // Send email invite

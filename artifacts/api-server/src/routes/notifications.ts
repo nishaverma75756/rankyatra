@@ -22,6 +22,9 @@ router.get("/notifications", requireAuth, async (req: any, res: any) => {
         fromUserId: notificationsTable.fromUserId,
         fromUserName: usersTable.name,
         fromUserAvatar: usersTable.avatarUrl,
+        title: notificationsTable.title,
+        body: notificationsTable.body,
+        data: notificationsTable.data,
       })
       .from(notificationsTable)
       .leftJoin(usersTable, eq(usersTable.id, notificationsTable.fromUserId))

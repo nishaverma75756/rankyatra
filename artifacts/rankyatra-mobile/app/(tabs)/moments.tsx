@@ -39,6 +39,8 @@ interface Post {
   topReplyContent: string | null;
   topReplyUser: string | null;
   topReplyUserAvatar: string | null;
+  userRole: string | null;
+  userGroupBadge: string | null;
 }
 
 interface SearchUser {
@@ -395,6 +397,16 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
                 </View>
               );
             })()}
+            {!!post.userRole && (
+              <View style={{ backgroundColor: "#ede9fe", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ color: "#6d28d9", fontSize: 9, fontWeight: "700" }}>🎓 {post.userRole}</Text>
+              </View>
+            )}
+            {!!post.userGroupBadge && (
+              <View style={{ backgroundColor: "#e0f2fe", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ color: "#0369a1", fontSize: 9, fontWeight: "700" }}>👥 {post.userGroupBadge}</Text>
+              </View>
+            )}
           </View>
           <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
             UID-{formatUID(post.userId)}

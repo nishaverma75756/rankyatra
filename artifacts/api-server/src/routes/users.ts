@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, walletTransactionsTable, submissionsTable, registrationsTable, examsTable, followsTable, notificationsTable, pushTokensTable } from "@workspace/db";
+import { db, usersTable, walletTransactionsTable, submissionsTable, registrationsTable, examsTable, followsTable, notificationsTable, pushTokensTable, userRolesTable, groupMembersTable, groupsTable } from "@workspace/db";
 import { eq, count, min, sum, desc, and, ne } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../middlewares/auth";
 import { broadcastToUser } from "../lib/ws";
@@ -15,20 +15,16 @@ router.get("/users/profile", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [examStats] = await db
-    .select({ count: count() })
-    .from(submissionsTable)
-    .where(eq(submissionsTable.userId, user.id));
-
-  const [wins] = await db
-    .select({ count: count() })
-    .from(submissionsTable)
-    .where(eq(submissionsTable.userId, user.id));
-
-  const [rankData] = await db
-    .select({ bestRank: min(submissionsTable.rank) })
-    .from(submissionsTable)
-    .where(eq(submissionsTable.userId, user.id));
+  const [[examStats], [rankData], profileRolesData, profileGroupData] = await Promise.all([
+    db.select({ count: count() }).from(submissionsTable).where(eq(submissionsTable.userId, user.id)),
+    db.select({ bestRank: min(submissionsTable.rank) }).from(submissionsTable).where(eq(submissionsTable.userId, user.id)),
+    db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, user.id)).limit(1),
+    db.select({ groupName: groupsTable.name })
+      .from(groupMembersTable)
+      .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+      .where(and(eq(groupMembersTable.userId, user.id), eq(groupMembersTable.status, "accepted")))
+      .limit(1),
+  ]);
 
   res.json({
     id: user.id,
@@ -45,6 +41,8 @@ router.get("/users/profile", requireAuth, async (req, res): Promise<void> => {
     totalExamsTaken: examStats?.count ?? 0,
     totalExamsWon: 0,
     bestRank: rankData?.bestRank ?? null,
+    userRole: profileRolesData[0]?.role ?? null,
+    groupBadge: profileGroupData[0]?.groupName ?? null,
   });
 });
 
@@ -152,7 +150,7 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
 
   const currentUserId = (req as any).user?.id ?? null;
 
-  const [submissions, registrations, winningsData, followersData, followingData, isFollowingData, followsYouData] = await Promise.all([
+  const [submissions, registrations, winningsData, followersData, followingData, isFollowingData, followsYouData, rolesData, groupData] = await Promise.all([
     db.select().from(submissionsTable).where(eq(submissionsTable.userId, userId)).orderBy(desc(submissionsTable.submittedAt)),
     db.select().from(registrationsTable).where(eq(registrationsTable.userId, userId)),
     db.select({ total: sum(walletTransactionsTable.amount) })
@@ -166,6 +164,12 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     currentUserId
       ? db.select().from(followsTable).where(and(eq(followsTable.followerId, userId), eq(followsTable.followingId, currentUserId)))
       : Promise.resolve([]),
+    db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, userId)).limit(1),
+    db.select({ groupName: groupsTable.name })
+      .from(groupMembersTable)
+      .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+      .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.status, "accepted")))
+      .limit(1),
   ]);
 
   const totalWinnings = parseFloat(String(winningsData[0]?.total ?? "0"));
@@ -232,6 +236,8 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     followingCount,
     isFollowing,
     followsYou,
+    userRole: rolesData[0]?.role ?? null,
+    groupBadge: groupData[0]?.groupName ?? null,
   });
 });
 

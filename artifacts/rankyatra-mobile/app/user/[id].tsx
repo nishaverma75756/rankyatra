@@ -359,6 +359,16 @@ export default function UserPublicProfile() {
                 <Text style={[styles.tierText, { color: skillColor }]}>{u.skillIcon} {u.skillLevel}</Text>
               </View>
             )}
+            {!!u.userRole && (
+              <View style={[styles.tierBadge, { backgroundColor: "#7c3aed30" }]}>
+                <Text style={[styles.tierText, { color: "#7c3aed" }]}>🎓 {u.userRole}</Text>
+              </View>
+            )}
+            {!!u.groupBadge && (
+              <View style={[styles.tierBadge, { backgroundColor: "#0369a130" }]}>
+                <Text style={[styles.tierText, { color: "#0369a1" }]}>👥 {u.groupBadge}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.pointsRow}>
             <Feather name="zap" size={10} color="#ffffff55" />

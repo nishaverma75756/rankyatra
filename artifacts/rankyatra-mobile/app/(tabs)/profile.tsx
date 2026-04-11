@@ -477,6 +477,16 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
+            {!!(user as any)?.userRole && (
+              <View style={[styles.badge, { backgroundColor: "#7c3aed" }]}>
+                <Text style={[styles.badgeText, { color: "#fff" }]}>🎓 {(user as any).userRole}</Text>
+              </View>
+            )}
+            {!!(user as any)?.groupBadge && (
+              <View style={[styles.badge, { backgroundColor: "#0369a1" }]}>
+                <Text style={[styles.badgeText, { color: "#fff" }]}>👥 {(user as any).groupBadge}</Text>
+              </View>
+            )}
           </View>
           {stats && (() => {
             const pts = (stats as any).rankPoints ?? stats.totalCorrect ?? 0;
