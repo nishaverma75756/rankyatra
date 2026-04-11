@@ -153,9 +153,6 @@ export default function ChatScreen() {
   const [msgActionItem, setMsgActionItem] = useState<Message | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [inputRowHeight, setInputRowHeight] = useState(70);
   const isAtBottomRef = useRef(true);
 
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -167,19 +164,12 @@ export default function ChatScreen() {
   useEffect(() => () => { isMounted.current = false; }, []);
 
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", (e) => {
-      setKeyboardVisible(true);
-      setKeyboardHeight(e.endCoordinates.height);
-      // Only auto-scroll if user was already at the bottom
+    const show = Keyboard.addListener("keyboardDidShow", () => {
       if (isAtBottomRef.current) {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
       }
     });
-    const hide = Keyboard.addListener("keyboardDidHide", () => {
-      setKeyboardVisible(false);
-      setKeyboardHeight(0);
-    });
-    return () => { show.remove(); hide.remove(); };
+    return () => show.remove();
   }, []);
 
   // Load conversation info + messages
@@ -566,11 +556,7 @@ export default function ChatScreen() {
   const selectedReasonLabel = REPORT_REASONS.find(r => r.value === reportReason)?.label ?? "Harassment";
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* 3-dot Menu Modal */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
@@ -720,7 +706,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Header */}
+      {/* Header — outside KAV so it never moves when keyboard opens */}
       <View style={[styles.header, { paddingTop: insets.top + 6, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -754,6 +740,12 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* KAV wraps only messages + input — header stays fixed above */}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
       {/* Messages */}
       {loading ? (
         <View style={[styles.flex, styles.center]}>
@@ -770,7 +762,7 @@ export default function ChatScreen() {
             justifyContent: "flex-end",
             paddingHorizontal: 12,
             paddingTop: 12,
-            paddingBottom: inputRowHeight + 12,
+            paddingBottom: 8,
           }}
           showsVerticalScrollIndicator={false}
           onScroll={(e) => {
@@ -830,11 +822,10 @@ export default function ChatScreen() {
       {/* Input */}
       <View
         style={[styles.inputRow, {
-          paddingBottom: insets.bottom + 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
           borderTopColor: editingId ? "#93c5fd" : colors.border,
           backgroundColor: colors.background,
         }]}
-        onLayout={(e) => setInputRowHeight(e.nativeEvent.layout.height)}
       >
         <TextInput
           style={[styles.input, {
@@ -866,7 +857,8 @@ export default function ChatScreen() {
           }
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
