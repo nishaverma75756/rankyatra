@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
 import * as FileSystem from "expo-file-system";
+// expo-file-system@19: uploadAsync moved to /legacy — must import from there
+import { uploadAsync, FileSystemUploadType } from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 export interface UploadState {
@@ -33,8 +35,8 @@ const ReelsUploadContext = createContext<ReelsUploadContextType>({
   reset: () => {},
 });
 
-// ── Try uploadAsync (native), fallback to XHR FormData ─────────────────────
-async function uploadViaFileSystem(
+// ── Native upload via expo-file-system/legacy (SDK 54 compatible) ──────────
+async function uploadViaLegacyFS(
   url: string,
   videoUri: string,
   videoMime: string,
@@ -43,15 +45,8 @@ async function uploadViaFileSystem(
   thumbnailMime: string,
   token: string
 ): Promise<{ status: number; body: string }> {
-  const MULTIPART_TYPE: any =
-    (FileSystem as any).FileSystemUploadType?.MULTIPART ?? "MULTIPART";
-
-  if (typeof (FileSystem as any).uploadAsync !== "function") {
-    throw new Error("uploadAsync not available");
-  }
-
-  const result = await (FileSystem as any).uploadAsync(url, videoUri, {
-    uploadType: MULTIPART_TYPE,
+  const result = await uploadAsync(url, videoUri, {
+    uploadType: FileSystemUploadType.MULTIPART, // = 1 (number, not string)
     fieldName: "video",
     mimeType: videoMime || "video/mp4",
     parameters: {
@@ -64,6 +59,7 @@ async function uploadViaFileSystem(
   return { status: result.status, body: result.body };
 }
 
+// ── XHR fallback ────────────────────────────────────────────────────────────
 async function uploadViaXHR(
   url: string,
   videoUri: string,
@@ -77,8 +73,8 @@ async function uploadViaXHR(
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
-    const videoFilename = videoUri.split("/").pop() ?? `reel_${Date.now()}.mp4`;
-    formData.append("video", { uri: videoUri, name: videoFilename, type: videoMime || "video/mp4" } as any);
+    const filename = videoUri.split("/").pop() ?? `reel_${Date.now()}.mp4`;
+    formData.append("video", { uri: videoUri, name: filename, type: videoMime || "video/mp4" } as any);
     formData.append("caption", caption || "");
     if (thumbnailBase64) {
       formData.append("thumbnailBase64", thumbnailBase64);
@@ -130,7 +126,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
         const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "rankyatra.in";
         const url = `https://${domain}/api/reels/upload`;
 
-        // On Android ensure we have a local file URI (not content://)
+        // Ensure local file:// URI (content:// doesn't work with XHR on Android)
         let finalVideoUri = videoUri;
         if (Platform.OS === "android" && videoUri.startsWith("content://")) {
           const dest = `${FileSystem.cacheDirectory}reel_up_${Date.now()}.mp4`;
@@ -140,7 +136,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
 
         setState((s) => ({ ...s, progress: 10, statusText: "Uploading reel..." }));
 
-        // Read thumbnail as base64 if available
+        // Read thumbnail as base64
         let thumbnailBase64: string | undefined;
         if (thumbnailUri) {
           try {
@@ -152,18 +148,18 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
 
         let result: { status: number; body: string };
 
-        // Try native uploadAsync first; fall back to XHR
+        // Try native legacy uploadAsync first (most reliable on real device)
         try {
-          result = await uploadViaFileSystem(
+          result = await uploadViaLegacyFS(
             url, finalVideoUri, videoMime, caption,
             thumbnailBase64, thumbnailMime || "image/jpeg", token
           );
-        } catch {
-          setState((s) => ({ ...s, statusText: "Uploading..." }));
+        } catch (nativeErr: any) {
+          console.warn("[ReelsUpload] native uploadAsync failed, falling back to XHR:", nativeErr?.message);
           result = await uploadViaXHR(
             url, finalVideoUri, videoMime, caption,
             thumbnailBase64, thumbnailMime || "image/jpeg", token,
-            (pct) => setState((s) => ({ ...s, progress: 10 + Math.round(pct * 0.9), statusText: `Uploading... ${pct}%` })),
+            (pct) => setState((s) => ({ ...s, progress: 10 + Math.round(pct * 0.88), statusText: `Uploading... ${pct}%` })),
             xhrRef
           );
         }
@@ -181,7 +177,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
           setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
         }
       } catch (e: any) {
-        const raw: string = e?.message ?? String(e) ?? "Unknown error";
+        const raw: string = e?.message ?? String(e) ?? "";
         const msg = raw.toLowerCase().includes("network") || raw.toLowerCase().includes("cancelled")
           ? "Network error. Check your connection."
           : "Upload failed. Please try again.";
