@@ -79,13 +79,14 @@ async function findOrCreateOAuthUser(opts: {
   }
 }
 
-// Mobile OAuth uses deep link scheme — Chrome Custom Tabs fires this as intent on Android
-const MOBILE_OAUTH_REDIRECT = `rankyatra://oauth-callback`;
+// Mobile OAuth: redirect to intermediate HTTPS page which fires the deep link via JS.
+// Chrome Custom Tabs on Android does NOT follow custom scheme (rankyatra://) redirects directly —
+// an intermediate HTTPS page with window.location.href is required to trigger the intent.
+const MOBILE_OAUTH_INTERMEDIATE = `${FRONTEND_URL}/api/mobile-oauth`;
 
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
     const isMobile = (req as any).oauthIsMobile === true;
-    const redirectBase = isMobile ? MOBILE_OAUTH_REDIRECT : `${FRONTEND_URL}/oauth-callback`;
     try {
       const oauthUser = (req as any).oauthUser;
       if (!oauthUser) throw new Error("OAuth failed");
@@ -98,9 +99,18 @@ function handleOAuthCallback(provider: "google" | "facebook") {
         isBlocked: oauthUser.isBlocked,
       });
 
-      res.redirect(`${redirectBase}?token=${encodeURIComponent(token)}`);
+      if (isMobile) {
+        // Redirect to HTTPS intermediate page — JS there fires rankyatra:// deep link
+        res.redirect(`${MOBILE_OAUTH_INTERMEDIATE}?token=${encodeURIComponent(token)}`);
+      } else {
+        res.redirect(`${FRONTEND_URL}/oauth-callback?token=${encodeURIComponent(token)}`);
+      }
     } catch (err: any) {
-      res.redirect(`${redirectBase}?error=${encodeURIComponent(err.message || "OAuth failed")}`);
+      if ((req as any).oauthIsMobile) {
+        res.redirect(`${MOBILE_OAUTH_INTERMEDIATE}?error=${encodeURIComponent(err.message || "OAuth failed")}`);
+      } else {
+        res.redirect(`${FRONTEND_URL}/oauth-callback?error=${encodeURIComponent(err.message || "OAuth failed")}`);
+      }
     }
   };
 }
