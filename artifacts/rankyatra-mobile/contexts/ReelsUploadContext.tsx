@@ -155,8 +155,8 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
       setState({ isUploading: true, progress: 5, statusText: "Preparing...", error: null, done: false });
 
       try {
-        const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "rankyatra.in";
-        const url = `https://${domain}/api/reels/upload`;
+        // Always upload directly to production — Replit dev proxy drops large binary bodies
+        const url = `https://rankyatra.in/api/reels/upload`;
 
         setState((s) => ({ ...s, progress: 10, statusText: "Uploading reel..." }));
 
