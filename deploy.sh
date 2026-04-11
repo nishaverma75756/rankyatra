@@ -5,6 +5,7 @@ echo "=== RankYatra Deploy Script ==="
 
 # 1. Pull latest code
 echo "[1/8] Pulling latest code..."
+git checkout -- .
 git pull origin main
 
 # 2. Install dependencies
@@ -182,6 +183,47 @@ CREATE TABLE IF NOT EXISTS reel_likes (
 GRANT ALL PRIVILEGES ON TABLE reels TO PUBLIC;
 GRANT ALL PRIVILEGES ON SEQUENCE reels_id_seq TO PUBLIC;
 GRANT ALL PRIVILEGES ON TABLE reel_likes TO PUBLIC;
+"
+
+# Roles & Groups system (added Apr 2026)
+$DB_CMD -c "
+CREATE TABLE IF NOT EXISTS user_roles (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(50) NOT NULL,
+  assigned_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS groups (
+  id SERIAL PRIMARY KEY,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS group_members (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS group_commission_withdrawals (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  amount NUMERIC(12,2) NOT NULL,
+  upi_id VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at TIMESTAMPTZ
+);
+GRANT ALL PRIVILEGES ON TABLE user_roles TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE user_roles_id_seq TO PUBLIC;
+GRANT ALL PRIVILEGES ON TABLE groups TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE groups_id_seq TO PUBLIC;
+GRANT ALL PRIVILEGES ON TABLE group_members TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE group_members_id_seq TO PUBLIC;
+GRANT ALL PRIVILEGES ON TABLE group_commission_withdrawals TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE group_commission_withdrawals_id_seq TO PUBLIC;
 "
 
 echo "    Database schema synced."
