@@ -87,3 +87,4 @@ packages = ["eas-cli"]
 [userenv.shared]
 APP_URL = "https://rankyatra.in"
 OAUTH_CALLBACK_HOST = "https://rankyatra.niskutech.com"
+EXPO_PUBLIC_GOOGLE_CLIENT_ID = "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com"
