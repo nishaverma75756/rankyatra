@@ -99,6 +99,7 @@ export default function CreateReelScreen() {
   const [loadingFrames, setLoadingFrames] = useState(false);
   const [selectedFrameIdx, setSelectedFrameIdx] = useState(0);
   const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const [thumbError, setThumbError] = useState(false);
 
   const canPost = !!videoUri && !!token && !loadingVideo && !compressStatus;
 
@@ -167,6 +168,7 @@ export default function CreateReelScreen() {
       // Step 1: Extract first thumbnail immediately (before compression)
       setLoadingVideo(false);
       setCompressStatus("Getting preview...");
+      setThumbError(false);
       const firstThumb = await extractFirstThumb(uri);
       if (firstThumb) setThumbUri(firstThumb);
 
@@ -182,12 +184,14 @@ export default function CreateReelScreen() {
       // Step 3: Extract more frames for picker in background
       setLoadingFrames(true);
       const extracted = await extractFramesNative(compressedUri, dur);
+      setLoadingFrames(false);
       setFrames(extracted);
       if (extracted.length > 0) {
         setSelectedFrameIdx(0);
         setThumbUri(extracted[0].uri);
+      } else if (!firstThumb) {
+        setThumbError(true);
       }
-      setLoadingFrames(false);
 
     } catch (e: any) {
       setCompressStatus(null);
@@ -277,7 +281,7 @@ export default function CreateReelScreen() {
 
           {/* Cover preview + gallery picker */}
           <View style={{ flex: 1, gap: 8 }}>
-            <View style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}>
+            <View style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : thumbError ? "#ef4444" : colors.border, flex: 1, overflow: "hidden" }]}>
               {thumbUri ? (
                 <>
                   <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
@@ -286,6 +290,16 @@ export default function CreateReelScreen() {
                     <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>Cover</Text>
                   </View>
                 </>
+              ) : thumbError ? (
+                <View style={s.center}>
+                  <Feather name="alert-circle" size={20} color="#ef4444" />
+                  <Text style={{ color: "#ef4444", fontSize: 9, marginTop: 4, textAlign: "center", fontWeight: "700" }}>
+                    Auto extract{"\n"}failed
+                  </Text>
+                  <Text style={{ color: colors.mutedForeground, fontSize: 8, textAlign: "center", marginTop: 2 }}>
+                    Use Gallery
+                  </Text>
+                </View>
               ) : (
                 <View style={s.center}>
                   <Feather name="image" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
@@ -296,14 +310,16 @@ export default function CreateReelScreen() {
               )}
             </View>
             {/* Gallery thumbnail button */}
-            {videoUri && (
+            {(videoUri || thumbError) && (
               <TouchableOpacity
-                style={[s.galleryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={pickThumbnailFromGallery}
+                style={[s.galleryBtn, { backgroundColor: colors.card, borderColor: thumbError ? "#ef4444" : colors.border }]}
+                onPress={() => { setThumbError(false); pickThumbnailFromGallery(); }}
                 activeOpacity={0.8}
               >
-                <Feather name="upload" size={13} color="#f97316" />
-                <Text style={{ color: "#f97316", fontSize: 10, fontWeight: "700" }}>Gallery</Text>
+                <Feather name="upload" size={13} color={thumbError ? "#ef4444" : "#f97316"} />
+                <Text style={{ color: thumbError ? "#ef4444" : "#f97316", fontSize: 10, fontWeight: "700" }}>
+                  {thumbError ? "Pick Cover" : "Gallery"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>

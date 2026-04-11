@@ -284,6 +284,13 @@ if [ -f "$NGINX_CONF" ] && ! grep -q "location /ws" "$NGINX_CONF"; then
   echo "    WebSocket config added."
 fi
 
+# Increase nginx body size limit for video uploads (default 1MB is too small)
+if [ -f "$NGINX_CONF" ] && ! grep -q "client_max_body_size" "$NGINX_CONF"; then
+  echo "[7/8] Setting nginx client_max_body_size to 250m..."
+  sudo sed -i '/server {/a\    client_max_body_size 250m;' "$NGINX_CONF"
+  echo "    client_max_body_size set."
+fi
+
 # Add /uploads proxy (for reel video files stored on disk)
 if [ -f "$NGINX_CONF" ] && ! grep -q "location /uploads" "$NGINX_CONF"; then
   echo "[7/8] Adding /uploads proxy to Nginx..."

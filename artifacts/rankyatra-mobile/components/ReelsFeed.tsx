@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Dimensions, StyleSheet,
-  ActivityIndicator, Image,
+  ActivityIndicator, Image, Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -102,6 +102,18 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
     });
   };
 
+  const handleShare = async () => {
+    try {
+      const url = `https://${process.env.EXPO_PUBLIC_DOMAIN}/reels/${reel.id}`;
+      await Share.share({
+        message: `${reel.userName} posted a reel on RankYatra!\n${reel.caption ? reel.caption + "\n" : ""}${url}`,
+        url,
+      });
+    } catch {
+      showError("Error", "Could not open share menu.");
+    }
+  };
+
   const isOwn = currentUserId === reel.userId;
   const caption = reel.caption?.trim() ?? "";
   const isLongCaption = caption.length > 80;
@@ -158,7 +170,7 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
           <Text style={s.actionLabel}>{reel.commentCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.actionBtn} activeOpacity={0.7}>
+        <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={handleShare}>
           <Feather name="send" size={26} color="#fff" />
           <Text style={s.actionLabel}>Share</Text>
         </TouchableOpacity>
