@@ -766,6 +766,8 @@ export default function ChatScreen() {
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
           contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "flex-end",
             paddingHorizontal: 12,
             paddingTop: 12,
             paddingBottom: inputRowHeight + 12,
