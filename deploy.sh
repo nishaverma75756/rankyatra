@@ -210,8 +210,10 @@ NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter @workspace/rankyatra buil
 echo "[6/8] Copying web files..."
 sudo cp -r artifacts/rankyatra/dist/public/* /var/www/rankyatra/public/
 
-# 7. Nginx WebSocket config (only if not already added)
+# 7. Nginx config for WebSocket + /uploads (video files)
 NGINX_CONF="/etc/nginx/sites-available/rankyatra"
+
+# Add WebSocket proxy if not present
 if [ -f "$NGINX_CONF" ] && ! grep -q "location /ws" "$NGINX_CONF"; then
   echo "[7/8] Adding WebSocket config to Nginx..."
   sudo sed -i '/location \/api/i\
@@ -224,11 +226,28 @@ if [ -f "$NGINX_CONF" ] && ! grep -q "location /ws" "$NGINX_CONF"; then
         proxy_read_timeout 86400;\
     }\
 ' "$NGINX_CONF"
-  sudo nginx -t && sudo systemctl reload nginx
-  echo "    WebSocket config added and Nginx reloaded."
-else
-  echo "[7/8] Nginx WebSocket config already present. Skipping."
+  echo "    WebSocket config added."
 fi
+
+# Add /uploads proxy (for reel video files stored on disk)
+if [ -f "$NGINX_CONF" ] && ! grep -q "location /uploads" "$NGINX_CONF"; then
+  echo "[7/8] Adding /uploads proxy to Nginx..."
+  sudo sed -i '/location \/api/i\
+    location /uploads {\
+        proxy_pass http://localhost:8080;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        add_header Cache-Control "public, max-age=31536000";\
+    }\
+' "$NGINX_CONF"
+  echo "    /uploads proxy added."
+fi
+
+# Create uploads directory on EC2 (in app dir where PM2 runs)
+mkdir -p ~/rankyatra/uploads/videos ~/rankyatra/uploads/thumbnails
+
+sudo nginx -t && sudo systemctl reload nginx
+echo "[7/8] Nginx reloaded."
 
 # 8. Restart pm2 using ecosystem config (loads .env via env_file)
 echo "[8/8] Restarting services..."

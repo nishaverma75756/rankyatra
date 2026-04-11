@@ -1,10 +1,49 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { db } from "@workspace/db";
 import { reels, reelLikes } from "@workspace/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
+
+// ─── Multer setup for video uploads ─────────────────────────────────────────
+const videosDir = path.join(process.cwd(), "uploads", "videos");
+const thumbsDir = path.join(process.cwd(), "uploads", "thumbnails");
+if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, file.fieldname === "thumbnail" ? thumbsDir : videosDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || (file.mimetype.includes("mp4") ? ".mp4" : ".mp4");
+    cb(null, `reel_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max (after compression)
+  fileFilter: (_req, file, cb) => {
+    if (file.fieldname === "video" && !file.mimetype.startsWith("video/")) {
+      return cb(new Error("Only video files allowed"));
+    }
+    if (file.fieldname === "thumbnail" && !file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files allowed for thumbnail"));
+    }
+    cb(null, true);
+  },
+});
+
+function getServerBaseUrl(req: any): string {
+  // On EC2: APP_URL = "https://rankyatra.in" (set in ecosystem.config.js)
+  const host = process.env.APP_URL || process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
+  return host.replace(/\/+$/, "");
+}
 
 // ─── GET /api/reels — paginated feed ────────────────────────────────────────
 router.get("/reels", async (req, res) => {
@@ -55,7 +94,52 @@ router.get("/reels/user/:uid", async (req, res) => {
   }
 });
 
-// ─── POST /api/reels — create reel ──────────────────────────────────────────
+// ─── POST /api/reels/upload — multipart video upload (Instagram-style) ──────
+// Accepts multipart/form-data with fields: video (required), thumbnail (optional), caption (optional)
+// Compresses on device, uploads raw bytes here — no base64 needed
+router.post(
+  "/reels/upload",
+  requireAuth,
+  (req: any, res: any, next: any) => {
+    upload.fields([
+      { name: "video", maxCount: 1 },
+      { name: "thumbnail", maxCount: 1 },
+    ])(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || "Upload failed" });
+      }
+      next();
+    });
+  },
+  async (req: any, res: any) => {
+    try {
+      const files = req.files as Record<string, Express.Multer.File[]>;
+      const videoFile = files?.["video"]?.[0];
+      const thumbFile = files?.["thumbnail"]?.[0];
+      const caption = (req.body?.caption ?? "").trim();
+
+      if (!videoFile) {
+        return res.status(400).json({ error: "Video file required" });
+      }
+
+      const base = getServerBaseUrl(req);
+      const videoUrl = `${base}/uploads/videos/${videoFile.filename}`;
+      const thumbnailUrl = thumbFile ? `${base}/uploads/thumbnails/${thumbFile.filename}` : null;
+
+      const [reel] = await db
+        .insert(reels)
+        .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption })
+        .returning();
+
+      res.status(201).json({ reel });
+    } catch (err) {
+      console.error("[reels/upload]", err);
+      res.status(500).json({ error: "Failed to create reel" });
+    }
+  }
+);
+
+// ─── POST /api/reels — create reel (legacy: base64) ─────────────────────────
 router.post("/reels", requireAuth, async (req: any, res) => {
   try {
     const { videoUrl, caption, thumbnailUrl } = req.body;

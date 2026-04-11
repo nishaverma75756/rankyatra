@@ -19,9 +19,8 @@ const FRAME_H = 70;
 const FRAME_W = Math.floor((SCREEN_W - 32 - (FRAME_COUNT - 1) * 6) / FRAME_COUNT);
 
 interface VideoFrame {
-  uri: string;      // file URI (native) or data URL (web)
-  time: number;     // ms
-  b64?: string;     // pre-extracted base64 (web only)
+  uri: string;
+  time: number;
 }
 
 // ── Web: HTML5 Canvas frame extraction ────────────────────────────────────────
@@ -39,31 +38,22 @@ async function extractFramesWeb(blobUrl: string): Promise<VideoFrame[]> {
     video.src = blobUrl;
     video.muted = true;
     video.playsInline = true;
-
     video.addEventListener("loadedmetadata", async () => {
       const durMs = video.duration * 1000;
       const step = durMs / (FRAME_COUNT + 1);
       const canvas = document.createElement("canvas");
-      canvas.width = 180;
-      canvas.height = 320;
+      canvas.width = 180; canvas.height = 320;
       const ctx = canvas.getContext("2d")!;
       const frames: VideoFrame[] = [];
-
       for (let i = 1; i <= FRAME_COUNT; i++) {
-        const timeSec = (step * i) / 1000;
         try {
-          await seekTo(video, timeSec);
+          await seekTo(video, (step * i) / 1000);
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.65);
-          const b64 = dataUrl.split(",")[1];
-          frames.push({ uri: dataUrl, time: step * i, b64 });
-        } catch {
-          // skip failed frame
-        }
+          frames.push({ uri: canvas.toDataURL("image/jpeg", 0.65), time: step * i });
+        } catch {}
       }
       resolve(frames);
     });
-
     video.addEventListener("error", () => resolve([]));
     video.load();
   });
@@ -72,20 +62,44 @@ async function extractFramesWeb(blobUrl: string): Promise<VideoFrame[]> {
 // ── Native: expo-video-thumbnails ──────────────────────────────────────────────
 async function extractFramesNative(uri: string, durationMs: number): Promise<VideoFrame[]> {
   const VideoThumbnails = await import("expo-video-thumbnails");
-  const FileSystem = await import("expo-file-system");
   const dur = Math.max(durationMs, 1000);
   const step = Math.floor(dur / (FRAME_COUNT + 1));
   const frames: VideoFrame[] = [];
   for (let i = 1; i <= FRAME_COUNT; i++) {
-    const time = step * i;
     try {
-      const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, { time, quality: 0.6 });
-      frames.push({ uri: fUri, time });
-    } catch {
-      // skip
-    }
+      const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, { time: step * i, quality: 0.6 });
+      frames.push({ uri: fUri, time: step * i });
+    } catch {}
   }
   return frames;
+}
+
+// ── Compress video (native only) ────────────────────────────────────────────
+async function compressVideo(
+  uri: string,
+  onProgress: (pct: number) => void
+): Promise<{ uri: string; mime: string }> {
+  if (Platform.OS === "web") return { uri, mime: "video/mp4" };
+
+  try {
+    const { Video } = await import("react-native-compressor");
+    const result = await Video.compress(
+      uri,
+      {
+        compressionMethod: "auto",
+        maxSize: 1280,           // max dimension px (Instagram-style)
+        bitrate: 2_000_000,     // 2 Mbps — good quality, small size
+        minimumFileSizeForCompress: 5, // compress if > 5MB
+      },
+      (progress) => {
+        onProgress(Math.round(progress * 100));
+      }
+    );
+    return { uri: result, mime: "video/mp4" };
+  } catch {
+    // Fallback: use original if compression fails
+    return { uri, mime: "video/mp4" };
+  }
 }
 
 export default function CreateReelScreen() {
@@ -96,26 +110,22 @@ export default function CreateReelScreen() {
 
   const [caption, setCaption] = useState("");
   const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [videoBase64, setVideoBase64] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState("video/mp4");
   const [loadingVideo, setLoadingVideo] = useState(false);
+  const [compressStatus, setCompressStatus] = useState<string | null>(null);
 
   const [frames, setFrames] = useState<VideoFrame[]>([]);
   const [loadingFrames, setLoadingFrames] = useState(false);
   const [selectedFrameIdx, setSelectedFrameIdx] = useState(0);
-
   const [thumbUri, setThumbUri] = useState<string | null>(null);
-  const [thumbBase64, setThumbBase64] = useState<string | null>(null);
-  const thumbMime = "image/jpeg";
 
-  const canPost = !!videoBase64 && !!token;
+  const canPost = !!videoUri && !!token && !loadingVideo && !compressStatus;
 
   // ── Extract frames ──────────────────────────────────────────────────────────
   const extractFrames = async (uri: string, durationMs: number) => {
     setLoadingFrames(true);
     setFrames([]);
     setThumbUri(null);
-    setThumbBase64(null);
     setSelectedFrameIdx(0);
     try {
       let extracted: VideoFrame[] = [];
@@ -126,39 +136,21 @@ export default function CreateReelScreen() {
       }
       setFrames(extracted);
       if (extracted.length > 0) {
-        await applyFrame(0, extracted);
+        setSelectedFrameIdx(0);
+        setThumbUri(extracted[0].uri);
       }
-    } catch {
-      // non-critical
-    }
+    } catch {}
     setLoadingFrames(false);
   };
 
-  const applyFrame = async (idx: number, frameList?: VideoFrame[]) => {
-    const list = frameList ?? frames;
-    const frame = list[idx];
+  const applyFrame = (idx: number) => {
+    const frame = frames[idx];
     if (!frame) return;
     setSelectedFrameIdx(idx);
     setThumbUri(frame.uri);
-
-    if (frame.b64) {
-      // web — b64 already extracted from canvas dataURL
-      setThumbBase64(frame.b64);
-    } else {
-      // native — read file as base64
-      try {
-        const FileSystem = await import("expo-file-system");
-        const b64 = await FileSystem.readAsStringAsync(frame.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        setThumbBase64(b64);
-      } catch {
-        setThumbBase64(null);
-      }
-    }
   };
 
-  // ── Pick video ──────────────────────────────────────────────────────────────
+  // ── Pick + compress video ────────────────────────────────────────────────────
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -166,65 +158,44 @@ export default function CreateReelScreen() {
       return;
     }
     setLoadingVideo(true);
+    setCompressStatus(null);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["videos"],
-        allowsEditing: true,
+        allowsEditing: false,
         videoMaxDuration: 60,
-        quality: 0.6,
-        // NOTE: base64:true for videos is unreliable on Android — we read manually below
       });
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        const uri = asset.uri;
-        const mime = asset.mimeType ?? "video/mp4";
-        const dur = asset.duration ? asset.duration * 1000 : 10000;
 
-        let b64: string;
-        if (Platform.OS === "web") {
-          // Web: fetch blob and convert to base64
-          const resp = await fetch(uri);
-          const blob = await resp.blob();
-          b64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-        } else {
-          // Native (Android/iOS): copy content:// URI to cache first, then read as base64
-          // Android returns content:// URIs which expo-file-system can't read directly
-          const FileSystem = await import("expo-file-system");
-          let readUri = uri;
-          if (Platform.OS === "android") {
-            const ext = mime.split("/")[1]?.split(";")[0] || "mp4";
-            const dest = `${FileSystem.cacheDirectory}reel_${Date.now()}.${ext}`;
-            await FileSystem.copyAsync({ from: uri, to: dest });
-            readUri = dest;
-          }
-          b64 = await FileSystem.readAsStringAsync(readUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          // Clean up temp file on Android
-          if (Platform.OS === "android" && readUri !== uri) {
-            FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
-          }
-        }
-
-        if (!b64 || b64.length === 0) {
-          showError("Error", "Could not read video file. Please try again.");
-        } else if (b64.length > 40_000_000) {
-          showError("Too Large", "Video is too large. Please pick a clip under 30MB.");
-        } else {
-          setVideoUri(uri);
-          setVideoBase64(b64);
-          setVideoMime(mime);
-          setLoadingVideo(false);
-          await extractFrames(uri, dur);
-          return;
-        }
+      if (result.canceled || !result.assets[0]) {
+        setLoadingVideo(false);
+        return;
       }
+
+      const asset = result.assets[0];
+      let uri = asset.uri;
+      const dur = asset.duration ? asset.duration * 1000 : 10000;
+
+      // Android: copy content:// URI to cache first
+      if (Platform.OS === "android" && uri.startsWith("content://")) {
+        const FileSystem = await import("expo-file-system");
+        const dest = `${FileSystem.cacheDirectory}reel_raw_${Date.now()}.mp4`;
+        await FileSystem.copyAsync({ from: uri, to: dest });
+        uri = dest;
+      }
+
+      // Compress the video — Instagram style
+      setLoadingVideo(false);
+      setCompressStatus("Compressing video... 0%");
+      const { uri: compressedUri, mime } = await compressVideo(uri, (pct) => {
+        setCompressStatus(`Compressing... ${pct}%`);
+      });
+      setCompressStatus(null);
+
+      setVideoUri(compressedUri);
+      setVideoMime(mime);
+      await extractFrames(compressedUri, dur);
     } catch (e: any) {
+      setCompressStatus(null);
       showError("Error", "Could not load video. Please try a different clip.");
     }
     setLoadingVideo(false);
@@ -232,14 +203,14 @@ export default function CreateReelScreen() {
 
   // ── Share ───────────────────────────────────────────────────────────────────
   const handleShare = () => {
-    if (!canPost || !videoBase64) return;
+    if (!canPost || !videoUri) return;
     router.back();
     startUpload({
-      videoBase64,
+      videoUri,
       videoMime,
       caption: caption.trim(),
-      thumbnailBase64: thumbBase64 ?? undefined,
-      thumbnailMime: thumbMime,
+      thumbnailUri: thumbUri ?? undefined,
+      thumbnailMime: "image/jpeg",
       token: token!,
     });
   };
@@ -274,7 +245,7 @@ export default function CreateReelScreen() {
           <TouchableOpacity
             style={[s.videoPicker, { backgroundColor: colors.card, borderColor: videoUri ? "#f97316" : colors.border, flex: 2 }]}
             onPress={pickVideo}
-            disabled={loadingVideo || loadingFrames}
+            disabled={!!loadingVideo || !!compressStatus || loadingFrames}
             activeOpacity={0.8}
           >
             {loadingVideo ? (
@@ -282,17 +253,18 @@ export default function CreateReelScreen() {
                 <ActivityIndicator color="#f97316" size="large" />
                 <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Loading video...</Text>
               </View>
-            ) : loadingFrames && !videoUri ? (
+            ) : compressStatus ? (
               <View style={s.center}>
                 <ActivityIndicator color="#f97316" size="large" />
-                <Text style={{ color: colors.mutedForeground, marginTop: 8, fontSize: 12 }}>Extracting frames...</Text>
+                <Text style={{ color: "#f97316", marginTop: 8, fontSize: 13, fontWeight: "700" }}>{compressStatus}</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 4 }}>Optimizing for upload...</Text>
               </View>
             ) : videoUri ? (
               <View style={s.center}>
                 <View style={[s.iconCircle, { backgroundColor: "#f9731620" }]}>
                   <Feather name="check-circle" size={28} color="#f97316" />
                 </View>
-                <Text style={{ color: "#f97316", fontWeight: "700", fontSize: 13, marginTop: 8 }}>Video Selected</Text>
+                <Text style={{ color: "#f97316", fontWeight: "700", fontSize: 13, marginTop: 8 }}>Video Ready</Text>
                 <Text style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 3 }}>Tap to change</Text>
               </View>
             ) : (
@@ -301,7 +273,7 @@ export default function CreateReelScreen() {
                   <Feather name="video" size={28} color="#f97316" />
                 </View>
                 <Text style={[s.pickTitle, { color: colors.foreground }]}>Pick Video</Text>
-                <Text style={[s.pickSub, { color: colors.mutedForeground }]}>Max 60 sec</Text>
+                <Text style={[s.pickSub, { color: colors.mutedForeground }]}>Any size — auto compressed</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -333,48 +305,29 @@ export default function CreateReelScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 12, paddingBottom: 8 }}>
               <Feather name="film" size={14} color="#f97316" />
               <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700" }}>Select Cover Frame</Text>
-              {loadingFrames && (
-                <ActivityIndicator size="small" color="#f97316" style={{ marginLeft: "auto" }} />
-              )}
+              {loadingFrames && <ActivityIndicator size="small" color="#f97316" style={{ marginLeft: "auto" }} />}
             </View>
 
             {loadingFrames && frames.length === 0 ? (
               <View style={{ height: FRAME_H + 16, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Extracting frames from video...</Text>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Extracting frames...</Text>
               </View>
             ) : (
               <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
+                horizontal showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12, gap: 5, flexDirection: "row" }}
               >
                 {frames.map((frame, idx) => {
                   const isSelected = idx === selectedFrameIdx;
                   return (
                     <TouchableOpacity
-                      key={idx}
-                      onPress={() => applyFrame(idx)}
-                      activeOpacity={0.8}
-                      style={[
-                        s.frameCell,
-                        {
-                          width: FRAME_W,
-                          height: FRAME_H,
-                          borderColor: isSelected ? "#f97316" : "transparent",
-                          borderWidth: isSelected ? 2.5 : 0,
-                        },
-                      ]}
+                      key={idx} onPress={() => applyFrame(idx)} activeOpacity={0.8}
+                      style={[s.frameCell, { width: FRAME_W, height: FRAME_H, borderColor: isSelected ? "#f97316" : "transparent", borderWidth: isSelected ? 2.5 : 0 }]}
                     >
-                      <Image
-                        source={{ uri: frame.uri }}
-                        style={{ width: "100%", height: "100%", borderRadius: 4 }}
-                        resizeMode="cover"
-                      />
+                      <Image source={{ uri: frame.uri }} style={{ width: "100%", height: "100%", borderRadius: 4 }} resizeMode="cover" />
                       {isSelected && (
                         <View style={s.selectedOverlay}>
-                          <View style={s.selectedDot}>
-                            <Feather name="check" size={9} color="#fff" />
-                          </View>
+                          <View style={s.selectedDot}><Feather name="check" size={9} color="#fff" /></View>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -383,18 +336,10 @@ export default function CreateReelScreen() {
               </ScrollView>
             )}
 
-            {/* Timeline bar */}
             {frames.length > 0 && (
               <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
                 <View style={{ height: 3, backgroundColor: colors.border, borderRadius: 2 }}>
-                  <View
-                    style={{
-                      height: "100%",
-                      width: `${((selectedFrameIdx + 1) / frames.length) * 100}%`,
-                      backgroundColor: "#f97316",
-                      borderRadius: 2,
-                    }}
-                  />
+                  <View style={{ height: "100%", width: `${((selectedFrameIdx + 1) / frames.length) * 100}%`, backgroundColor: "#f97316", borderRadius: 2 }} />
                 </View>
                 <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center" }}>
                   Frame {selectedFrameIdx + 1} of {frames.length} · {Math.round((frames[selectedFrameIdx]?.time ?? 0) / 1000)}s
@@ -411,11 +356,8 @@ export default function CreateReelScreen() {
             style={[s.captionInput, { color: colors.foreground }]}
             placeholder="Write a caption..."
             placeholderTextColor={colors.mutedForeground}
-            value={caption}
-            onChangeText={setCaption}
-            multiline
-            maxLength={300}
-            textAlignVertical="top"
+            value={caption} onChangeText={setCaption}
+            multiline maxLength={300} textAlignVertical="top"
           />
           <Text style={[s.charCount, { color: colors.mutedForeground }]}>{300 - caption.length}</Text>
         </View>
@@ -427,8 +369,8 @@ export default function CreateReelScreen() {
             <Text style={[s.cardLabel, { color: colors.foreground, textTransform: "none", marginBottom: 0 }]}>How it works</Text>
           </View>
           {[
-            ["Tap Share", "Upload starts in the background"],
-            ["Go to Reels tab", "See live upload progress bar"],
+            ["Pick any video", "Auto-compressed like Instagram"],
+            ["Tap Share", "Upload starts in background"],
             ["Auto-appears", "Reel shows up when upload is done"],
           ].map(([title, sub], i) => (
             <View key={i} style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
@@ -480,7 +422,6 @@ const s = StyleSheet.create({
   },
   selectedDot: {
     width: 18, height: 18, borderRadius: 9,
-    backgroundColor: "#f97316",
-    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#f97316", alignItems: "center", justifyContent: "center",
   },
 });

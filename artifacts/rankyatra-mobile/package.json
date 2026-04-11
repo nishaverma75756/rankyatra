@@ -70,6 +70,7 @@
     "expo-screen-capture": "~8.0.9",
     "expo-screen-orientation": "^9.0.8",
     "expo-video": "^55.0.14",
-    "expo-video-thumbnails": "^55.0.13"
+    "expo-video-thumbnails": "^55.0.13",
+    "react-native-compressor": "^1.16.0"
   }
 }
