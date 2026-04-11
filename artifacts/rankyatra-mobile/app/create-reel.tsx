@@ -192,11 +192,23 @@ export default function CreateReelScreen() {
             reader.readAsDataURL(blob);
           });
         } else {
-          // Native (Android/iOS): use expo-file-system — much more reliable than picker base64
+          // Native (Android/iOS): copy content:// URI to cache first, then read as base64
+          // Android returns content:// URIs which expo-file-system can't read directly
           const FileSystem = await import("expo-file-system");
-          b64 = await FileSystem.readAsStringAsync(uri, {
+          let readUri = uri;
+          if (Platform.OS === "android") {
+            const ext = mime.split("/")[1]?.split(";")[0] || "mp4";
+            const dest = `${FileSystem.cacheDirectory}reel_${Date.now()}.${ext}`;
+            await FileSystem.copyAsync({ from: uri, to: dest });
+            readUri = dest;
+          }
+          b64 = await FileSystem.readAsStringAsync(readUri, {
             encoding: FileSystem.EncodingType.Base64,
           });
+          // Clean up temp file on Android
+          if (Platform.OS === "android" && readUri !== uri) {
+            FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
+          }
         }
 
         if (!b64 || b64.length === 0) {
