@@ -152,7 +152,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
         } else {
           // Web
           if (!videoFile) {
-            setState({ isUploading: false, progress: 0, statusText: "", error: "Video file nahi mila.", done: false });
+            setState({ isUploading: false, progress: 0, statusText: "", error: "Video file not found.", done: false });
             return;
           }
 
@@ -175,9 +175,9 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
       } catch (e: any) {
         const raw: string = e?.message ?? String(e) ?? "";
         const msg = raw.toLowerCase().includes("cancel")
-          ? "Upload cancel ho gaya."
+          ? "Upload cancelled."
           : raw.toLowerCase().includes("network")
-          ? "Network error. Internet check karein aur dobara try karein."
+          ? "Network error. Please check your internet connection and try again."
           : `Upload error: ${raw.slice(0, 100)}`;
         setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
       }
@@ -206,9 +206,9 @@ function handleResult(
   } else {
     let msg = `Upload failed (${result.status}).`;
     if (result.status === 413) {
-      msg = "Video bahut badi hai. Server pe size limit badhani hogi.";
+      msg = "Video file is too large. Please reduce the file size and try again.";
     } else if (result.status === 401) {
-      msg = "Session expire ho gayi. Dobara login karein.";
+      msg = "Session expired. Please log in again.";
     } else {
       try {
         const parsed = JSON.parse(result.body);

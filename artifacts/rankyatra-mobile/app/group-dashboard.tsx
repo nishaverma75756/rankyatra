@@ -66,7 +66,7 @@ export default function GroupDashboardScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    if (!asset.base64) { showError("Image convert nahi hui"); return; }
+    if (!asset.base64) { showError("Image Error", "Failed to process the image."); return; }
     const mimeType = asset.mimeType ?? "image/jpeg";
     setUploadingPhoto(true);
     try {
@@ -79,7 +79,7 @@ export default function GroupDashboardScreen() {
       const data = await res.json();
       setGroup((prev: any) => prev ? { ...prev, photoUrl: data.photoUrl } : prev);
     } catch {
-      showError("Photo upload nahi hui");
+      showError("Upload Failed", "Photo could not be uploaded.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -135,7 +135,7 @@ export default function GroupDashboardScreen() {
 
   // Step 1: Search user by UID
   const handleSearch = async () => {
-    if (!inviteUid.trim()) { showError("UID Enter Karo", "User ka UID daalo"); return; }
+    if (!inviteUid.trim()) { showError("UID Required", "Please enter the user's UID."); return; }
     setSearching(true);
     setFoundUser(null);
     try {
@@ -146,7 +146,7 @@ export default function GroupDashboardScreen() {
       if (!r.ok) throw new Error(d.error ?? "User not found");
       setFoundUser(d);
     } catch (e: any) {
-      showError("User Nahi Mila", e.message);
+      showError("User Not Found", e.message);
     } finally { setSearching(false); }
   };
 
@@ -205,8 +205,8 @@ export default function GroupDashboardScreen() {
 
   const handleWithdraw = async () => {
     const amt = Number(withdrawAmount);
-    if (!amt || amt <= 0) { showError("Invalid Amount", "Valid amount enter karo"); return; }
-    if (!withdrawUpi.trim()) { showError("UPI Required", "Apna UPI ID enter karo"); return; }
+    if (!amt || amt <= 0) { showError("Invalid Amount", "Please enter a valid amount."); return; }
+    if (!withdrawUpi.trim()) { showError("UPI Required", "Please enter your UPI ID."); return; }
     setWithdrawing(true);
     try {
       const r = await fetch(`${BASE_URL}/api/groups/my/commission/withdraw`, {
@@ -312,7 +312,7 @@ export default function GroupDashboardScreen() {
               <View>
                 {myMemberships.length === 0 ? (
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 14 }}>Kisi group ke member nahi hain</Text>
+                    <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 14 }}>You are not a member of any group</Text>
                   </View>
                 ) : myMemberships.map((m) => (
                   <View key={m.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -363,7 +363,7 @@ export default function GroupDashboardScreen() {
                         <Feather name="edit-2" size={15} color={colors.foreground} />
                       </TouchableOpacity>
                     </View>
-                    <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 8 }}>Photo pe tap karo group photo change karne ke liye</Text>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 8 }}>Tap on the photo to change group picture</Text>
                   </View>
 
                   {/* Commission card */}
@@ -392,7 +392,7 @@ export default function GroupDashboardScreen() {
                   {/* ── INVITE MEMBER: Search first, then confirm ── */}
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[s.cardTitle, { color: colors.foreground }]}>Invite Member</Text>
-                    <Text style={[s.sub, { color: colors.mutedForeground, marginBottom: 10 }]}>User ka UID daalo (e.g. 74 ya RY0000000074)</Text>
+                    <Text style={[s.sub, { color: colors.mutedForeground, marginBottom: 10 }]}>Enter user UID (e.g. 74 or RY0000000074)</Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
                       <TextInput
                         style={[s.input, { flex: 1, backgroundColor: colors.muted, color: colors.foreground, borderColor: foundUser ? "#22c55e" : colors.border }]}
@@ -433,7 +433,7 @@ export default function GroupDashboardScreen() {
                           <Feather name="check-circle" size={18} color="#22c55e" />
                         </View>
                         <Text style={[s.sub, { color: colors.mutedForeground, marginTop: 8, marginBottom: 8 }]}>
-                          Kya aap iss user ko group mein invite karna chahte hain?
+                          Are you sure you want to invite this user to the group?
                         </Text>
                         <View style={{ flexDirection: "row", gap: 8 }}>
                           <TouchableOpacity
@@ -463,7 +463,7 @@ export default function GroupDashboardScreen() {
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[s.cardTitle, { color: colors.foreground }]}>Members ({group?.members?.length ?? 0})</Text>
                     {(group?.members ?? []).length === 0 ? (
-                      <Text style={[s.sub, { color: colors.mutedForeground }]}>Abhi tak koi member nahi</Text>
+                      <Text style={[s.sub, { color: colors.mutedForeground }]}>No members yet</Text>
                     ) : (group?.members ?? []).map((m: any) => {
                       const stat = memberStats.find((s: any) => s.userId === m.userId);
                       const isAccepted = m.status === "accepted";
@@ -528,7 +528,7 @@ export default function GroupDashboardScreen() {
                   ))
                 ) : (
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 14 }}>Kisi group ke member nahi hain</Text>
+                    <Text style={{ color: colors.mutedForeground, textAlign: "center", fontSize: 14 }}>You are not a member of any group</Text>
                   </View>
                 )
               )
@@ -659,7 +659,7 @@ export default function GroupDashboardScreen() {
                   Exam History ({memberDetail.exams?.length ?? 0})
                 </Text>
                 {(memberDetail.exams ?? []).length === 0 ? (
-                  <Text style={[s.sub, { color: colors.mutedForeground, textAlign: "center", padding: 16 }]}>Koi exam nahi diya abhi tak</Text>
+                  <Text style={[s.sub, { color: colors.mutedForeground, textAlign: "center", padding: 16 }]}>No exams taken yet</Text>
                 ) : (memberDetail.exams ?? []).map((e: any, i: number) => (
                   <View key={i} style={[s.examRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
                     <View style={{ flex: 1 }}>

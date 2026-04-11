@@ -24,12 +24,12 @@ export default function OAuthCallbackScreen() {
     const handle = async () => {
       try {
         if (error) throw new Error(decodeURIComponent(String(error)));
-        if (!token) throw new Error("Google login se token nahi mila. Dobara try karo.");
+        if (!token) throw new Error("Failed to receive Google token. Please try again.");
 
         const res = await fetch(`${BASE_URL}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) throw new Error("User info load nahi ho saka.");
+        if (!res.ok) throw new Error("Failed to load user info.");
         const user = await res.json();
 
         await login(String(token), user);
@@ -37,7 +37,7 @@ export default function OAuthCallbackScreen() {
         router.replace("/(tabs)/");
       } catch (e: any) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
+        showError("Google Sign-In Failed", e?.message || "Something went wrong. Please try again.");
         router.replace("/(auth)/login");
       }
     };

@@ -168,7 +168,7 @@ export default function GroupsExploreScreen() {
       const data = await customFetch<GroupCard[]>(url);
       setGroups(data);
     } catch {
-      showError("Groups load nahi ho sake");
+      showError("Failed to Load", "Could not load groups. Please try again.");
     }
   }, []);
 
@@ -201,9 +201,9 @@ export default function GroupsExploreScreen() {
     try {
       const res = await customFetch<{ ok: boolean; groupName: string }>(`/api/groups/${groupId}/join`, { method: "POST" });
       setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, isJoined: true, memberCount: g.memberCount + 1 } : g));
-      showSuccess(`"${res.groupName}" group mein join ho gaye!`);
+      showSuccess(`Successfully joined "${res.groupName}"!`);
     } catch (e: any) {
-      showError(e?.message ?? "Join nahi ho saka");
+      showError("Failed to Join", e?.message ?? "Could not join this group. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -212,8 +212,8 @@ export default function GroupsExploreScreen() {
   const handleLeave = (groupId: number) => {
     const group = groups.find((g) => g.id === groupId);
     showAlert(
-      "Group Chhodni Hai?",
-      `Kya aap "${group?.name ?? "is group"}" se leave karna chahte hain?`,
+      "Leave Group?",
+      `Are you sure you want to leave "${group?.name ?? "this group"}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -222,9 +222,9 @@ export default function GroupsExploreScreen() {
             try {
               await customFetch(`/api/groups/${groupId}/leave`, { method: "DELETE" });
               setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, isJoined: false, memberCount: Math.max(0, g.memberCount - 1) } : g));
-              showSuccess("Group chhod diya");
+              showSuccess("Left Group", "You have successfully left the group.");
             } catch (e: any) {
-              showError(e?.message ?? "Leave nahi ho saka");
+              showError("Failed to Leave", e?.message ?? "Could not leave this group. Please try again.");
             } finally {
               setActionLoading(null);
             }
@@ -309,8 +309,8 @@ export default function GroupsExploreScreen() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#f9731615", alignItems: "center", justifyContent: "center" }}>
                   <Feather name="shield" size={30} color="#f97316" />
                 </View>
-                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aap kisi group mein nahi hain</Text>
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Popular tab se koi group join karein</Text>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>You are not in any group</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Join a group from the Popular tab</Text>
                 <TouchableOpacity
                   style={{ marginTop: 12, backgroundColor: "#f97316", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
                   onPress={() => setActiveTab("popular")}
@@ -334,10 +334,10 @@ export default function GroupsExploreScreen() {
               <View style={styles.empty}>
                 <Feather name="users" size={48} color={colors.mutedForeground} />
                 <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                  {search ? "Koi group nahi mila" : "Koi aur group nahi hai"}
+                  {search ? "No groups found" : "No more groups available"}
                 </Text>
                 <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                  {search ? "Kisi aur search term se try karein" : "Aap pehle se sabhi groups mein hain"}
+                  {search ? "Try a different search term" : "You have already joined all available groups"}
                 </Text>
               </View>
             ) : (
@@ -357,7 +357,7 @@ export default function GroupsExploreScreen() {
             leaderboard.length === 0 ? (
               <View style={styles.empty}>
                 <Feather name="award" size={48} color={colors.mutedForeground} />
-                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Abhi koi group nahi</Text>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No groups yet</Text>
               </View>
             ) : (
               <>

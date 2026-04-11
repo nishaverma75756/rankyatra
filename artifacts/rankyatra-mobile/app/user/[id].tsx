@@ -58,8 +58,8 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
 
   const handlePostMenu = () => {
     showConfirm(
-      "Post Delete Karein?",
-      "Yeh action undo nahi ho sakta. Post permanently delete ho jayegi.",
+      "Delete Post?",
+      "This action cannot be undone. The post will be permanently deleted.",
       async () => {
         try {
           const res = await fetch(`${BASE_URL}/api/posts/${post.id}`, {
@@ -69,7 +69,7 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
           if (!res.ok) throw new Error("Failed");
           onDeleted?.(post.id);
         } catch {
-          showError("Error", "Post delete nahi ho saka");
+          showError("Error", "Failed to delete post. Please try again.");
         }
       },
       "Delete",
@@ -194,8 +194,8 @@ function ReelGridItem({ reel, cellSize, onPress, isSelf, onDeleted }: { reel: an
 
   const handleReelMenu = () => {
     showConfirm(
-      "Reel delete karein?",
-      "Yeh action undo nahi ho sakta",
+      "Delete Reel?",
+      "This action cannot be undone. The reel will be permanently deleted.",
       async () => {
         try {
           const res = await fetch(`${BASE_URL}/api/reels/${reel.id}`, {
@@ -205,7 +205,7 @@ function ReelGridItem({ reel, cellSize, onPress, isSelf, onDeleted }: { reel: an
           if (!res.ok) throw new Error("Failed");
           onDeleted?.(reel.id);
         } catch {
-          showError("Error", "Reel delete nahi ho saka");
+          showError("Error", "Failed to delete reel. Please try again.");
         }
       }
     );
@@ -701,8 +701,8 @@ export default function UserPublicProfile() {
             <Feather name="plus-circle" size={20} color={colors.primary} />
           </View>
           <View>
-            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Reel Upload Karen</Text>
-            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Moments tab se naya reel share karen</Text>
+            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Upload a Reel</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Share a new reel from the Moments tab</Text>
           </View>
           <Feather name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: "auto" }} />
         </TouchableOpacity>
@@ -755,8 +755,8 @@ export default function UserPublicProfile() {
             <Feather name="plus-square" size={20} color={colors.primary} />
           </View>
           <View>
-            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Post Banao</Text>
-            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Moments tab se naya post share karen</Text>
+            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Create a Post</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Share a new post from the Moments tab</Text>
           </View>
           <Feather name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: "auto" }} />
         </TouchableOpacity>

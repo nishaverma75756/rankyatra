@@ -51,7 +51,7 @@ export default function SignupScreen() {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const response = await GoogleSignin.signIn();
       const idToken = response.data?.idToken;
-      if (!idToken) throw new Error("Google token nahi mila. Dobara try karo.");
+      if (!idToken) throw new Error("Google token not received. Please try again.");
 
       const serverRes = await fetch(`${BASE_URL}/api/auth/google-native`, {
         method: "POST",
@@ -74,7 +74,7 @@ export default function SignupScreen() {
           return;
         }
       }
-      showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
+      showError("Google Sign-In Failed", e?.message || "Something went wrong. Please try again.");
     } finally {
       setGoogleLoading(false);
     }

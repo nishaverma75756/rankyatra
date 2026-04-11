@@ -66,13 +66,13 @@ function GroupInviteRow({ n, colors, onRespond }: { n: Notification; colors: any
         const match = invites.find((inv) => inv.groupId === parsed.groupId);
         inviteId = match?.id;
       }
-      if (!inviteId) { showError("Invite nahi mili, ho sakta hai already respond kar diya ho"); return; }
+      if (!inviteId) { showError("Invite Not Found", "You may have already responded to this invite."); return; }
       await customFetch(`/api/groups/invites/${inviteId}`, { method: "PATCH", body: JSON.stringify({ action }) });
       setDone(action === "accept" ? "accepted" : "declined");
       onRespond(n.id, action);
-      if (action === "accept") showSuccess(`${parsed.groupName ?? "Group"} mein join ho gaye!`);
+      if (action === "accept") showSuccess(`Successfully joined ${parsed.groupName ?? "the group"}!`);
     } catch {
-      showError("Kuch error hua, dobara try karein");
+      showError("Something went wrong", "Please try again.");
     } finally {
       setResponding(null);
     }
@@ -148,7 +148,7 @@ export default function NotificationsScreen() {
     comment: "commented on your post",
     follow: "started following you",
     reply: "replied to your comment",
-    new_post: "ne naya post kiya",
+    new_post: "shared a new post",
   };
 
   useEffect(() => {
