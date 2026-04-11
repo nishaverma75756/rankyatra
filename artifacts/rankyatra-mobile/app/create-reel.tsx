@@ -92,6 +92,7 @@ export default function CreateReelScreen() {
   const [caption, setCaption] = useState("");
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState("video/mp4");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
   const [compressStatus, setCompressStatus] = useState<string | null>(null);
 
@@ -101,7 +102,9 @@ export default function CreateReelScreen() {
   const [thumbUri, setThumbUri] = useState<string | null>(null);
   const [thumbError, setThumbError] = useState(false);
 
-  const canPost = !!videoUri && !!token && !loadingVideo && !compressStatus;
+  const canPost = Platform.OS === "web"
+    ? !!videoFile && !!token && !loadingVideo
+    : !!videoUri && !!token && !loadingVideo && !compressStatus;
 
   // ── Pick cover image from gallery ─────────────────────────────────────────
   const pickThumbnailFromGallery = async () => {
@@ -140,6 +143,7 @@ export default function CreateReelScreen() {
     setCompressStatus(null);
     setFrames([]);
     setThumbUri(null);
+    setVideoFile(null);
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -156,6 +160,17 @@ export default function CreateReelScreen() {
       const asset = result.assets[0];
       let uri = asset.uri;
       const dur = asset.duration ? asset.duration * 1000 : 10000;
+
+      // Web: store the browser File object for direct FormData upload
+      if (Platform.OS === "web") {
+        const fileObj = (asset as any).file as File | undefined;
+        if (fileObj) setVideoFile(fileObj);
+        setVideoUri(uri);
+        setVideoMime(fileObj?.type || "video/mp4");
+        setLoadingVideo(false);
+        setCompressStatus(null);
+        return;
+      }
 
       // Android: copy content:// URI to cache first
       if (Platform.OS === "android" && uri.startsWith("content://")) {
@@ -212,6 +227,7 @@ export default function CreateReelScreen() {
       thumbnailUri: thumbUri ?? undefined,
       thumbnailMime: "image/jpeg",
       token: token!,
+      videoFile: videoFile ?? undefined,
     });
   };
 

@@ -21,6 +21,7 @@ interface ReelsUploadContextType extends UploadState {
     thumbnailMime?: string;
     token: string;
     onSuccess?: () => void;
+    videoFile?: File;
   }) => void;
   reset: () => void;
 }
@@ -34,6 +35,36 @@ const ReelsUploadContext = createContext<ReelsUploadContextType>({
   startUpload: () => {},
   reset: () => {},
 });
+
+// ── Web upload using browser fetch + real File object ─────────────────────
+async function uploadViaWebFetch(
+  url: string,
+  videoFile: File,
+  caption: string,
+  token: string,
+  onProgress: (pct: number) => void,
+  xhrRef: React.MutableRefObject<XMLHttpRequest | null>
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("video", videoFile, videoFile.name || `reel_${Date.now()}.mp4`);
+    formData.append("caption", caption || "");
+
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
+    xhr.onerror = () => reject(new Error("Network request failed"));
+    xhr.onabort = () => reject(new Error("Upload cancelled"));
+
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
 
 // ── Native upload via expo-file-system/legacy (SDK 54 compatible) ──────────
 async function uploadViaLegacyFS(
@@ -59,7 +90,7 @@ async function uploadViaLegacyFS(
   return { status: result.status, body: result.body };
 }
 
-// ── XHR fallback ────────────────────────────────────────────────────────────
+// ── XHR fallback (React Native native, uses {uri} FormData trick) ────────────
 async function uploadViaXHR(
   url: string,
   videoUri: string,
@@ -109,7 +140,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const startUpload = useCallback(({
-    videoUri, videoMime, caption, thumbnailUri, thumbnailMime, token, onSuccess,
+    videoUri, videoMime, caption, thumbnailUri, thumbnailMime, token, onSuccess, videoFile,
   }: {
     videoUri: string;
     videoMime: string;
@@ -118,6 +149,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
     thumbnailMime?: string;
     token: string;
     onSuccess?: () => void;
+    videoFile?: File;
   }) => {
     (async () => {
       setState({ isUploading: true, progress: 5, statusText: "Preparing...", error: null, done: false });
@@ -126,42 +158,57 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
         const domain = process.env.EXPO_PUBLIC_DOMAIN ?? "rankyatra.in";
         const url = `https://${domain}/api/reels/upload`;
 
-        // Ensure local file:// URI (content:// doesn't work with XHR on Android)
-        let finalVideoUri = videoUri;
-        if (Platform.OS === "android" && videoUri.startsWith("content://")) {
-          const dest = `${FileSystem.cacheDirectory}reel_up_${Date.now()}.mp4`;
-          await FileSystem.copyAsync({ from: videoUri, to: dest });
-          finalVideoUri = dest;
-        }
-
         setState((s) => ({ ...s, progress: 10, statusText: "Uploading reel..." }));
-
-        // Read thumbnail as base64
-        let thumbnailBase64: string | undefined;
-        if (thumbnailUri) {
-          try {
-            thumbnailBase64 = await FileSystem.readAsStringAsync(thumbnailUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          } catch {}
-        }
 
         let result: { status: number; body: string };
 
-        // Try native legacy uploadAsync first (most reliable on real device)
-        try {
-          result = await uploadViaLegacyFS(
-            url, finalVideoUri, videoMime, caption,
-            thumbnailBase64, thumbnailMime || "image/jpeg", token
-          );
-        } catch (nativeErr: any) {
-          console.warn("[ReelsUpload] native uploadAsync failed, falling back to XHR:", nativeErr?.message);
-          result = await uploadViaXHR(
-            url, finalVideoUri, videoMime, caption,
-            thumbnailBase64, thumbnailMime || "image/jpeg", token,
+        if (Platform.OS === "web") {
+          // ── Web mode: use real browser File object ──────────────────────────
+          if (!videoFile) {
+            setState({ isUploading: false, progress: 0, statusText: "", error: "Could not read video file. Try again.", done: false });
+            return;
+          }
+          result = await uploadViaWebFetch(
+            url, videoFile, caption,
+            token,
             (pct) => setState((s) => ({ ...s, progress: 10 + Math.round(pct * 0.88), statusText: `Uploading... ${pct}%` })),
             xhrRef
           );
+        } else {
+          // ── Native mode (Android / iOS) ────────────────────────────────────
+          // Ensure local file:// URI (content:// doesn't work with XHR on Android)
+          let finalVideoUri = videoUri;
+          if (Platform.OS === "android" && videoUri.startsWith("content://")) {
+            const dest = `${FileSystem.cacheDirectory}reel_up_${Date.now()}.mp4`;
+            await FileSystem.copyAsync({ from: videoUri, to: dest });
+            finalVideoUri = dest;
+          }
+
+          // Read thumbnail as base64 (native only)
+          let thumbnailBase64: string | undefined;
+          if (thumbnailUri) {
+            try {
+              thumbnailBase64 = await FileSystem.readAsStringAsync(thumbnailUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+            } catch {}
+          }
+
+          // Try native legacy uploadAsync first (most reliable on real device)
+          try {
+            result = await uploadViaLegacyFS(
+              url, finalVideoUri, videoMime, caption,
+              thumbnailBase64, thumbnailMime || "image/jpeg", token
+            );
+          } catch (nativeErr: any) {
+            console.warn("[ReelsUpload] native uploadAsync failed, falling back to XHR:", nativeErr?.message);
+            result = await uploadViaXHR(
+              url, finalVideoUri, videoMime, caption,
+              thumbnailBase64, thumbnailMime || "image/jpeg", token,
+              (pct) => setState((s) => ({ ...s, progress: 10 + Math.round(pct * 0.88), statusText: `Uploading... ${pct}%` })),
+              xhrRef
+            );
+          }
         }
 
         if (result.status >= 200 && result.status < 300) {
