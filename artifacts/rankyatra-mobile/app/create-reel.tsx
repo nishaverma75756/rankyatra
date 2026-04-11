@@ -270,7 +270,7 @@ export default function CreateReelScreen() {
                   <Feather name="video" size={28} color="#f97316" />
                 </View>
                 <Text style={[s.pickTitle, { color: colors.foreground }]}>Pick Video</Text>
-                <Text style={[s.pickSub, { color: colors.mutedForeground }]}>Any size — auto compressed</Text>
+                <Text style={[s.pickSub, { color: colors.mutedForeground }]}>Up to 60 sec · HD quality</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -379,7 +379,7 @@ export default function CreateReelScreen() {
             <Text style={[s.cardLabel, { color: colors.foreground, textTransform: "none", marginBottom: 0 }]}>How it works</Text>
           </View>
           {[
-            ["Pick any video", "Auto-compressed like Instagram"],
+            ["Pick any video", "HD quality, smooth playback"],
             ["Choose cover frame", "Pick any frame or from gallery"],
             ["Tap Share", "Uploads in background — app stays open"],
           ].map(([title, sub], i) => (
