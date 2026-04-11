@@ -30,6 +30,10 @@ args = "Start application"
 task = "workflow.run"
 args = "API Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Mobile App"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -53,6 +57,18 @@ outputType = "console"
 task = "shell.exec"
 args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
 waitForPort = 8080
+
+[[workflows.workflow]]
+name = "Mobile App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev"
+waitForPort = 25638
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 stack = "PNPM_WORKSPACE"
