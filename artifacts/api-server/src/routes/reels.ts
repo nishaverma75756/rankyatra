@@ -29,8 +29,10 @@ const upload = multer({
   storage,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max (after compression)
   fileFilter: (_req, file, cb) => {
-    if (file.fieldname === "video" && !file.mimetype.startsWith("video/")) {
-      return cb(new Error("Only video files allowed"));
+    // Accept video/*, application/octet-stream (some React Native clients send this)
+    if (file.fieldname === "video") {
+      const isVideoMime = file.mimetype.startsWith("video/") || file.mimetype === "application/octet-stream";
+      if (!isVideoMime) return cb(new Error("Only video files allowed"));
     }
     if (file.fieldname === "thumbnail" && !file.mimetype.startsWith("image/")) {
       return cb(new Error("Only image files allowed for thumbnail"));
