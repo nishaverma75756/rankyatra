@@ -120,8 +120,8 @@ export default function AdminRoles() {
                           <p className="text-xs font-medium mt-0.5">Group: <span className="text-foreground">{row.groupName}</span></p>
                         )}
                       </div>
-                      <Link href={`/admin/users/${row.userId}`} className="shrink-0">
-                        <button className="p-1.5 rounded-lg hover:bg-muted">
+                      <Link href={`/admin/groups/${row.userId}`} className="shrink-0">
+                        <button className="p-1.5 rounded-lg hover:bg-muted" title="View group members">
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </button>
                       </Link>

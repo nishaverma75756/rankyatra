@@ -159,6 +159,78 @@ router.patch("/admin/commission-withdrawals/:id", requireAdmin, async (req: any,
   }
 });
 
+// ─── ADMIN: group detail for a specific owner ────────────────────────────────
+router.get("/admin/groups/:userId", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  try {
+    const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!owner) { res.status(404).json({ error: "User not found" }); return; }
+
+    const [role] = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, userId));
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, userId));
+    if (!group) { res.json({ owner, role: role?.role ?? null, group: null, members: [], stats: {} }); return; }
+
+    // All members (all statuses)
+    const members = await db
+      .select({
+        id: groupMembersTable.id,
+        userId: groupMembersTable.userId,
+        status: groupMembersTable.status,
+        invitedAt: groupMembersTable.invitedAt,
+        joinedAt: groupMembersTable.joinedAt,
+        name: usersTable.name,
+        email: usersTable.email,
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(groupMembersTable)
+      .leftJoin(usersTable, eq(groupMembersTable.userId, usersTable.id))
+      .where(eq(groupMembersTable.groupId, group.id))
+      .orderBy(desc(groupMembersTable.invitedAt));
+
+    // Per-member stats
+    const membersWithStats = await Promise.all(members.map(async (m) => {
+      const [examCount] = await db.select({ cnt: count() }).from(registrationsTable)
+        .where(eq(registrationsTable.userId, m.userId));
+      const [spent] = await db.select({ total: sum(registrationsTable.amountPaid) }).from(registrationsTable)
+        .where(eq(registrationsTable.userId, m.userId));
+      const totalSpent = Number(spent?.total ?? 0);
+      return {
+        ...m,
+        examsTaken: examCount?.cnt ?? 0,
+        totalSpent: totalSpent.toFixed(2),
+        commission: (totalSpent * COMMISSION_RATE).toFixed(2),
+      };
+    }));
+
+    // Group-level totals (accepted only)
+    const accepted = membersWithStats.filter(m => m.status === "accepted");
+    const totalRevenue = accepted.reduce((s, m) => s + Number(m.totalSpent), 0);
+    const totalCommission = totalRevenue * COMMISSION_RATE;
+    const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
+      .from(groupCommissionWithdrawalsTable)
+      .where(and(eq(groupCommissionWithdrawalsTable.groupId, group.id), ne(groupCommissionWithdrawalsTable.status, "rejected")));
+    const availableCommission = Math.max(0, totalCommission - Number(withdrawn?.total ?? 0));
+
+    res.json({
+      owner: { id: owner.id, name: owner.name, email: owner.email, avatarUrl: owner.avatarUrl },
+      role: role?.role ?? null,
+      group: { id: group.id, name: group.name, createdAt: group.createdAt },
+      members: membersWithStats,
+      stats: {
+        totalMembers: accepted.length,
+        pendingInvites: members.filter(m => m.status === "pending").length,
+        totalRevenue: totalRevenue.toFixed(2),
+        totalCommission: totalCommission.toFixed(2),
+        availableCommission: availableCommission.toFixed(2),
+        withdrawnAmount: Number(withdrawn?.total ?? 0).toFixed(2),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch group detail" });
+  }
+});
+
 // ─── MY ROLES (mobile) ───────────────────────────────────────────────────────
 router.get("/roles/my", requireAuth, async (req: any, res) => {
   const roles = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, req.user.id));
