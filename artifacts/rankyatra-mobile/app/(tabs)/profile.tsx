@@ -13,7 +13,12 @@ import {
   Modal,
   Switch,
   Alert,
+  Dimensions,
 } from "react-native";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const POST_GRID_SIZE = (SCREEN_WIDTH - 32 - 8) / 3; // 3 cols, 16px margin each side, 4px gaps
+const REEL_GRID_SIZE = (SCREEN_WIDTH - 32 - 6) / 2; // 2 cols
 import * as Clipboard from "expo-clipboard";
 import { showError, showConfirm } from "@/utils/alert";
 import { router, useFocusEffect } from "expo-router";
@@ -61,6 +66,14 @@ export default function ProfileScreen() {
   const [myRoles, setMyRoles] = useState<string[]>([]);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
+  // Profile content tabs
+  type ProfileTab = "posts" | "reels" | "stats";
+  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>("stats");
+  const [userPosts, setUserPosts] = useState<any[]>([]);
+  const [userReels, setUserReels] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [reelsLoading, setReelsLoading] = useState(false);
+
   const ROLE_COLORS: Record<string, string> = {
     teacher: "#2563eb", influencer: "#7c3aed", promoter: "#d97706",
     partner: "#059669", premium: "#f97316",
@@ -95,6 +108,39 @@ export default function ProfileScreen() {
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
+
+  const fetchUserPosts = useCallback(async (uid: number) => {
+    setPostsLoading(true);
+    try {
+      const base = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+      const h = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${base}/api/posts/user/${uid}`, { headers: h });
+      if (res.ok) {
+        const d = await res.json();
+        setUserPosts(d.posts ?? []);
+      }
+    } catch {}
+    setPostsLoading(false);
+  }, [token]);
+
+  const fetchUserReels = useCallback(async (uid: number) => {
+    setReelsLoading(true);
+    try {
+      const base = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+      const res = await fetch(`${base}/api/reels/user/${uid}`);
+      if (res.ok) {
+        const d = await res.json();
+        setUserReels(d.reels ?? []);
+      }
+    } catch {}
+    setReelsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (activeProfileTab === "posts") fetchUserPosts(user.id);
+    if (activeProfileTab === "reels") fetchUserReels(user.id);
+  }, [activeProfileTab, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -578,6 +624,131 @@ export default function ProfileScreen() {
         </View>
       </TouchableOpacity>
 
+      {/* ── Profile Content Tabs ── */}
+      <View style={[styles.profileTabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {(["posts", "reels", "stats"] as const).map((tab) => {
+          const icons = { posts: "grid", reels: "film", stats: "bar-chart-2" } as const;
+          const labels = { posts: "Posts", reels: "Reels", stats: "Statistics" };
+          const isActive = activeProfileTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.profileTabItem, isActive && { borderBottomColor: "#f97316", borderBottomWidth: 2.5 }]}
+              onPress={() => setActiveProfileTab(tab)}
+            >
+              <Feather name={icons[tab]} size={16} color={isActive ? "#f97316" : colors.mutedForeground} />
+              <Text style={[styles.profileTabLabel, { color: isActive ? "#f97316" : colors.mutedForeground, fontWeight: isActive ? "700" : "500" }]}>
+                {labels[tab]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── POSTS TAB ── */}
+      {activeProfileTab === "posts" && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          {postsLoading ? (
+            <ActivityIndicator color="#f97316" style={{ marginTop: 40 }} />
+          ) : userPosts.length === 0 ? (
+            <View style={styles.tabEmpty}>
+              <Feather name="grid" size={40} color={colors.mutedForeground} />
+              <Text style={[styles.tabEmptyTitle, { color: colors.foreground }]}>Koi post nahi</Text>
+              <Text style={[styles.tabEmptyText, { color: colors.mutedForeground }]}>Moments tab se post karo</Text>
+            </View>
+          ) : (
+            <View style={styles.postGrid}>
+              {userPosts.map((post) => {
+                const resolvedImg = post.imageUrl
+                  ? (post.imageUrl.startsWith("http") ? post.imageUrl : `https://${process.env.EXPO_PUBLIC_DOMAIN}${post.imageUrl}`)
+                  : null;
+                return (
+                  <TouchableOpacity
+                    key={post.id}
+                    style={[styles.postGridItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => router.push(`/post/${post.id}` as any)}
+                    activeOpacity={0.85}
+                  >
+                    {resolvedImg ? (
+                      <Image source={{ uri: resolvedImg }} style={styles.postGridImage} />
+                    ) : (
+                      <View style={[styles.postGridTextBox, { backgroundColor: colors.secondary + "22" }]}>
+                        <Text style={[styles.postGridText, { color: colors.foreground }]} numberOfLines={4}>
+                          {post.content}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.postGridStats}>
+                      <Feather name="heart" size={10} color={colors.mutedForeground} />
+                      <Text style={[styles.postGridStatText, { color: colors.mutedForeground }]}>{post.likeCount ?? 0}</Text>
+                      <Feather name="message-circle" size={10} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+                      <Text style={[styles.postGridStatText, { color: colors.mutedForeground }]}>{post.commentCount ?? 0}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── REELS TAB ── */}
+      {activeProfileTab === "reels" && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          {reelsLoading ? (
+            <ActivityIndicator color="#f97316" style={{ marginTop: 40 }} />
+          ) : userReels.length === 0 ? (
+            <View style={styles.tabEmpty}>
+              <Feather name="film" size={40} color={colors.mutedForeground} />
+              <Text style={[styles.tabEmptyTitle, { color: colors.foreground }]}>Koi reel nahi</Text>
+              <Text style={[styles.tabEmptyText, { color: colors.mutedForeground }]}>Moments tab se reel upload karo</Text>
+            </View>
+          ) : (
+            <View style={styles.reelGrid}>
+              {userReels.map((reel) => {
+                const thumb = reel.thumbnailUrl
+                  ? (reel.thumbnailUrl.startsWith("http") ? reel.thumbnailUrl : `https://${process.env.EXPO_PUBLIC_DOMAIN}${reel.thumbnailUrl}`)
+                  : null;
+                return (
+                  <TouchableOpacity
+                    key={reel.id}
+                    style={[styles.reelGridItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => router.push(`/user/${user!.id}` as any)}
+                    activeOpacity={0.85}
+                  >
+                    {thumb ? (
+                      <Image source={{ uri: thumb }} style={styles.reelGridImage} />
+                    ) : (
+                      <View style={[styles.reelGridPlaceholder, { backgroundColor: "#f9731615" }]}>
+                        <Feather name="play-circle" size={32} color="#f97316" />
+                      </View>
+                    )}
+                    {/* Play icon overlay */}
+                    <View style={styles.reelPlayOverlay}>
+                      <Feather name="play" size={14} color="#fff" />
+                    </View>
+                    {/* Views count */}
+                    <View style={styles.reelViewsRow}>
+                      <Feather name="eye" size={10} color="#fff" />
+                      <Text style={styles.reelViewsText}>{reel.viewCount ?? 0}</Text>
+                    </View>
+                    {/* Caption if any */}
+                    {!!reel.caption && (
+                      <Text style={[styles.reelCaption, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {reel.caption}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── STATISTICS TAB ── */}
+      {activeProfileTab === "stats" && <>
+
       {/* Performance Dashboard */}
       <SectionHeader title="Performance Dashboard" icon="bar-chart-2" colors={colors} />
       <View style={[styles.perfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -712,6 +883,8 @@ export default function ProfileScreen() {
           </View>
         </>
       )}
+
+      </>}{/* end stats tab */}
 
       {/* My Account */}
       <SectionHeader title="My Account" icon="user" colors={colors} />
@@ -925,6 +1098,123 @@ function MenuItem({ icon, label, value, colors }: { icon: any; label: string; va
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // Profile content tab bar
+  profileTabBar: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  profileTabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderBottomWidth: 2.5,
+    borderBottomColor: "transparent",
+  },
+  profileTabLabel: { fontSize: 13 },
+  // Post grid
+  postGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  postGridItem: {
+    width: POST_GRID_SIZE,
+    height: POST_GRID_SIZE,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  postGridImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  postGridTextBox: {
+    flex: 1,
+    padding: 8,
+    justifyContent: "center",
+  },
+  postGridText: { fontSize: 11, lineHeight: 15 },
+  postGridStats: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#00000055",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  postGridStatText: { fontSize: 9, color: "#fff" },
+  // Reel grid
+  reelGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  reelGridItem: {
+    width: REEL_GRID_SIZE,
+    height: REEL_GRID_SIZE * 1.4,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  reelGridImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  reelGridPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reelPlayOverlay: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#00000066",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reelViewsRow: {
+    position: "absolute",
+    bottom: 28,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#00000055",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  reelViewsText: { fontSize: 9, color: "#fff", fontWeight: "700" },
+  reelCaption: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    right: 6,
+    fontSize: 10,
+    backgroundColor: "#00000055",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    color: "#fff",
+  },
+  // Tab empty state
+  tabEmpty: {
+    alignItems: "center",
+    marginTop: 60,
+    gap: 10,
+  },
+  tabEmptyTitle: { fontSize: 16, fontWeight: "700" },
+  tabEmptyText: { fontSize: 13, textAlign: "center" },
   // Settings modal styles
   settingsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1 },
   settingsTitle: { fontSize: 20, fontWeight: "800" },
