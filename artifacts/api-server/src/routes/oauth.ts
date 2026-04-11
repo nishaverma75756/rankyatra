@@ -129,7 +129,7 @@ router.get("/mobile-oauth", (req, res) => {
 
   // Android Intent URL — works in Chrome and Chrome Custom Tabs
   // format: intent://<path>?<params>#Intent;scheme=<scheme>;package=<package>;end
-  const intentUrl = `intent://oauth-callback?${params}#Intent;scheme=rankyatra;package=com.kundan7781.rankyatra;end`;
+  const intentUrl = `intent://oauth-callback?${params}#Intent;scheme=rankyatra;package=com.niskutech.rankyatra;end`;
 
   // Standard custom scheme — fallback for iOS and direct browser (non-Custom Tab)
   const deepLink = `rankyatra://oauth-callback?${params}`;
