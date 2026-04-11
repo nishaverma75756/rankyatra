@@ -2627,6 +2627,62 @@ export const useAdminBlockUser = <
 };
 
 /**
+ * @summary Delete a user permanently (admin only)
+ */
+export const getAdminDeleteUserUrl = (userId: number) => {
+  return `/api/admin/users/${userId}`;
+};
+
+export const adminDeleteUser = async (userId: number, options?: RequestInit) => {
+  return customFetch<{ success: boolean; message: string }>(getAdminDeleteUserUrl(userId), {
+    method: "DELETE",
+    ...options,
+  });
+};
+
+export const getAdminDeleteUserMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteUser>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+}) => {
+  const mutationKey = ["adminDeleteUser"];
+  const { mutation: mutationOptions } = options ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteUser>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props;
+    return adminDeleteUser(userId);
+  };
+  return { mutationKey, mutationFn, ...mutationOptions } as UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteUser>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+};
+
+export type AdminDeleteUserMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteUser>>>;
+export type AdminDeleteUserMutationError = ErrorType<unknown>;
+
+export const useAdminDeleteUser = <TError = ErrorType<unknown>, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteUser>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+}) => {
+  return useMutation(getAdminDeleteUserMutationOptions(options));
+};
+
+/**
  * @summary Adjust user wallet balance (admin only)
  */
 export const getAdminAdjustWalletUrl = (userId: number) => {

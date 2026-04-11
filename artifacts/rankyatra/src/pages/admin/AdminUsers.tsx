@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAdminListUsers, useAdminBlockUser, useAdminAdjustWallet } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminBlockUser, useAdminAdjustWallet, useAdminDeleteUser } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatUID } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ export default function AdminUsers() {
   const [walletUser, setWalletUser] = useState<any>(null);
   const [walletAmount, setWalletAmount] = useState("");
   const [walletNote, setWalletNote] = useState("");
+  const [deleteUser, setDeleteUser] = useState<any>(null);
 
   const { data, isLoading, refetch } = useAdminListUsers();
   const allUsers: any[] = Array.isArray(data) ? data : (data as any)?.users ?? [];
@@ -55,6 +56,17 @@ export default function AdminUsers() {
         refetch();
       },
       onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.message, variant: "destructive" }),
+    },
+  });
+
+  const { mutate: deleteUserMutate, isPending: deleting } = useAdminDeleteUser({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "User Deleted", description: data?.message ?? "User has been permanently deleted." });
+        setDeleteUser(null);
+        refetch();
+      },
+      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.error ?? "Could not delete user.", variant: "destructive" }),
     },
   });
 
@@ -158,12 +170,22 @@ export default function AdminUsers() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className={`h-8 w-8 ${u.isBlocked ? "text-green-600 hover:text-green-700" : "text-destructive hover:text-destructive/80"}`}
+                        className={`h-8 w-8 ${u.isBlocked ? "text-green-600 hover:text-green-700" : "text-amber-600 hover:text-amber-700"}`}
                         title={u.isBlocked ? "Unblock user" : "Block user"}
                         disabled={u.isAdmin}
                         onClick={() => blockUser({ userId: u.id, data: { isBlocked: !u.isBlocked } })}
                       >
                         {u.isBlocked ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        title="Delete user permanently"
+                        disabled={u.isAdmin}
+                        onClick={() => setDeleteUser(u)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -186,6 +208,37 @@ export default function AdminUsers() {
           </div>
         )}
       </div>
+
+      {/* Delete user confirmation dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={(o) => !o && setDeleteUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Delete User Permanently
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to <strong>permanently delete</strong>{" "}
+              <strong>{deleteUser?.name}</strong> ({deleteUser?.email})?
+              <br /><br />
+              <span className="text-destructive font-semibold">
+                This will delete ALL their data — chats, posts, reels, exam history, wallet, and everything else. This action CANNOT be undone.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteUser(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => deleteUserMutate({ userId: deleteUser?.id })}
+            >
+              {deleting ? "Deleting..." : "Yes, Delete Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Wallet adjust dialog */}
       <Dialog open={!!walletUser} onOpenChange={(o) => !o && setWalletUser(null)}>

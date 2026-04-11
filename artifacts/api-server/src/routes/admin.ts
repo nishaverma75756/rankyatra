@@ -8,7 +8,7 @@ import {
   walletTransactionsTable,
   verificationsTable,
 } from "@workspace/db";
-import { eq, count, sum, desc, asc, like } from "drizzle-orm";
+import { eq, count, sum, desc, asc, like, sql } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
@@ -148,6 +148,30 @@ router.patch("/admin/users/:userId/block", requireAdmin, async (req, res): Promi
     totalExamsTaken: 0,
     totalWinnings: "0.00",
   });
+});
+
+// ── Delete user (fully remove from DB) ──────────────────────────────────────
+router.delete("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
+  const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user ID" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.isAdmin) { res.status(403).json({ error: "Admin users cannot be deleted" }); return; }
+
+  // Delete in the correct order to avoid FK constraint violations
+  // (tables without ON DELETE CASCADE must be cleaned manually)
+  await db.execute(sql`DELETE FROM messages WHERE sender_id = ${userId}`);
+  await db.execute(sql`DELETE FROM conversations WHERE user1_id = ${userId} OR user2_id = ${userId}`);
+  await db.execute(sql`DELETE FROM reels WHERE user_id = ${userId}`);
+  await db.execute(sql`DELETE FROM reel_likes WHERE user_id = ${userId}`);
+  await db.execute(sql`DELETE FROM reports WHERE reporter_id = ${userId} OR reported_user_id = ${userId}`);
+  await db.execute(sql`DELETE FROM verifications WHERE user_id = ${userId}`);
+  // Finally delete user — cascade handles: follows, post_likes, post_comments, registrations,
+  // submissions, notifications, push_tokens, password_resets, email_verifications, wallet_transactions, user_blocks
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+  res.json({ success: true, message: `User ${user.name} (ID: ${userId}) deleted successfully.` });
 });
 
 router.patch("/admin/users/:userId/wallet", requireAdmin, async (req, res): Promise<void> => {
