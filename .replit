@@ -24,51 +24,51 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
+args = "artifacts/rankyatra: web"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "API Server"
+args = "artifacts/rankyatra-mobile: expo"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Mobile App"
+args = "artifacts/api-server: API Server"
 
 [[workflows.workflow]]
-name = "Start application"
+name = "artifacts/rankyatra: web"
 author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=25864 pnpm --filter @workspace/rankyatra run dev"
 waitForPort = 25864
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow]]
-name = "API Server"
+name = "artifacts/rankyatra-mobile: expo"
 author = "agent"
 
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev"
+waitForPort = 25638
+
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "artifacts/api-server: API Server"
+author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
 waitForPort = 8080
 
-[[workflows.workflow]]
-name = "Mobile App"
-author = "agent"
-
 [workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev"
-waitForPort = 25638
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
