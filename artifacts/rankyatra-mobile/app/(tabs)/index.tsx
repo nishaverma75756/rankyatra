@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -188,7 +189,15 @@ export default function HomeScreen() {
     selectedCategory !== "All" ? { category: selectedCategory } : {}
   );
 
-  const { data: regsData } = useGetMyRegistrations();
+  const { data: regsData, refetch: refetchRegs } = useGetMyRegistrations();
+
+  // Refetch registrations every time this screen comes into focus
+  // so that "Joined" badge updates immediately after user registers for an exam
+  useFocusEffect(
+    useCallback(() => {
+      refetchRegs();
+    }, [refetchRegs])
+  );
 
   const registeredExamIds = new Set(
     (regsData ?? []).map((r: any) => r.examId ?? r.exam_id)
