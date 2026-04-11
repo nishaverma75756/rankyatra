@@ -13,6 +13,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useVideoPlayer, VideoView } from "expo-video";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import { useEffect, useRef } from "react";
+import { showConfirm, showError } from "@/utils/alert";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -49,11 +50,32 @@ const SKILL_COLORS: Record<string, string> = {
 };
 
 // ─── ProfilePostCard ──────────────────────────────────────────────────────────
-function ProfilePostCard({ post, user, colors }: { post: any; user: any; colors: any }) {
+function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any; user: any; colors: any; isSelf?: boolean; onDeleted?: (id: number) => void }) {
   const router = useRouter();
   const [isLiked, setIsLiked] = useState(post.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
-  const { user: me } = useAuth();
+  const { user: me, token } = useAuth();
+
+  const handlePostMenu = () => {
+    showConfirm(
+      "Post Delete Karein?",
+      "Yeh action undo nahi ho sakta. Post permanently delete ho jayegi.",
+      async () => {
+        try {
+          const res = await fetch(`${BASE_URL}/api/posts/${post.id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error("Failed");
+          onDeleted?.(post.id);
+        } catch {
+          showError("Error", "Post delete nahi ho saka");
+        }
+      },
+      "Delete",
+      "Cancel"
+    );
+  };
 
   const toggleLike = async () => {
     if (!me) { router.push("/login" as any); return; }
@@ -105,6 +127,11 @@ function ProfilePostCard({ post, user, colors }: { post: any; user: any; colors:
           </Text>
           <Text style={[styles.postTime, { color: colors.mutedForeground, marginTop: 1 }]}>{timeAgo(post.createdAt)}</Text>
         </View>
+        {isSelf && (
+          <TouchableOpacity onPress={handlePostMenu} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
+            <Feather name="more-vertical" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Content */}
@@ -160,9 +187,29 @@ function ProfilePostCard({ post, user, colors }: { post: any; user: any; colors:
   );
 }
 
-function ReelGridItem({ reel, cellSize, onPress }: { reel: any; cellSize: number; onPress: () => void }) {
+function ReelGridItem({ reel, cellSize, onPress, isSelf, onDeleted }: { reel: any; cellSize: number; onPress: () => void; isSelf?: boolean; onDeleted?: (id: number) => void }) {
   const [thumb, setThumb] = useState<string | null>(reel.thumbnailUrl ?? null);
   const tried = useRef(false);
+  const { token } = useAuth();
+
+  const handleReelMenu = () => {
+    showConfirm(
+      "Reel delete karein?",
+      "Yeh action undo nahi ho sakta",
+      async () => {
+        try {
+          const res = await fetch(`${BASE_URL}/api/reels/${reel.id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error("Failed");
+          onDeleted?.(reel.id);
+        } catch {
+          showError("Error", "Reel delete nahi ho saka");
+        }
+      }
+    );
+  };
 
   useEffect(() => {
     if (!thumb && reel.videoUrl && !tried.current) {
@@ -211,15 +258,30 @@ function ReelGridItem({ reel, cellSize, onPress }: { reel: any; cellSize: number
           </Text>
         </View>
       </View>
-      {/* Play icon */}
-      <View style={{
-        position: "absolute", top: 6, right: 6,
-        width: 26, height: 26, borderRadius: 13,
-        backgroundColor: "rgba(0,0,0,0.45)",
-        alignItems: "center", justifyContent: "center",
-      }}>
-        <Feather name="play" size={12} color="#ffffffcc" />
-      </View>
+      {/* Play icon or 3-dot for own reels */}
+      {isSelf ? (
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); handleReelMenu(); }}
+          style={{
+            position: "absolute", top: 6, right: 6,
+            width: 26, height: 26, borderRadius: 13,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            alignItems: "center", justifyContent: "center",
+          }}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Feather name="more-vertical" size={13} color="#fff" />
+        </TouchableOpacity>
+      ) : (
+        <View style={{
+          position: "absolute", top: 6, right: 6,
+          width: 26, height: 26, borderRadius: 13,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          alignItems: "center", justifyContent: "center",
+        }}>
+          <Feather name="play" size={12} color="#ffffffcc" />
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -294,6 +356,8 @@ export default function UserPublicProfile() {
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0) + 16;
   const [activeTab, setActiveTab] = useState<"posts" | "reels" | "stats">("posts");
   const [selectedReel, setSelectedReel] = useState<any | null>(null);
+  const [deletedPostIds, setDeletedPostIds] = useState<Set<number>>(new Set());
+  const [deletedReelIds, setDeletedReelIds] = useState<Set<number>>(new Set());
 
   const { data: profile, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/users", userId, "public-profile"],
@@ -372,8 +436,8 @@ export default function UserPublicProfile() {
   const isFollowing: boolean = u?.isFollowing ?? false;
   const followsYou: boolean = u?.followsYou ?? false;
   const isMutating = followMutation.isPending || unfollowMutation.isPending;
-  const userPosts: any[] = userPostsData?.posts ?? [];
-  const userReels: any[] = userReelsData?.reels ?? [];
+  const userPosts: any[] = (userPostsData?.posts ?? []).filter((p: any) => !deletedPostIds.has(p.id));
+  const userReels: any[] = (userReelsData?.reels ?? []).filter((r: any) => !deletedReelIds.has(r.id));
 
   function MessageBtn() {
     if (!me || isSelf) return null;
@@ -619,46 +683,107 @@ export default function UserPublicProfile() {
 
   const REEL_CELL = (Dimensions.get("window").width - 32 - 4) / 3;
 
-  const ReelsContent = reelsLoading ? (
-    <View style={{ padding: 40, alignItems: "center" }}>
-      <ActivityIndicator color={colors.primary} />
-    </View>
-  ) : userReels.length === 0 ? (
-    <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
-      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
-        <Feather name="film" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
-      </View>
-      <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No reels yet</Text>
-    </View>
-  ) : (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: insets.bottom + 32 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2 }}>
-        {userReels.map((reel: any) => (
-          <ReelGridItem
-            key={reel.id}
-            reel={reel}
-            cellSize={REEL_CELL}
-            onPress={() => setSelectedReel(reel)}
-          />
-        ))}
-      </View>
+  const ReelsContent = (
+    <View style={{ paddingBottom: insets.bottom + 32 }}>
+      {isSelf && (
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/moments" as any)}
+          activeOpacity={0.85}
+          style={{
+            marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+            backgroundColor: colors.card, borderRadius: 14,
+            borderWidth: 1.5, borderColor: colors.primary + "40",
+            borderStyle: "dashed", padding: 16,
+            flexDirection: "row", alignItems: "center", gap: 10,
+          }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="plus-circle" size={20} color={colors.primary} />
+          </View>
+          <View>
+            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Reel Upload Karen</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Moments tab se naya reel share karen</Text>
+          </View>
+          <Feather name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: "auto" }} />
+        </TouchableOpacity>
+      )}
+      {reelsLoading ? (
+        <View style={{ padding: 40, alignItems: "center" }}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : userReels.length === 0 ? (
+        <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
+          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="film" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
+          </View>
+          <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No reels yet</Text>
+        </View>
+      ) : (
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2 }}>
+            {userReels.map((reel: any) => (
+              <ReelGridItem
+                key={reel.id}
+                reel={reel}
+                cellSize={REEL_CELL}
+                onPress={() => setSelectedReel(reel)}
+                isSelf={isSelf}
+                onDeleted={(id) => setDeletedReelIds((prev) => new Set([...prev, id]))}
+              />
+            ))}
+          </View>
+        </View>
+      )}
     </View>
   );
 
-  const PostsContent = postsLoading ? (
-    <View style={{ padding: 40, alignItems: "center" }}>
-      <ActivityIndicator color={colors.primary} />
-    </View>
-  ) : userPosts.length === 0 ? (
-    <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
-      <Feather name="camera-off" size={36} color={colors.mutedForeground} style={{ opacity: 0.3 }} />
-      <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No posts yet</Text>
-    </View>
-  ) : (
-    <View style={styles.feedContainer}>
-      {userPosts.map((post: any) => (
-        <ProfilePostCard key={post.id} post={post} user={u} colors={colors} />
-      ))}
+  const PostsContent = (
+    <View style={{ paddingBottom: insets.bottom + 32 }}>
+      {isSelf && (
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/moments" as any)}
+          activeOpacity={0.85}
+          style={{
+            marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+            backgroundColor: colors.card, borderRadius: 14,
+            borderWidth: 1.5, borderColor: colors.primary + "40",
+            borderStyle: "dashed", padding: 16,
+            flexDirection: "row", alignItems: "center", gap: 10,
+          }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="plus-square" size={20} color={colors.primary} />
+          </View>
+          <View>
+            <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}>Post Banao</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 1 }}>Moments tab se naya post share karen</Text>
+          </View>
+          <Feather name="chevron-right" size={16} color={colors.primary} style={{ marginLeft: "auto" }} />
+        </TouchableOpacity>
+      )}
+      {postsLoading ? (
+        <View style={{ padding: 40, alignItems: "center" }}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : userPosts.length === 0 ? (
+        <View style={{ padding: 40, alignItems: "center", gap: 8 }}>
+          <Feather name="camera-off" size={36} color={colors.mutedForeground} style={{ opacity: 0.3 }} />
+          <Text style={{ color: colors.mutedForeground, fontSize: 14, fontWeight: "600" }}>No posts yet</Text>
+        </View>
+      ) : (
+        <View style={styles.feedContainer}>
+          {userPosts.map((post: any) => (
+            <ProfilePostCard
+              key={post.id}
+              post={post}
+              user={u}
+              colors={colors}
+              isSelf={isSelf}
+              onDeleted={(id) => setDeletedPostIds((prev) => new Set([...prev, id]))}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 

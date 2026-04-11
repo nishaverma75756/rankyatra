@@ -66,13 +66,6 @@ export default function ProfileScreen() {
   const [myRoles, setMyRoles] = useState<string[]>([]);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
-  // Profile content tabs
-  type ProfileTab = "posts" | "reels" | "stats";
-  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>("stats");
-  const [userPosts, setUserPosts] = useState<any[]>([]);
-  const [userReels, setUserReels] = useState<any[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const [reelsLoading, setReelsLoading] = useState(false);
 
   const ROLE_COLORS: Record<string, string> = {
     teacher: "#2563eb", influencer: "#7c3aed", promoter: "#d97706",
@@ -108,39 +101,6 @@ export default function ProfileScreen() {
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
-
-  const fetchUserPosts = useCallback(async (uid: number) => {
-    setPostsLoading(true);
-    try {
-      const base = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-      const h = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`${base}/api/posts/user/${uid}`, { headers: h });
-      if (res.ok) {
-        const d = await res.json();
-        setUserPosts(d.posts ?? []);
-      }
-    } catch {}
-    setPostsLoading(false);
-  }, [token]);
-
-  const fetchUserReels = useCallback(async (uid: number) => {
-    setReelsLoading(true);
-    try {
-      const base = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-      const res = await fetch(`${base}/api/reels/user/${uid}`);
-      if (res.ok) {
-        const d = await res.json();
-        setUserReels(d.reels ?? []);
-      }
-    } catch {}
-    setReelsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    if (activeProfileTab === "posts") fetchUserPosts(user.id);
-    if (activeProfileTab === "reels") fetchUserReels(user.id);
-  }, [activeProfileTab, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -462,8 +422,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-      {/* Avatar + Name */}
-      <View style={[styles.heroCard, { backgroundColor: colors.secondary }]}>
+      {/* Avatar + Name — tap to go to public profile */}
+      <TouchableOpacity
+        activeOpacity={0.92}
+        onPress={() => { if (user?.id) router.push(`/user/${user.id}` as any); }}
+        style={[styles.heroCard, { backgroundColor: colors.secondary }]}
+      >
         <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
           {getFullAvatarUrl(user?.avatarUrl) ? (
             <Image
@@ -536,18 +500,25 @@ export default function ProfileScreen() {
             const pts = (stats as any).rankPoints ?? stats.totalCorrect ?? 0;
             const toNext = getNextTierPts(pts);
             return (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
                 <Feather name="zap" size={10} color="#ffffff88" />
                 <Text style={{ fontSize: 11, color: "#ffffff88", fontWeight: "600" }}>{pts} pts</Text>
                 {toNext > 0
                   ? <Text style={{ fontSize: 10, color: "#ffffff55" }}>· {toNext} pts to next tier</Text>
                   : <Text style={{ fontSize: 10, color: "#f59e0b" }}>· Max Tier 🏆</Text>
                 }
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); if (user?.id) router.push(`/user/${user.id}` as any); }}
+                  style={{ marginLeft: 4, backgroundColor: "#ffffff22", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={{ fontSize: 10, color: "#fff", fontWeight: "700" }}>View Profile →</Text>
+                </TouchableOpacity>
               </View>
             );
           })()}
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Followers / Following Row */}
       {user?.id && (
@@ -624,130 +595,6 @@ export default function ProfileScreen() {
         </View>
       </TouchableOpacity>
 
-      {/* ── Profile Content Tabs ── */}
-      <View style={[styles.profileTabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {(["posts", "reels", "stats"] as const).map((tab) => {
-          const icons = { posts: "grid", reels: "film", stats: "bar-chart-2" } as const;
-          const labels = { posts: "Posts", reels: "Reels", stats: "Statistics" };
-          const isActive = activeProfileTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.profileTabItem, isActive && { borderBottomColor: "#f97316", borderBottomWidth: 2.5 }]}
-              onPress={() => setActiveProfileTab(tab)}
-            >
-              <Feather name={icons[tab]} size={16} color={isActive ? "#f97316" : colors.mutedForeground} />
-              <Text style={[styles.profileTabLabel, { color: isActive ? "#f97316" : colors.mutedForeground, fontWeight: isActive ? "700" : "500" }]}>
-                {labels[tab]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* ── POSTS TAB ── */}
-      {activeProfileTab === "posts" && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          {postsLoading ? (
-            <ActivityIndicator color="#f97316" style={{ marginTop: 40 }} />
-          ) : userPosts.length === 0 ? (
-            <View style={styles.tabEmpty}>
-              <Feather name="grid" size={40} color={colors.mutedForeground} />
-              <Text style={[styles.tabEmptyTitle, { color: colors.foreground }]}>Koi post nahi</Text>
-              <Text style={[styles.tabEmptyText, { color: colors.mutedForeground }]}>Moments tab se post karo</Text>
-            </View>
-          ) : (
-            <View style={styles.postGrid}>
-              {userPosts.map((post) => {
-                const resolvedImg = post.imageUrl
-                  ? (post.imageUrl.startsWith("http") ? post.imageUrl : `https://${process.env.EXPO_PUBLIC_DOMAIN}${post.imageUrl}`)
-                  : null;
-                return (
-                  <TouchableOpacity
-                    key={post.id}
-                    style={[styles.postGridItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => router.push(`/post/${post.id}` as any)}
-                    activeOpacity={0.85}
-                  >
-                    {resolvedImg ? (
-                      <Image source={{ uri: resolvedImg }} style={styles.postGridImage} />
-                    ) : (
-                      <View style={[styles.postGridTextBox, { backgroundColor: colors.secondary + "22" }]}>
-                        <Text style={[styles.postGridText, { color: colors.foreground }]} numberOfLines={4}>
-                          {post.content}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.postGridStats}>
-                      <Feather name="heart" size={10} color={colors.mutedForeground} />
-                      <Text style={[styles.postGridStatText, { color: colors.mutedForeground }]}>{post.likeCount ?? 0}</Text>
-                      <Feather name="message-circle" size={10} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
-                      <Text style={[styles.postGridStatText, { color: colors.mutedForeground }]}>{post.commentCount ?? 0}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* ── REELS TAB ── */}
-      {activeProfileTab === "reels" && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          {reelsLoading ? (
-            <ActivityIndicator color="#f97316" style={{ marginTop: 40 }} />
-          ) : userReels.length === 0 ? (
-            <View style={styles.tabEmpty}>
-              <Feather name="film" size={40} color={colors.mutedForeground} />
-              <Text style={[styles.tabEmptyTitle, { color: colors.foreground }]}>Koi reel nahi</Text>
-              <Text style={[styles.tabEmptyText, { color: colors.mutedForeground }]}>Moments tab se reel upload karo</Text>
-            </View>
-          ) : (
-            <View style={styles.reelGrid}>
-              {userReels.map((reel) => {
-                const thumb = reel.thumbnailUrl
-                  ? (reel.thumbnailUrl.startsWith("http") ? reel.thumbnailUrl : `https://${process.env.EXPO_PUBLIC_DOMAIN}${reel.thumbnailUrl}`)
-                  : null;
-                return (
-                  <TouchableOpacity
-                    key={reel.id}
-                    style={[styles.reelGridItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => router.push(`/user/${user!.id}` as any)}
-                    activeOpacity={0.85}
-                  >
-                    {thumb ? (
-                      <Image source={{ uri: thumb }} style={styles.reelGridImage} />
-                    ) : (
-                      <View style={[styles.reelGridPlaceholder, { backgroundColor: "#f9731615" }]}>
-                        <Feather name="play-circle" size={32} color="#f97316" />
-                      </View>
-                    )}
-                    {/* Play icon overlay */}
-                    <View style={styles.reelPlayOverlay}>
-                      <Feather name="play" size={14} color="#fff" />
-                    </View>
-                    {/* Views count */}
-                    <View style={styles.reelViewsRow}>
-                      <Feather name="eye" size={10} color="#fff" />
-                      <Text style={styles.reelViewsText}>{reel.viewCount ?? 0}</Text>
-                    </View>
-                    {/* Caption if any */}
-                    {!!reel.caption && (
-                      <Text style={[styles.reelCaption, { color: colors.mutedForeground }]} numberOfLines={1}>
-                        {reel.caption}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* ── STATISTICS TAB ── */}
-      {activeProfileTab === "stats" && <>
 
       {/* Performance Dashboard */}
       <SectionHeader title="Performance Dashboard" icon="bar-chart-2" colors={colors} />
@@ -884,7 +731,6 @@ export default function ProfileScreen() {
         </>
       )}
 
-      </>}{/* end stats tab */}
 
       {/* My Account */}
       <SectionHeader title="My Account" icon="user" colors={colors} />
