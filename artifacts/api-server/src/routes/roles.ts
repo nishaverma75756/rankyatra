@@ -43,7 +43,7 @@ router.get("/admin/roles", requireAdmin, async (_req, res) => {
         if (memberIds.length > 0) {
           let rev = 0;
           for (const uid of memberIds) {
-            const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+            const [s] = await db.select({ total: sum(registrationsTable.amountPaid) })
               .from(registrationsTable).where(eq(registrationsTable.userId, uid));
             rev += Number(s?.total ?? 0);
           }
@@ -190,7 +190,7 @@ router.get("/groups/my", requireAuth, async (req: any, res) => {
     const accepted = members.filter(m => m.status === "accepted");
     let totalRevenue = 0;
     for (const m of accepted) {
-      const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+      const [s] = await db.select({ total: sum(registrationsTable.amountPaid) })
         .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
       totalRevenue += Number(s?.total ?? 0);
     }
@@ -361,7 +361,7 @@ router.get("/groups/my/member-stats", requireAuth, async (req: any, res) => {
     const stats = await Promise.all(members.map(async (m) => {
       const [examCount] = await db.select({ cnt: count() }).from(registrationsTable)
         .where(eq(registrationsTable.userId, m.userId));
-      const [spent] = await db.select({ total: sum(registrationsTable.entryFee) }).from(registrationsTable)
+      const [spent] = await db.select({ total: sum(registrationsTable.amountPaid) }).from(registrationsTable)
         .where(eq(registrationsTable.userId, m.userId));
       return {
         userId: m.userId,
@@ -395,7 +395,7 @@ router.post("/groups/my/commission/withdraw", requireAuth, async (req: any, res)
       .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
     let totalRevenue = 0;
     for (const m of members) {
-      const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+      const [s] = await db.select({ total: sum(registrationsTable.amountPaid) })
         .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
       totalRevenue += Number(s?.total ?? 0);
     }

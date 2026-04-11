@@ -25,7 +25,7 @@ export default function AdminRoles() {
     const token = localStorage.getItem("rankyatra_token");
     fetch("/api/admin/roles", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setAllRoles(data))
+      .then(data => setAllRoles(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
