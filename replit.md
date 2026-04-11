@@ -108,3 +108,65 @@ Profile photo upload uses Replit's GCS-backed object storage:
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+---
+
+## Important Project Info (RankYatra)
+
+### EC2 / Production Details
+
+| Item | Value |
+|---|---|
+| EC2 API Port | `8080` |
+| Production URL | `https://rankyatra.in` |
+| OAuth Callback | `https://rankyatra.niskutech.com` |
+| DB Name (EC2) | `rankyatradb` |
+| DB User (EC2) | `rankyatra` |
+| DB Pass (EC2) | `StrongPass123` |
+| Expo Project ID | `a04e437e-68e7-40e6-871c-15c6a209f2f3` |
+| Expo Owner | `kundan7781` |
+| Android Package | `com.kundan7781.rankyatra` |
+| PM2 App Name | `rankyatra-api` |
+
+### EC2 Deploy Commands
+
+```bash
+# Deploy karna
+cd ~/rankyatra && git pull origin main && setsid bash deploy.sh > deploy.log 2>&1 &
+
+# Deploy log check
+tail -f ~/rankyatra/deploy.log
+
+# Deploy status
+pm2 status
+pm2 logs rankyatra-api --lines 50
+```
+
+### Android APK Build (Expo)
+
+- expo.dev pe login karo — Account: `kundan7781`
+- Project `rankyatra` open karo → Builds → New Build → Android → profile: `preview`
+- Ya command se: `npx eas-cli build --platform android --profile preview --non-interactive`
+
+### Mobile App Important Rules
+
+- **NEVER** use `Alert.alert()` — hamesha `showAlert/showConfirm/showError` use karo (`@/utils/alert` se)
+- Brand color: `#f97316` (orange)
+- `users` table mein `rank_points` column NAHI hai
+- Middleware path: `../middlewares/auth` (with 's')
+- Backend body limit: 50MB
+- Video storage: base64 data URL directly `video_url` column mein
+
+### Workflows (Replit)
+
+| Workflow Name | Command | Port |
+|---|---|---|
+| `artifacts/rankyatra: web` | `PORT=25864 pnpm --filter @workspace/rankyatra run dev` | 25864 |
+| `artifacts/rankyatra-mobile: expo` | `PORT=25638 pnpm --filter @workspace/rankyatra-mobile run dev` | 25638 |
+| `artifacts/api-server: API Server` | `PORT=8080 pnpm --filter @workspace/api-server run dev` | 8080 |
+
+### Database Restore (naye Replit pe)
+
+```bash
+psql $DATABASE_URL < backups/rankyatra_full_backup_20260409.sql
+```
