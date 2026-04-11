@@ -85,6 +85,12 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted_for_receiver boolean NO
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted_for_everyone boolean NOT NULL DEFAULT false;
 "
 
+# Conversation soft-delete per user (added Apr 2026)
+$DB_CMD -c "
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS deleted_for_user1 boolean NOT NULL DEFAULT false;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS deleted_for_user2 boolean NOT NULL DEFAULT false;
+"
+
 # Moments / Social feed tables (added Apr 2026)
 $DB_CMD -c "
 CREATE TABLE IF NOT EXISTS posts (

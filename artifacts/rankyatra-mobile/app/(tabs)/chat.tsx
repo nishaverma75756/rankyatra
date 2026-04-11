@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Image,
 } from "react-native";
+import { showAlert, showError } from "@/utils/alert";
 import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -135,6 +136,29 @@ export default function ChatListScreen() {
 
   const onRefresh = () => { setRefreshing(true); fetchConversations(); };
 
+  const handleDeleteConversation = (item: Conversation) => {
+    showAlert(
+      "Delete Chat?",
+      `Delete your chat with ${item.otherUser.name}? This is only for you, they won't be notified.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await customFetch(`/api/chat/conversations/${item.id}`, { method: "DELETE" });
+              setConversations((prev) => prev.filter((c) => c.id !== item.id));
+            } catch {
+              showError("Error", "Failed to delete chat. Please try again.");
+            }
+          },
+        },
+      ],
+      "warning"
+    );
+  };
+
   const renderItem = ({ item }: { item: Conversation }) => {
     const lm = item.lastMessage;
     const isMyMsg = !!lm && myId !== undefined && lm.senderId === myId;
@@ -148,7 +172,6 @@ export default function ChatListScreen() {
           hasUnread && { backgroundColor: "#f0fdf4" },
         ]}
         onPress={() => {
-          // Instantly clear unread badge in UI before navigating
           if (item.unreadCount > 0) {
             setConversations((prev) =>
               prev.map((c) => c.id === item.id ? { ...c, unreadCount: 0 } : c)
@@ -156,6 +179,8 @@ export default function ChatListScreen() {
           }
           router.push(`/chat/${item.id}` as any);
         }}
+        onLongPress={() => handleDeleteConversation(item)}
+        delayLongPress={500}
         activeOpacity={0.7}
       >
         {/* Avatar with unread dot */}

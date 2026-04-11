@@ -7,6 +7,8 @@ export const conversationsTable = pgTable("conversations", {
   user2Id: integer("user2_id").notNull().references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedForUser1: boolean("deleted_for_user1").notNull().default(false),
+  deletedForUser2: boolean("deleted_for_user2").notNull().default(false),
 });
 
 export const messagesTable = pgTable("messages", {

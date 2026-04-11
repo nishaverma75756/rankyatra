@@ -39,9 +39,15 @@ router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
       .select()
       .from(conversationsTable)
       .where(
-        or(
-          eq(conversationsTable.user1Id, userId),
-          eq(conversationsTable.user2Id, userId)
+        and(
+          or(
+            eq(conversationsTable.user1Id, userId),
+            eq(conversationsTable.user2Id, userId)
+          ),
+          or(
+            and(eq(conversationsTable.user1Id, userId), eq(conversationsTable.deletedForUser1, false)),
+            and(eq(conversationsTable.user2Id, userId), eq(conversationsTable.deletedForUser2, false))
+          )
         )
       )
       .orderBy(desc(conversationsTable.updatedAt));
@@ -236,10 +242,10 @@ router.post("/chat/messages", requireAuth, async (req: any, res: any) => {
       })
       .returning();
 
-    // Update conversation updatedAt
+    // Update conversation — reset deleted flags so convo reappears for both users
     await db
       .update(conversationsTable)
-      .set({ updatedAt: new Date() })
+      .set({ updatedAt: new Date(), deletedForUser1: false, deletedForUser2: false })
       .where(eq(conversationsTable.id, conversationId));
 
     // Push via WebSocket to recipient and sender
@@ -417,6 +423,38 @@ router.delete("/chat/messages/:msgId", requireAuth, async (req: any, res: any) =
     }
   } catch {
     res.status(500).json({ message: "Failed to delete message" });
+  }
+});
+
+// Delete conversation for current user — hides it from their list
+router.delete("/chat/conversations/:id", requireAuth, async (req: any, res: any) => {
+  const convId = Number(req.params.id);
+  const userId = req.user.id;
+  try {
+    const [conv] = await db.select().from(conversationsTable)
+      .where(and(
+        eq(conversationsTable.id, convId),
+        or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId))
+      )).limit(1);
+    if (!conv) return res.status(404).json({ message: "Conversation not found" });
+
+    const isUser1 = conv.user1Id === userId;
+    // Mark conversation as deleted for this user
+    await db.update(conversationsTable)
+      .set(isUser1 ? { deletedForUser1: true } : { deletedForUser2: true })
+      .where(eq(conversationsTable.id, convId));
+
+    // Also mark all messages as deleted for this user
+    await db.update(messagesTable)
+      .set({ isDeletedForSender: true })
+      .where(and(eq(messagesTable.conversationId, convId), eq(messagesTable.senderId, userId)));
+    await db.update(messagesTable)
+      .set({ isDeletedForReceiver: true })
+      .where(and(eq(messagesTable.conversationId, convId), ne(messagesTable.senderId, userId)));
+
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ message: "Failed to delete conversation" });
   }
 });
 

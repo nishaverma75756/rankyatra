@@ -397,6 +397,31 @@ export default function ChatScreen() {
     }
   };
 
+  const handleDeleteConversation = () => {
+    const name = convInfo?.otherUser?.name ?? "this chat";
+    setMenuVisible(false);
+    showAlert(
+      "Delete Chat?",
+      `This will delete the chat with ${name} only for you. They won't be notified.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await customFetch(`/api/chat/conversations/${convId}`, { method: "DELETE" });
+              router.back();
+            } catch {
+              showError("Error", "Failed to delete chat. Please try again.");
+            }
+          },
+        },
+      ],
+      "warning"
+    );
+  };
+
   const handleViewProfile = () => {
     setMenuVisible(false);
     if (convInfo?.otherUser?.id) router.push(`/user/${convInfo.otherUser.id}` as any);
@@ -584,6 +609,12 @@ export default function ChatScreen() {
             <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setReportVisible(true); }}>
               <Feather name="flag" size={17} color="#f97316" />
               <Text style={[styles.menuItemText, { color: "#f97316" }]}>Report</Text>
+            </TouchableOpacity>
+            <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
+            {/* Delete Chat */}
+            <TouchableOpacity style={styles.menuItem} onPress={handleDeleteConversation}>
+              <Feather name="trash-2" size={17} color="#ef4444" />
+              <Text style={[styles.menuItemText, { color: "#ef4444" }]}>Delete Chat</Text>
             </TouchableOpacity>
             {/* Block */}
             <TouchableOpacity style={styles.menuItem} onPress={handleBlockToggle}>
