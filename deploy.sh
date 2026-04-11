@@ -18,6 +18,8 @@ echo "[3/8] Syncing database schema..."
 DB_CMD="sudo -u postgres psql rankyatradb"
 
 $DB_CMD -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS show_online_status boolean NOT NULL DEFAULT true;"
+$DB_CMD -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id text UNIQUE;"
+$DB_CMD -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS facebook_id text UNIQUE;"
 
 $DB_CMD -c "CREATE TABLE IF NOT EXISTS user_blocks (
   id serial PRIMARY KEY,

@@ -3,7 +3,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { db, usersTable } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { generateToken } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -32,35 +32,42 @@ async function findOrCreateOAuthUser(opts: {
   providerId: string;
   email: string;
   name: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 }) {
   const { provider, providerId, email, name, avatarUrl } = opts;
+  const normalizedEmail = email.toLowerCase().trim();
   const idField = provider === "google" ? usersTable.googleId : usersTable.facebookId;
 
+  // Search by provider ID OR email (case-insensitive) so web + mobile share the same account
   const [existing] = await db
     .select()
     .from(usersTable)
-    .where(or(eq(idField, providerId), eq(usersTable.email, email)));
+    .where(
+      or(
+        eq(idField, providerId),
+        sql`lower(${usersTable.email}) = ${normalizedEmail}`
+      )
+    );
 
   if (existing) {
     const updateFields =
       provider === "google"
-        ? { googleId: providerId, ...(avatarUrl && !existing.avatarUrl ? { avatarUrl } : {}) }
-        : { facebookId: providerId, ...(avatarUrl && !existing.avatarUrl ? { avatarUrl } : {}) };
+        ? { googleId: providerId, email: normalizedEmail, ...(avatarUrl && !existing.avatarUrl ? { avatarUrl } : {}) }
+        : { facebookId: providerId, email: normalizedEmail, ...(avatarUrl && !existing.avatarUrl ? { avatarUrl } : {}) };
     await db.update(usersTable).set(updateFields).where(eq(usersTable.id, existing.id));
     console.log("[OAuth] Updated existing user:", existing.id, existing.email);
-    return existing;
+    return { ...existing, ...updateFields };
   }
 
-  if (!email) throw new Error("Google account ne email provide nahi ki. Please kisi doosre Google account se try karo.");
+  if (!normalizedEmail) throw new Error("Google account ne email provide nahi ki. Please kisi doosre Google account se try karo.");
 
-  console.log("[OAuth] Creating new user for:", email);
+  console.log("[OAuth] Creating new user for:", normalizedEmail);
   try {
     const [created] = await db
       .insert(usersTable)
       .values({
         name,
-        email,
+        email: normalizedEmail,
         passwordHash: null,
         emailVerified: true,
         googleId: provider === "google" ? providerId : null,
@@ -242,7 +249,14 @@ router.post("/auth/google-native", async (req: Request, res: Response) => {
       avatarUrl: payload.picture || null,
     });
 
-    const token = generateToken(user.id);
+    // ✅ Pass full user object (not just user.id) so JWT contains all required fields
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      isAdmin: user.isAdmin ?? false,
+      isBlocked: user.isBlocked ?? false,
+    });
     res.json({
       token,
       user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, isAdmin: user.isAdmin },
