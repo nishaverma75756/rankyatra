@@ -115,24 +115,86 @@ function handleOAuthCallback(provider: "google" | "facebook") {
   };
 }
 
-// Fallback page — shown if redirect to rankyatra:// deep link is slow or fails
-// Includes JS redirect so old app builds also work
+// Intermediate page for mobile OAuth.
+// Chrome Custom Tabs on Android blocks window.location.href to custom schemes (rankyatra://).
+// Solution: use Android Intent URL format which Chrome fires as a native Android Intent,
+// bypassing the custom scheme restriction and opening the app directly.
 router.get("/mobile-oauth", (req, res) => {
-  const token = req.query.token || "";
-  const error = req.query.error || "";
-  const deepLink = token
-    ? `rankyatra://oauth-callback?token=${encodeURIComponent(token as string)}`
-    : `rankyatra://oauth-callback?error=${encodeURIComponent(error as string)}`;
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RankYatra</title>
-  <style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#fff7ed;}
-  .logo{font-size:28px;font-weight:900;color:#f97316;}p{color:#64748b;margin-top:8px;}</style>
-  <script>
-    try { window.location.href = ${JSON.stringify(deepLink)}; } catch(e) {}
-    setTimeout(function() {
-      try { window.location.href = ${JSON.stringify(deepLink)}; } catch(e) {}
-    }, 300);
-  </script></head>
-  <body><div style="text-align:center"><div class="logo">RankYatra</div><p>Completing sign-in...</p></div></body></html>`);
+  const token = req.query.token as string || "";
+  const error = req.query.error as string || "";
+
+  const params = token
+    ? `token=${encodeURIComponent(token)}`
+    : `error=${encodeURIComponent(error)}`;
+
+  // Android Intent URL — works in Chrome and Chrome Custom Tabs
+  // format: intent://<path>?<params>#Intent;scheme=<scheme>;package=<package>;end
+  const intentUrl = `intent://oauth-callback?${params}#Intent;scheme=rankyatra;package=com.kundan7781.rankyatra;end`;
+
+  // Standard custom scheme — fallback for iOS and direct browser (non-Custom Tab)
+  const deepLink = `rankyatra://oauth-callback?${params}`;
+
+  res.send(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RankYatra — Completing Sign-in</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:#fff7ed;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:24px}
+  .card{text-align:center;max-width:320px;width:100%}
+  .logo{font-size:30px;font-weight:900;color:#f97316;letter-spacing:-1px;margin-bottom:6px}
+  .sub{font-size:14px;color:#64748b;margin-bottom:28px}
+  .spinner{width:40px;height:40px;border:3px solid #fed7aa;border-top-color:#f97316;
+           border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .msg{font-size:15px;color:#475569;margin-bottom:20px}
+  .btn{display:inline-block;background:#f97316;color:#fff;font-size:15px;font-weight:700;
+       border-radius:12px;padding:14px 28px;text-decoration:none;cursor:pointer;border:none;width:100%}
+  .btn:active{opacity:0.85}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">RankYatra</div>
+  <div class="sub">Completing Google sign-in...</div>
+  <div class="spinner"></div>
+  <div class="msg" id="msg">Opening app automatically...</div>
+  <a class="btn" id="openBtn" href="${intentUrl}" style="display:none">Open RankYatra App</a>
+</div>
+<script>
+  var intentUrl = ${JSON.stringify(intentUrl)};
+  var deepLink  = ${JSON.stringify(deepLink)};
+  var ua = navigator.userAgent || "";
+  var isAndroid = /Android/i.test(ua);
+  var isIOS = /iPhone|iPad|iPod/i.test(ua);
+  var opened = false;
+
+  function tryOpen() {
+    if (opened) return;
+    opened = true;
+    if (isAndroid) {
+      // Use Android Intent URL — Chrome/Custom Tab fires this as a native intent
+      window.location.href = intentUrl;
+    } else {
+      // iOS / desktop — standard custom scheme
+      window.location.href = deepLink;
+    }
+  }
+
+  // Try immediately
+  tryOpen();
+
+  // Show manual button after 2 seconds if still here
+  setTimeout(function() {
+    document.getElementById('msg').textContent = 'If the app did not open, tap the button below:';
+    var btn = document.getElementById('openBtn');
+    btn.href = isAndroid ? intentUrl : deepLink;
+    btn.style.display = 'block';
+  }, 2000);
+</script>
+</body></html>`);
 });
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
