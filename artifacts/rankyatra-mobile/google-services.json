@@ -12,7 +12,20 @@
           "package_name": "com.niskutech.rankyatra"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "781971539091-3231cgr7nng4tsrer35ilogtgpt7qkf1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.niskutech.rankyatra",
+            "certificate_hash": "3f5ef64a7d2f6519bc55503aa342e28e89c125e2"
+          }
+        },
+        {
+          "client_id": "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCchiIDHnFBKCQVzW6SsiOYsKfC0Ry3y6g"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -12,7 +12,7 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "$EXPO_PUBLIC_GOOGLE_CLIENT_ID",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         "COREPACK_ENABLE_STRICT": "0"
       }
     },
@@ -24,7 +24,7 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "$EXPO_PUBLIC_GOOGLE_CLIENT_ID",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         "COREPACK_ENABLE_STRICT": "0"
       }
     },
@@ -35,7 +35,7 @@
       },
       "env": {
         "EXPO_PUBLIC_DOMAIN": "rankyatra.in",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "$EXPO_PUBLIC_GOOGLE_CLIENT_ID",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "781971539091-qon9vjmlnpvsjvijfs1oimthbo33ec0b.apps.googleusercontent.com",
         "COREPACK_ENABLE_STRICT": "0"
       }
     }
