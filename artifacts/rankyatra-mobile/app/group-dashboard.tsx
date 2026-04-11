@@ -44,6 +44,7 @@ export default function GroupDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"group" | "member">("group");
+  const [failedAvatars, setFailedAvatars] = useState<Set<number>>(new Set());
 
   // Invite flow — search first, then confirm
   const [inviteUid, setInviteUid] = useState("");
@@ -473,9 +474,12 @@ export default function GroupDashboardScreen() {
                           onPress={() => isAccepted && openMemberDetail(m)}
                           activeOpacity={isAccepted ? 0.7 : 1}
                         >
-                          {m.avatarUrl ? (
-                            <Image source={{ uri: m.avatarUrl.startsWith("http") ? m.avatarUrl : `${BASE_URL}${m.avatarUrl}` }}
-                              style={{ width: 38, height: 38, borderRadius: 19 }} />
+                          {m.avatarUrl && !failedAvatars.has(m.userId) ? (
+                            <Image
+                              source={{ uri: m.avatarUrl.startsWith("http") ? m.avatarUrl : `${BASE_URL}${m.avatarUrl}` }}
+                              style={{ width: 38, height: 38, borderRadius: 19 }}
+                              onError={() => setFailedAvatars(prev => new Set([...prev, m.userId]))}
+                            />
                           ) : (
                             <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }}>
                               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{(m.name ?? "?")[0].toUpperCase()}</Text>
@@ -609,18 +613,28 @@ export default function GroupDashboardScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Member info */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                  {memberDetail.member?.avatarUrl ? (
-                    <Image source={{ uri: memberDetail.member.avatarUrl.startsWith("http") ? memberDetail.member.avatarUrl : `${BASE_URL}${memberDetail.member.avatarUrl}` }}
-                      style={{ width: 50, height: 50, borderRadius: 25 }} />
+                  {memberDetail.member?.avatarUrl && !failedAvatars.has(memberDetail.member?.id) ? (
+                    <Image
+                      source={{ uri: memberDetail.member.avatarUrl.startsWith("http") ? memberDetail.member.avatarUrl : `${BASE_URL}${memberDetail.member.avatarUrl}` }}
+                      style={{ width: 50, height: 50, borderRadius: 25 }}
+                      onError={() => setFailedAvatars(prev => new Set([...prev, memberDetail.member?.id]))}
+                    />
                   ) : (
                     <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }}>
                       <Text style={{ color: "#fff", fontWeight: "900", fontSize: 20 }}>{(memberDetail.member?.name ?? "?")[0].toUpperCase()}</Text>
                     </View>
                   )}
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={[{ fontWeight: "900", fontSize: 16, color: colors.foreground }]}>{memberDetail.member?.name}</Text>
                     <Text style={[s.sub, { color: colors.mutedForeground }]}>{memberDetail.member?.email}</Text>
                     <Text style={[s.sub, { color: colors.mutedForeground }]}>Joined: {formatDate(memberDetail.joinedAt)}</Text>
+                    <TouchableOpacity
+                      onPress={() => { setSelectedMember(null); setMemberDetail(null); router.push(`/user/${memberDetail.member?.id}`); }}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}
+                    >
+                      <Text style={{ color: "#f97316", fontSize: 12, fontWeight: "700" }}>View Full Profile</Text>
+                      <Feather name="external-link" size={11} color="#f97316" />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
