@@ -59,6 +59,7 @@ export default function ProfileScreen() {
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<{ id: number; name: string; avatarUrl: string | null }[]>([]);
   const [myRoles, setMyRoles] = useState<string[]>([]);
+  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
   const ROLE_COLORS: Record<string, string> = {
     teacher: "#2563eb", influencer: "#7c3aed", promoter: "#d97706",
@@ -101,9 +102,13 @@ export default function ProfileScreen() {
       refetchStats();
       refetchFollow();
       if (token) {
-        fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/roles/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then(r => r.ok ? r.json() : []).then(setMyRoles).catch(() => {});
+        const base = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+        const h = { Authorization: `Bearer ${token}` };
+        fetch(`${base}/api/roles/my`, { headers: h })
+          .then(r => r.ok ? r.json() : []).then(setMyRoles).catch(() => {});
+        fetch(`${base}/api/groups/pending-invites-count`, { headers: h })
+          .then(r => r.ok ? r.json() : { count: 0 })
+          .then(d => setPendingInvitesCount(d.count ?? 0)).catch(() => {});
       }
     }, [refetchMe, refetchStats, refetchFollow, token])
   );
@@ -374,12 +379,24 @@ export default function ProfileScreen() {
         <View style={[styles.header, { paddingTop: topPad }]}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Profile</Text>
           <View style={styles.headerBtns}>
-            {myRoles.length > 0 && (
+            {(myRoles.length > 0 || pendingInvitesCount > 0) && (
               <TouchableOpacity
                 onPress={() => { router.push("/group-dashboard"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                style={[styles.themeToggle, { backgroundColor: (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20", borderColor: ROLE_COLORS[myRoles[0]] ?? "#f97316" }]}
+                style={[styles.themeToggle, {
+                  backgroundColor: pendingInvitesCount > 0 ? "#f9731620" : (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20",
+                  borderColor: pendingInvitesCount > 0 ? "#f97316" : (ROLE_COLORS[myRoles[0]] ?? "#f97316"),
+                }]}
               >
-                <Feather name="users" size={17} color={ROLE_COLORS[myRoles[0]] ?? "#f97316"} />
+                <Feather name="users" size={17} color={pendingInvitesCount > 0 ? "#f97316" : (ROLE_COLORS[myRoles[0]] ?? "#f97316")} />
+                {pendingInvitesCount > 0 && (
+                  <View style={{
+                    position: "absolute", top: -4, right: -4,
+                    backgroundColor: "#ef4444", borderRadius: 8, minWidth: 16, height: 16,
+                    alignItems: "center", justifyContent: "center", paddingHorizontal: 2,
+                  }}>
+                    <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900" }}>{pendingInvitesCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             )}
             <TouchableOpacity

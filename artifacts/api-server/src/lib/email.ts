@@ -292,6 +292,31 @@ export async function sendWelcomeEmail(toEmail: string, name: string) {
   });
 }
 
+export async function sendGroupInviteEmail(toEmail: string, toName: string, ownerName: string, groupName: string) {
+  await transporter.sendMail({
+    from: `"RankYatra" <${process.env.SMTP_USER}>`,
+    to: toEmail,
+    subject: `🎉 ${ownerName} ne aapko Group Invite kiya — RankYatra`,
+    html: `
+      <div style="${baseStyle}">
+        ${header}
+        <h2 style="font-size:20px;">Hello, ${toName}!</h2>
+        <p style="color:#d4d6e0;font-size:15px;line-height:1.6;">
+          <strong style="color:#f5a623;">${ownerName}</strong> ne aapko
+          <strong style="color:#fffffe;">"${groupName}"</strong> group mein invite kiya hai.
+        </p>
+        <p style="color:#a7a9be;font-size:14px;">
+          Group join karne se aapki sabhi exam activities track hoti hain aur teacher/promoter aapki progress dekh sakta hai.
+        </p>
+        ${btn("App Open Karo & Accept Karo →", `${APP_URL}`)}
+        <p style="color:#a7a9be;font-size:12px;text-align:center;">
+          RankYatra app mein Group Dashboard mein jaake invite accept ya decline kar sakte hain.
+        </p>
+        ${footer}
+      </div>`,
+  });
+}
+
 export async function sendPasswordResetEmail(toEmail: string, resetLink: string) {
   await transporter.sendMail({
     from: `"RankYatra" <${process.env.SMTP_USER}>`,

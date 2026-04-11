@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, usersTable, userRolesTable, groupsTable, groupMembersTable, groupCommissionWithdrawalsTable, registrationsTable, notificationsTable } from "@workspace/db";
+import { db, usersTable, userRolesTable, groupsTable, groupMembersTable, groupCommissionWithdrawalsTable, registrationsTable, notificationsTable, examsTable, submissionsTable } from "@workspace/db";
 import { eq, and, sum, count, desc, ne } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { sendGroupInviteEmail } from "../lib/email";
 
 const router = Router();
 
@@ -231,6 +232,94 @@ router.get("/admin/groups/:userId", requireAdmin, async (req, res) => {
   }
 });
 
+// ─── LOOKUP USER BY UID (before invite, shows user card) ─────────────────────
+router.get("/groups/lookup-user", requireAuth, async (req: any, res) => {
+  const rawUid = String(req.query.uid ?? "").replace(/[^0-9]/g, "");
+  const targetId = parseInt(rawUid, 10);
+  if (!targetId || isNaN(targetId)) { res.status(400).json({ error: "Invalid UID" }); return; }
+  try {
+    const [user] = await db.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email, avatarUrl: usersTable.avatarUrl,
+    }).from(usersTable).where(eq(usersTable.id, targetId));
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (user.id === req.user.id) { res.status(400).json({ error: "Aap khud ko invite nahi kar sakte" }); return; }
+    res.json(user);
+  } catch { res.status(500).json({ error: "Lookup failed" }); }
+});
+
+// ─── PENDING INVITE COUNT (for badge on profile) ─────────────────────────────
+router.get("/groups/pending-invites-count", requireAuth, async (req: any, res) => {
+  try {
+    const [{ cnt }] = await db.select({ cnt: count() }).from(groupMembersTable)
+      .where(and(eq(groupMembersTable.userId, req.user.id), eq(groupMembersTable.status, "pending")));
+    res.json({ count: cnt ?? 0 });
+  } catch { res.json({ count: 0 }); }
+});
+
+// ─── MEMBER DETAIL: exam history + stats (for group owner to view) ───────────
+router.get("/groups/members/:memberId/detail", requireAuth, async (req: any, res) => {
+  const memberId = parseInt(req.params.memberId, 10);
+  try {
+    // Verify requester is group owner and memberId is in their group
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.status(403).json({ error: "You don't own a group" }); return; }
+    const [membership] = await db.select().from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.userId, memberId), eq(groupMembersTable.status, "accepted")));
+    if (!membership) { res.status(403).json({ error: "Member not in your group" }); return; }
+
+    const [member] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable).where(eq(usersTable.id, memberId));
+
+    // All registrations with exam info
+    const regs = await db.select({
+      examId: registrationsTable.examId,
+      amountPaid: registrationsTable.amountPaid,
+      status: registrationsTable.status,
+      registeredAt: registrationsTable.registeredAt,
+      examTitle: examsTable.title,
+      examCategory: examsTable.category,
+      examStatus: examsTable.status,
+      examStartTime: examsTable.startTime,
+    }).from(registrationsTable)
+      .leftJoin(examsTable, eq(registrationsTable.examId, examsTable.id))
+      .where(eq(registrationsTable.userId, memberId))
+      .orderBy(desc(registrationsTable.registeredAt));
+
+    // Submissions (score, rank)
+    const subs = await db.select({
+      examId: submissionsTable.examId,
+      score: submissionsTable.score,
+      totalQuestions: submissionsTable.totalQuestions,
+      correctAnswers: submissionsTable.correctAnswers,
+      rank: submissionsTable.rank,
+      submittedAt: submissionsTable.submittedAt,
+    }).from(submissionsTable).where(eq(submissionsTable.userId, memberId));
+    const subMap = Object.fromEntries(subs.map(s => [s.examId, s]));
+
+    const exams = regs.map(r => ({
+      ...r,
+      submission: subMap[r.examId!] ?? null,
+    }));
+
+    const totalSpent = regs.reduce((s, r) => s + Number(r.amountPaid ?? 0), 0);
+    const commission = totalSpent * COMMISSION_RATE;
+
+    res.json({
+      member,
+      joinedAt: membership.joinedAt,
+      exams,
+      stats: {
+        examsTaken: regs.length,
+        totalSpent: totalSpent.toFixed(2),
+        commission: commission.toFixed(2),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch member detail" });
+  }
+});
+
 // ─── MY ROLES (mobile) ───────────────────────────────────────────────────────
 router.get("/roles/my", requireAuth, async (req: any, res) => {
   const roles = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, req.user.id));
@@ -324,7 +413,7 @@ router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
 
     await db.insert(groupMembersTable).values({ groupId: group.id, userId: target.id, status: "pending" });
 
-    // Send notification to target user
+    // Send in-app notification + email to target user
     try {
       const [ownerUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
       await db.insert(notificationsTable).values({
@@ -334,6 +423,10 @@ router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
         body: `${ownerUser.name} ne aapko "${group.name}" group mein invite kiya hai`,
         data: JSON.stringify({ groupId: group.id, groupName: group.name, inviterId: req.user.id }),
         isRead: false,
+      });
+      // Send email invite
+      sendGroupInviteEmail(target.email, target.name, ownerUser.name, group.name).catch((err) => {
+        console.error("[group invite email failed]", err?.message);
       });
     } catch {}
 

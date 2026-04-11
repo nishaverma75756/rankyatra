@@ -25,6 +25,10 @@ const ROLE_ICONS: Record<string, string> = {
 function formatCurrency(v: any) {
   return `₹${Number(v ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
+function formatDate(d: any) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
 
 export default function GroupDashboardScreen() {
   const colors = useColors();
@@ -40,8 +44,12 @@ export default function GroupDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"group" | "member">("group");
 
+  // Invite flow — search first, then confirm
   const [inviteUid, setInviteUid] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [foundUser, setFoundUser] = useState<any>(null);
   const [inviting, setInviting] = useState(false);
+
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
   const [showRename, setShowRename] = useState(false);
@@ -49,6 +57,11 @@ export default function GroupDashboardScreen() {
   const [withdrawUpi, setWithdrawUpi] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
+
+  // Member detail modal
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [memberDetail, setMemberDetail] = useState<any>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const fetchAll = useCallback(async () => {
     if (!token) return;
@@ -85,19 +98,38 @@ export default function GroupDashboardScreen() {
     setRefreshing(false);
   };
 
-  const handleInvite = async () => {
-    if (!inviteUid.trim()) { showError("Enter UID", "UID enter karo (e.g. 74)"); return; }
+  // Step 1: Search user by UID
+  const handleSearch = async () => {
+    if (!inviteUid.trim()) { showError("UID Enter Karo", "User ka UID daalo"); return; }
+    setSearching(true);
+    setFoundUser(null);
+    try {
+      const r = await fetch(`${BASE_URL}/api/groups/lookup-user?uid=${encodeURIComponent(inviteUid.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "User not found");
+      setFoundUser(d);
+    } catch (e: any) {
+      showError("User Nahi Mila", e.message);
+    } finally { setSearching(false); }
+  };
+
+  // Step 2: Confirm and send invite
+  const handleConfirmInvite = async () => {
+    if (!foundUser) return;
     setInviting(true);
     try {
       const r = await fetch(`${BASE_URL}/api/groups/my/invite`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: inviteUid.trim() }),
+        body: JSON.stringify({ uid: foundUser.id }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       setInviteUid("");
-      showError("Invitation Sent!", `${d.targetName} ko invite bhej diya`);
+      setFoundUser(null);
+      showError("Invitation Bhej Di!", `${d.targetName} ko group invite aur email notification bhej di gayi`);
       fetchAll();
     } catch (e: any) {
       showError("Error", e.message);
@@ -159,6 +191,24 @@ export default function GroupDashboardScreen() {
     } finally { setWithdrawing(false); }
   };
 
+  // Open member detail modal
+  const openMemberDetail = async (member: any) => {
+    setSelectedMember(member);
+    setMemberDetail(null);
+    setLoadingDetail(true);
+    try {
+      const r = await fetch(`${BASE_URL}/api/groups/members/${member.userId}/detail`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setMemberDetail(d);
+    } catch (e: any) {
+      showError("Error", e.message);
+      setSelectedMember(null);
+    } finally { setLoadingDetail(false); }
+  };
+
   const isOwner = myRoles.length > 0;
   const mainRole = myRoles[0];
   const roleColor = mainRole ? (ROLE_COLORS[mainRole] ?? "#f97316") : "#f97316";
@@ -185,7 +235,6 @@ export default function GroupDashboardScreen() {
         <View style={s.center}><ActivityIndicator color="#f97316" size="large" /></View>
       ) : (
         <>
-          {/* Tabs */}
           {isOwner && myMemberships.length > 0 && (
             <View style={[s.tabs, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
               {[["group", "My Group"], ["member", "My Memberships"]].map(([t, label]) => (
@@ -201,7 +250,7 @@ export default function GroupDashboardScreen() {
             contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
             showsVerticalScrollIndicator={false}
           >
-            {/* ── Pending invites (always visible) ── */}
+            {/* Pending invites */}
             {pendingInvites.length > 0 && (
               <View style={[s.card, { backgroundColor: colors.card, borderColor: "#f97316" }]}>
                 <Text style={[s.cardTitle, { color: colors.foreground }]}>Group Invitations ({pendingInvites.length})</Text>
@@ -225,7 +274,6 @@ export default function GroupDashboardScreen() {
             )}
 
             {tab === "member" ? (
-              /* ── Memberships ── */
               <View>
                 {myMemberships.length === 0 ? (
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -235,9 +283,7 @@ export default function GroupDashboardScreen() {
                   <View key={m.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[s.cardTitle, { color: colors.foreground }]}>{m.groupName}</Text>
                     <Text style={[s.sub, { color: colors.mutedForeground }]}>Owner: {m.ownerName}</Text>
-                    <Text style={[s.sub, { color: colors.mutedForeground }]}>
-                      Joined: {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString("en-IN") : "—"}
-                    </Text>
+                    <Text style={[s.sub, { color: colors.mutedForeground }]}>Joined: {formatDate(m.joinedAt)}</Text>
                     <View style={[s.memberBadge, { backgroundColor: "#22c55e20" }]}>
                       <Feather name="check-circle" size={12} color="#22c55e" />
                       <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "700" }}>{m.groupName} Member</Text>
@@ -246,7 +292,6 @@ export default function GroupDashboardScreen() {
                 ))}
               </View>
             ) : (
-              /* ── Owner Dashboard ── */
               isOwner ? (
                 <View>
                   {/* Group name + rename */}
@@ -286,49 +331,114 @@ export default function GroupDashboardScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Invite member */}
+                  {/* ── INVITE MEMBER: Search first, then confirm ── */}
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[s.cardTitle, { color: colors.foreground }]}>Invite Member</Text>
                     <Text style={[s.sub, { color: colors.mutedForeground, marginBottom: 10 }]}>User ka UID daalo (e.g. 74 ya RY0000000074)</Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
                       <TextInput
-                        style={[s.input, { flex: 1, backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                        style={[s.input, { flex: 1, backgroundColor: colors.muted, color: colors.foreground, borderColor: foundUser ? "#22c55e" : colors.border }]}
                         placeholder="User UID"
                         placeholderTextColor={colors.mutedForeground}
                         value={inviteUid}
-                        onChangeText={setInviteUid}
+                        onChangeText={(t) => { setInviteUid(t); setFoundUser(null); }}
                         keyboardType="numeric"
                       />
-                      <TouchableOpacity style={[s.inviteBtn, { backgroundColor: "#f97316" }]} onPress={handleInvite} disabled={inviting}>
-                        {inviting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.inviteBtnText}>Invite</Text>}
+                      <TouchableOpacity
+                        style={[s.inviteBtn, { backgroundColor: "#f97316" }]}
+                        onPress={handleSearch}
+                        disabled={searching}
+                      >
+                        {searching
+                          ? <ActivityIndicator size="small" color="#fff" />
+                          : <><Feather name="search" size={15} color="#fff" /><Text style={s.inviteBtnText}> Search</Text></>
+                        }
                       </TouchableOpacity>
                     </View>
+
+                    {/* Found user card */}
+                    {foundUser && (
+                      <View style={[s.foundUserCard, { backgroundColor: colors.muted, borderColor: "#22c55e" }]}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          {foundUser.avatarUrl ? (
+                            <Image source={{ uri: foundUser.avatarUrl.startsWith("http") ? foundUser.avatarUrl : `${BASE_URL}${foundUser.avatarUrl}` }}
+                              style={s.foundAvatar} />
+                          ) : (
+                            <View style={[s.foundAvatar, { backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }]}>
+                              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>{(foundUser.name ?? "?")[0].toUpperCase()}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[{ fontWeight: "800", fontSize: 14, color: colors.foreground }]}>{foundUser.name}</Text>
+                            <Text style={[s.sub, { color: colors.mutedForeground }]}>{foundUser.email}</Text>
+                          </View>
+                          <Feather name="check-circle" size={18} color="#22c55e" />
+                        </View>
+                        <Text style={[s.sub, { color: colors.mutedForeground, marginTop: 8, marginBottom: 8 }]}>
+                          Kya aap iss user ko group mein invite karna chahte hain?
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <TouchableOpacity
+                            style={[s.modalBtn, { flex: 1, backgroundColor: colors.border }]}
+                            onPress={() => { setFoundUser(null); setInviteUid(""); }}
+                          >
+                            <Text style={{ color: colors.mutedForeground, fontWeight: "700", textAlign: "center" }}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[s.modalBtn, { flex: 1, backgroundColor: "#f97316" }]}
+                            onPress={handleConfirmInvite}
+                            disabled={inviting}
+                          >
+                            {inviting
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>
+                                  Invite Karo
+                                </Text>
+                            }
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
                   </View>
 
-                  {/* Members list */}
+                  {/* Members list — click accepted member for detail */}
                   <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[s.cardTitle, { color: colors.foreground }]}>Members ({group?.members?.length ?? 0})</Text>
                     {(group?.members ?? []).length === 0 ? (
                       <Text style={[s.sub, { color: colors.mutedForeground }]}>Abhi tak koi member nahi</Text>
                     ) : (group?.members ?? []).map((m: any) => {
                       const stat = memberStats.find((s: any) => s.userId === m.userId);
+                      const isAccepted = m.status === "accepted";
                       return (
-                        <View key={m.id} style={[s.memberRow, { borderTopColor: colors.border }]}>
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[s.memberRow, { borderTopColor: colors.border }]}
+                          onPress={() => isAccepted && openMemberDetail(m)}
+                          activeOpacity={isAccepted ? 0.7 : 1}
+                        >
                           {m.avatarUrl ? (
-                            <Image
-                              source={{ uri: m.avatarUrl.startsWith("http") ? m.avatarUrl : `${BASE_URL}${m.avatarUrl}` }}
-                              style={{ width: 38, height: 38, borderRadius: 19 }}
-                            />
+                            <Image source={{ uri: m.avatarUrl.startsWith("http") ? m.avatarUrl : `${BASE_URL}${m.avatarUrl}` }}
+                              style={{ width: 38, height: 38, borderRadius: 19 }} />
                           ) : (
                             <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }}>
                               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{(m.name ?? "?")[0].toUpperCase()}</Text>
                             </View>
                           )}
                           <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={[s.memberName, { color: colors.foreground }]}>{m.name}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={[s.memberName, { color: colors.foreground }]}>{m.name}</Text>
+                              {isAccepted && <Feather name="chevron-right" size={14} color={colors.mutedForeground} />}
+                            </View>
                             <View style={{ flexDirection: "row", gap: 8 }}>
-                              <Text style={[s.sub, { color: colors.mutedForeground }]}>Exams: {stat?.examsTaken ?? 0}</Text>
-                              <Text style={[s.sub, { color: colors.mutedForeground }]}>Spent: {formatCurrency(stat?.totalSpent)}</Text>
+                              {isAccepted ? (
+                                <>
+                                  <Text style={[s.sub, { color: colors.mutedForeground }]}>Exams: {stat?.examsTaken ?? 0}</Text>
+                                  <Text style={[s.sub, { color: colors.mutedForeground }]}>Spent: {formatCurrency(stat?.totalSpent)}</Text>
+                                  <Text style={[s.sub, { color: "#f97316" }]}>Comm: {formatCurrency(stat?.commission)}</Text>
+                                </>
+                              ) : (
+                                <Text style={[s.sub, { color: colors.mutedForeground }]}>Invited • Awaiting response</Text>
+                              )}
                             </View>
                           </View>
                           <View style={[s.statusBadge, {
@@ -338,13 +448,12 @@ export default function GroupDashboardScreen() {
                               {m.status}
                             </Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
                 </View>
               ) : (
-                /* Not an owner but can see memberships */
                 myMemberships.length > 0 ? (
                   myMemberships.map((m) => (
                     <View key={m.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -367,7 +476,7 @@ export default function GroupDashboardScreen() {
         </>
       )}
 
-      {/* Rename Modal */}
+      {/* ── Rename Group Modal ── */}
       <Modal visible={showRename} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={[s.modal, { backgroundColor: colors.card }]}>
@@ -381,17 +490,17 @@ export default function GroupDashboardScreen() {
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
               <TouchableOpacity style={[s.modalBtn, { flex: 1, backgroundColor: colors.muted }]} onPress={() => setShowRename(false)}>
-                <Text style={{ color: colors.foreground, fontWeight: "700" }}>Cancel</Text>
+                <Text style={{ color: colors.foreground, fontWeight: "700", textAlign: "center" }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.modalBtn, { flex: 1, backgroundColor: "#f97316" }]} onPress={handleRename} disabled={renaming}>
-                {renaming ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>}
+                {renaming ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Withdraw Commission Modal */}
+      {/* ── Withdraw Commission Modal ── */}
       <Modal visible={showWithdraw} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={[s.modal, { backgroundColor: colors.card }]}>
@@ -401,28 +510,113 @@ export default function GroupDashboardScreen() {
             </Text>
             <TextInput
               style={[s.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-              value={withdrawAmount}
-              onChangeText={setWithdrawAmount}
-              placeholder="Amount (₹)"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="numeric"
+              value={withdrawAmount} onChangeText={setWithdrawAmount}
+              placeholder="Amount (₹)" placeholderTextColor={colors.mutedForeground} keyboardType="numeric"
             />
             <TextInput
               style={[s.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border, marginTop: 8 }]}
-              value={withdrawUpi}
-              onChangeText={setWithdrawUpi}
-              placeholder="UPI ID (e.g. abc@upi)"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
+              value={withdrawUpi} onChangeText={setWithdrawUpi}
+              placeholder="UPI ID (e.g. abc@upi)" placeholderTextColor={colors.mutedForeground} autoCapitalize="none"
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
               <TouchableOpacity style={[s.modalBtn, { flex: 1, backgroundColor: colors.muted }]} onPress={() => setShowWithdraw(false)}>
-                <Text style={{ color: colors.foreground, fontWeight: "700" }}>Cancel</Text>
+                <Text style={{ color: colors.foreground, fontWeight: "700", textAlign: "center" }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.modalBtn, { flex: 1, backgroundColor: "#f97316" }]} onPress={handleWithdraw} disabled={withdrawing}>
-                {withdrawing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>Request</Text>}
+                {withdrawing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Request</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Member Detail Modal ── */}
+      <Modal visible={!!selectedMember} transparent animationType="slide">
+        <View style={s.overlay}>
+          <View style={[s.detailModal, { backgroundColor: colors.card }]}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={[s.modalTitle, { color: colors.foreground, marginBottom: 0 }]}>Member Profile</Text>
+              <TouchableOpacity onPress={() => { setSelectedMember(null); setMemberDetail(null); }}
+                style={{ padding: 4 }}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingDetail ? (
+              <View style={{ alignItems: "center", padding: 30 }}>
+                <ActivityIndicator color="#f97316" size="large" />
+                <Text style={[s.sub, { color: colors.mutedForeground, marginTop: 10 }]}>Loading...</Text>
+              </View>
+            ) : memberDetail ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Member info */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  {memberDetail.member?.avatarUrl ? (
+                    <Image source={{ uri: memberDetail.member.avatarUrl.startsWith("http") ? memberDetail.member.avatarUrl : `${BASE_URL}${memberDetail.member.avatarUrl}` }}
+                      style={{ width: 50, height: 50, borderRadius: 25 }} />
+                  ) : (
+                    <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "#fff", fontWeight: "900", fontSize: 20 }}>{(memberDetail.member?.name ?? "?")[0].toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View>
+                    <Text style={[{ fontWeight: "900", fontSize: 16, color: colors.foreground }]}>{memberDetail.member?.name}</Text>
+                    <Text style={[s.sub, { color: colors.mutedForeground }]}>{memberDetail.member?.email}</Text>
+                    <Text style={[s.sub, { color: colors.mutedForeground }]}>Joined: {formatDate(memberDetail.joinedAt)}</Text>
+                  </View>
+                </View>
+
+                {/* Stats */}
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                  <View style={[s.statBox, { backgroundColor: "#eff6ff" }]}>
+                    <Text style={{ fontSize: 18, fontWeight: "900", color: "#2563eb" }}>{memberDetail.stats?.examsTaken ?? 0}</Text>
+                    <Text style={[s.sub, { color: "#2563eb" }]}>Exams</Text>
+                  </View>
+                  <View style={[s.statBox, { backgroundColor: "#ecfdf5" }]}>
+                    <Text style={{ fontSize: 18, fontWeight: "900", color: "#059669" }}>{formatCurrency(memberDetail.stats?.totalSpent)}</Text>
+                    <Text style={[s.sub, { color: "#059669" }]}>Spent</Text>
+                  </View>
+                  <View style={[s.statBox, { backgroundColor: "#fff7ed" }]}>
+                    <Text style={{ fontSize: 18, fontWeight: "900", color: "#f97316" }}>{formatCurrency(memberDetail.stats?.commission)}</Text>
+                    <Text style={[s.sub, { color: "#f97316" }]}>My Commission</Text>
+                  </View>
+                </View>
+
+                {/* Exam history */}
+                <Text style={[{ fontWeight: "800", fontSize: 14, color: colors.foreground, marginBottom: 8 }]}>
+                  Exam History ({memberDetail.exams?.length ?? 0})
+                </Text>
+                {(memberDetail.exams ?? []).length === 0 ? (
+                  <Text style={[s.sub, { color: colors.mutedForeground, textAlign: "center", padding: 16 }]}>Koi exam nahi diya abhi tak</Text>
+                ) : (memberDetail.exams ?? []).map((e: any, i: number) => (
+                  <View key={i} style={[s.examRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: "700", fontSize: 13, color: colors.foreground }} numberOfLines={1}>{e.examTitle ?? "Exam"}</Text>
+                      <Text style={[s.sub, { color: colors.mutedForeground }]}>{e.examCategory} • {formatDate(e.examStartTime)}</Text>
+                      {e.submission && (
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 3 }}>
+                          <Text style={[s.sub, { color: "#2563eb" }]}>Score: {e.submission.score}/{e.submission.totalQuestions}</Text>
+                          {e.submission.rank && <Text style={[s.sub, { color: "#7c3aed" }]}>Rank: #{e.submission.rank}</Text>}
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={{ fontWeight: "700", fontSize: 13, color: "#22c55e" }}>₹{e.amountPaid}</Text>
+                      {e.submission ? (
+                        <View style={[s.statusBadge, { backgroundColor: "#ecfdf5" }]}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#059669" }}>Attempted</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.statusBadge, { backgroundColor: "#f9731620" }]}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#f97316" }}>Registered</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -455,19 +649,24 @@ const s = StyleSheet.create({
   withdrawBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 12 },
   withdrawBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-  inviteBtn: { paddingHorizontal: 16, borderRadius: 10, alignItems: "center", justifyContent: "center", minWidth: 70 },
-  inviteBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  memberRow: { flexDirection: "row", alignItems: "center", paddingTop: 12, marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
-  memberName: { fontSize: 14, fontWeight: "700" },
+  inviteBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  inviteBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  foundUserCard: { marginTop: 10, borderRadius: 12, borderWidth: 1.5, padding: 12 },
+  foundAvatar: { width: 42, height: 42, borderRadius: 21 },
+  memberRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  memberName: { fontSize: 13, fontWeight: "700" },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  memberBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, alignSelf: "flex-start", marginTop: 8 },
-  inviteRow: { flexDirection: "row", alignItems: "center", paddingTop: 10, marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  inviteRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#f9731640" },
   inviteName: { fontSize: 13, fontWeight: "700" },
-  inviteSub: { fontSize: 12 },
+  inviteSub: { fontSize: 11, marginTop: 2 },
   inviteActions: { flexDirection: "row", gap: 6 },
-  acceptBtn: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
-  modal: { width: "100%", borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 17, fontWeight: "800", marginBottom: 12 },
-  modalBtn: { paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  acceptBtn: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  memberBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: "flex-start" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 },
+  modal: { borderRadius: 18, padding: 20 },
+  detailModal: { borderRadius: 18, padding: 20, maxHeight: "90%" },
+  modalTitle: { fontSize: 16, fontWeight: "900", marginBottom: 14 },
+  modalBtn: { borderRadius: 10, paddingVertical: 11, alignItems: "center", justifyContent: "center" },
+  statBox: { flex: 1, borderRadius: 10, padding: 10, alignItems: "center" },
+  examRow: { borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 8, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
 });
