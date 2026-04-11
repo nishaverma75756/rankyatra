@@ -12,8 +12,10 @@ const router = Router();
 // ─── Multer setup for video uploads ─────────────────────────────────────────
 const videosDir = path.join(process.cwd(), "uploads", "videos");
 const thumbsDir = path.join(process.cwd(), "uploads", "thumbnails");
+const chunksDir = path.join(process.cwd(), "uploads", "chunks");
 if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
 if (!fs.existsSync(thumbsDir)) fs.mkdirSync(thumbsDir, { recursive: true });
+if (!fs.existsSync(chunksDir)) fs.mkdirSync(chunksDir, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -27,9 +29,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max (after compression)
+  limits: { fileSize: 200 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    // Accept video/*, application/octet-stream (some React Native clients send this)
     if (file.fieldname === "video") {
       const isVideoMime = file.mimetype.startsWith("video/") || file.mimetype === "application/octet-stream";
       if (!isVideoMime) return cb(new Error("Only video files allowed"));
@@ -42,10 +43,141 @@ const upload = multer({
 });
 
 function getServerBaseUrl(req: any): string {
-  // On EC2: APP_URL = "https://rankyatra.in" (set in ecosystem.config.js)
   const host = process.env.APP_URL || process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
   return host.replace(/\/+$/, "");
 }
+
+// ─── Chunked upload session store ────────────────────────────────────────────
+interface ChunkSession {
+  userId: number;
+  totalChunks: number;
+  receivedChunks: Set<number>;
+  createdAt: Date;
+}
+
+const chunkSessions = new Map<string, ChunkSession>();
+
+// Clean up stale sessions every 15 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of chunkSessions.entries()) {
+    if (now - session.createdAt.getTime() > 30 * 60 * 1000) {
+      for (let i = 0; i < session.totalChunks; i++) {
+        try { fs.unlinkSync(path.join(chunksDir, `${id}_chunk${i}`)); } catch {}
+      }
+      chunkSessions.delete(id);
+    }
+  }
+}, 15 * 60 * 1000);
+
+// ─── POST /api/reels/upload-init ─────────────────────────────────────────────
+router.post("/reels/upload-init", requireAuth, async (req: any, res) => {
+  const { totalChunks } = req.body;
+  if (!totalChunks || typeof totalChunks !== "number" || totalChunks < 1 || totalChunks > 5000) {
+    res.status(400).json({ error: "Invalid totalChunks" }); return;
+  }
+  const uploadId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  chunkSessions.set(uploadId, {
+    userId: req.user.id,
+    totalChunks,
+    receivedChunks: new Set(),
+    createdAt: new Date(),
+  });
+  res.json({ uploadId });
+});
+
+// ─── POST /api/reels/upload-chunk ────────────────────────────────────────────
+router.post("/reels/upload-chunk", requireAuth, async (req: any, res) => {
+  const { uploadId, chunkIndex, data } = req.body;
+  if (!uploadId || typeof chunkIndex !== "number" || !data) {
+    res.status(400).json({ error: "uploadId, chunkIndex, data required" }); return;
+  }
+  const session = chunkSessions.get(uploadId);
+  if (!session) { res.status(404).json({ error: "Upload session not found or expired" }); return; }
+  if (session.userId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+    res.status(400).json({ error: "Invalid chunk index" }); return;
+  }
+  try {
+    const buffer = Buffer.from(data, "base64");
+    const chunkPath = path.join(chunksDir, `${uploadId}_chunk${chunkIndex}`);
+    fs.writeFileSync(chunkPath, buffer);
+    session.receivedChunks.add(chunkIndex);
+    res.json({ ok: true, received: session.receivedChunks.size, total: session.totalChunks });
+  } catch {
+    res.status(500).json({ error: "Failed to save chunk" });
+  }
+});
+
+// ─── POST /api/reels/upload-finalize ─────────────────────────────────────────
+router.post("/reels/upload-finalize", requireAuth, async (req: any, res) => {
+  const { uploadId, caption, thumbnailBase64, thumbnailMime } = req.body;
+  if (!uploadId) { res.status(400).json({ error: "uploadId required" }); return; }
+  const session = chunkSessions.get(uploadId);
+  if (!session) { res.status(404).json({ error: "Upload session not found or expired" }); return; }
+  if (session.userId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (session.receivedChunks.size !== session.totalChunks) {
+    res.status(400).json({
+      error: `Missing chunks: received ${session.receivedChunks.size}/${session.totalChunks}`,
+    }); return;
+  }
+
+  const videoFilename = `reel_${uploadId}.mp4`;
+  const videoPath = path.join(videosDir, videoFilename);
+
+  try {
+    // Assemble all chunks into final video file
+    const writeStream = fs.createWriteStream(videoPath);
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on("error", reject);
+      writeStream.on("finish", resolve);
+      (async () => {
+        try {
+          for (let i = 0; i < session.totalChunks; i++) {
+            const chunkPath = path.join(chunksDir, `${uploadId}_chunk${i}`);
+            const chunk = fs.readFileSync(chunkPath);
+            if (!writeStream.write(chunk)) {
+              await new Promise<void>((r) => writeStream.once("drain", r));
+            }
+            try { fs.unlinkSync(chunkPath); } catch {}
+          }
+          writeStream.end();
+        } catch (e) {
+          reject(e);
+        }
+      })();
+    });
+
+    chunkSessions.delete(uploadId);
+
+    const base = process.env.APP_URL || "https://rankyatra.in";
+    const videoUrl = `${base}/uploads/videos/${videoFilename}`;
+
+    // Save thumbnail
+    let thumbnailUrl: string | null = null;
+    if (thumbnailBase64) {
+      try {
+        const ext = (thumbnailMime || "image/jpeg").includes("png") ? ".png" : ".jpg";
+        const thumbFilename = `thumb_${uploadId}${ext}`;
+        const thumbPath = path.join(thumbsDir, thumbFilename);
+        fs.writeFileSync(thumbPath, Buffer.from(thumbnailBase64, "base64"));
+        thumbnailUrl = `${base}/uploads/thumbnails/${thumbFilename}`;
+      } catch {}
+    }
+
+    // Save reel to database
+    const [reel] = await db
+      .insert(reels)
+      .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption: (caption ?? "").trim() })
+      .returning();
+
+    res.status(201).json({ reel });
+  } catch (err) {
+    console.error("[reels/upload-finalize]", err);
+    try { fs.unlinkSync(videoPath); } catch {}
+    res.status(500).json({ error: "Failed to assemble and save reel" });
+  }
+});
 
 // ─── GET /api/reels — paginated feed ────────────────────────────────────────
 router.get("/reels", async (req, res) => {
@@ -96,9 +228,7 @@ router.get("/reels/user/:uid", async (req, res) => {
   }
 });
 
-// ─── POST /api/reels/upload — multipart video upload (Instagram-style) ──────
-// Accepts multipart/form-data with fields: video (required), thumbnail (optional), caption (optional)
-// Compresses on device, uploads raw bytes here — no base64 needed
+// ─── POST /api/reels/upload — multipart (fallback, may fail on Nginx < 100MB) ──
 router.post(
   "/reels/upload",
   requireAuth,
@@ -129,12 +259,10 @@ router.post(
       const base = getServerBaseUrl(req);
       const videoUrl = `${base}/uploads/videos/${videoFile.filename}`;
 
-      // Determine thumbnail URL: file upload takes priority, then base64
       let thumbnailUrl: string | null = null;
       if (thumbFile) {
         thumbnailUrl = `${base}/uploads/thumbnails/${thumbFile.filename}`;
       } else if (thumbnailBase64) {
-        // Save base64 thumbnail to disk
         const ext = thumbnailMime.includes("png") ? ".png" : ".jpg";
         const thumbFilename = `thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
         const thumbPath = path.join(thumbsDir, thumbFilename);
@@ -156,7 +284,7 @@ router.post(
   }
 );
 
-// ─── POST /api/reels — create reel (legacy: base64) ─────────────────────────
+// ─── POST /api/reels — create reel (legacy) ──────────────────────────────────
 router.post("/reels", requireAuth, async (req: any, res) => {
   try {
     const { videoUrl, caption, thumbnailUrl } = req.body;
@@ -173,7 +301,7 @@ router.post("/reels", requireAuth, async (req: any, res) => {
   }
 });
 
-// ─── DELETE /api/reels/:id — delete reel ────────────────────────────────────
+// ─── DELETE /api/reels/:id ───────────────────────────────────────────────────
 router.delete("/reels/:id", requireAuth, async (req: any, res) => {
   try {
     const reelId = Number(req.params.id);
