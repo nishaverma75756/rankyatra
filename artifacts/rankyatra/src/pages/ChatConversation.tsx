@@ -152,6 +152,21 @@ export default function ChatConversation() {
 
   useEffect(() => { fetchBlockStatus(); }, [fetchBlockStatus]);
 
+  const handleDeleteConversation = async () => {
+    const name = convInfo?.otherUser?.name ?? "this chat";
+    if (!window.confirm(`Delete your chat with ${name}? This is only for you, they won't be notified.`)) return;
+    try {
+      const token = getAuthToken();
+      await fetch(`/api/chat/conversations/${convId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      navigate("/chat");
+    } catch {
+      alert("Failed to delete chat. Please try again.");
+    }
+  };
+
   const handleBlockToggle = async () => {
     const name = convInfo?.otherUser?.name ?? "this user";
     if (isBlocked) {
@@ -465,6 +480,15 @@ export default function ChatConversation() {
               >
                 <Flag className="h-4 w-4" />
                 Report
+              </button>
+              <div className="h-px bg-border mx-2 my-1" />
+              {/* Delete Chat */}
+              <button
+                onClick={() => { setMenuOpen(false); handleDeleteConversation(); }}
+                className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-muted text-red-500"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Chat
               </button>
               {/* Block */}
               <button
