@@ -15,11 +15,11 @@ import { useReelsUpload } from "@/contexts/ReelsUploadContext";
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface Reel {
   id: number;
   userId: number;
   videoUrl: string;
+  thumbnailUrl?: string | null;
   caption: string;
   likeCount: number;
   commentCount: number;
@@ -31,7 +31,6 @@ interface Reel {
   isLiked: boolean;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(iso: string) {
   const d = Date.now() - new Date(iso).getTime();
   const m = Math.floor(d / 60000);
@@ -52,28 +51,31 @@ function Avatar({ name, url, size = 38 }: { name: string; url: string | null; si
 }
 
 // ─── Single Reel Item ─────────────────────────────────────────────────────────
-function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelete }: {
-  reel: Reel; isActive: boolean; colors: any; currentUserId: number | null; tabBarHeight: number; onDelete: (id: number) => void;
+// KEY FIX: inactive items get null source → no native player created → no OOM crash
+function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
+  reel: Reel; isActive: boolean; currentUserId: number | null; tabBarHeight: number; onDelete: (id: number) => void;
 }) {
   const [liked, setLiked] = useState(reel.isLiked);
   const [likeCount, setLikeCount] = useState(reel.likeCount);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const viewTracked = useRef(false);
 
-  const player = useVideoPlayer(reel.videoUrl, (p) => {
+  // Only load video for active item — inactive items show thumbnail
+  const player = useVideoPlayer(isActive ? reel.videoUrl : null, (p) => {
     p.loop = true;
     p.muted = false;
   });
 
   useEffect(() => {
+    if (!player) return;
     if (isActive) {
-      player.play();
+      try { player.play(); } catch {}
       if (!viewTracked.current) {
         viewTracked.current = true;
         customFetch(`/api/reels/${reel.id}/view`, { method: "POST" }).catch(() => {});
       }
     } else {
-      player.pause();
+      try { player.pause(); } catch {}
     }
   }, [isActive, player, reel.id]);
 
@@ -105,14 +107,28 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
   const isLongCaption = caption.length > 80;
 
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H }}>
-      {/* Video */}
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        nativeControls={false}
-      />
+    <View style={{ width: SCREEN_W, height: SCREEN_H, backgroundColor: "#000" }}>
+      {/* Show video only when active, thumbnail when inactive */}
+      {isActive ? (
+        player ? (
+          <VideoView
+            player={player}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+            <ActivityIndicator color="#f97316" size="large" />
+          </View>
+        )
+      ) : (
+        reel.thumbnailUrl ? (
+          <Image source={{ uri: reel.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+        )
+      )}
 
       {/* Dark gradient overlay bottom */}
       <LinearGradient
@@ -128,13 +144,11 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
 
       {/* Right action buttons */}
       <View style={[s.rightActions, { bottom: tabBarHeight + 120 }]}>
-        {/* Like */}
         <TouchableOpacity style={s.actionBtn} onPress={toggleLike} activeOpacity={0.7}>
           <Feather name="heart" size={28} color={liked ? "#ef4444" : "#fff"} />
           <Text style={s.actionLabel}>{likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}k` : likeCount}</Text>
         </TouchableOpacity>
 
-        {/* Comment */}
         <TouchableOpacity
           style={s.actionBtn}
           onPress={() => router.push({ pathname: "/post-comments", params: { reelId: reel.id, isReel: "1" } } as any)}
@@ -144,20 +158,17 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
           <Text style={s.actionLabel}>{reel.commentCount}</Text>
         </TouchableOpacity>
 
-        {/* Share */}
         <TouchableOpacity style={s.actionBtn} activeOpacity={0.7}>
           <Feather name="send" size={26} color="#fff" />
           <Text style={s.actionLabel}>Share</Text>
         </TouchableOpacity>
 
-        {/* Delete (own reel) */}
         {isOwn && (
           <TouchableOpacity style={s.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
             <Feather name="trash-2" size={24} color="#fff" />
           </TouchableOpacity>
         )}
 
-        {/* Views */}
         <View style={[s.actionBtn, { marginTop: 8 }]}>
           <Feather name="eye" size={20} color="#ffffff99" />
           <Text style={[s.actionLabel, { color: "#ffffff99", fontSize: 11 }]}>{reel.viewCount}</Text>
@@ -166,7 +177,6 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
 
       {/* Bottom info */}
       <View style={[s.bottomInfo, { paddingBottom: tabBarHeight + 20 }]}>
-        {/* User row */}
         <TouchableOpacity
           style={s.userRow}
           onPress={() => router.push(`/user/${reel.userId}` as any)}
@@ -186,7 +196,6 @@ function ReelItem({ reel, isActive, colors, currentUserId, tabBarHeight, onDelet
           </View>
         </TouchableOpacity>
 
-        {/* Caption */}
         {caption.length > 0 && (
           <TouchableOpacity onPress={() => setCaptionExpanded((e) => !e)} activeOpacity={0.8}>
             <Text style={s.caption} numberOfLines={captionExpanded ? undefined : 2}>
@@ -205,29 +214,34 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const upload = useReelsUpload();
-  const [reels, setReels] = useState<Reel[]>([]);
+  const [reelsList, setReelsList] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const isFetchingRef = useRef(false);
 
   const fetchReels = useCallback(async (cursor?: number) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const url = cursor ? `/api/reels?cursor=${cursor}` : "/api/reels";
       const data = await customFetch<{ reels: Reel[]; hasMore: boolean; nextCursor: number | null }>(url);
       if (cursor) {
-        setReels((prev) => [...prev, ...data.reels]);
+        setReelsList((prev) => [...prev, ...data.reels]);
       } else {
-        setReels(data.reels);
+        setReelsList(data.reels ?? []);
       }
-      setHasMore(data.hasMore);
-      setNextCursor(data.nextCursor);
+      setHasMore(data.hasMore ?? false);
+      setNextCursor(data.nextCursor ?? null);
     } catch {
-      showError("Error", "Failed to load reels.");
+      // Silently ignore fetch errors on refresh
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      isFetchingRef.current = false;
     }
-    setLoading(false);
-    setLoadingMore(false);
   }, []);
 
   useEffect(() => { fetchReels(); }, [fetchReels]);
@@ -244,14 +258,14 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
 
   // Refresh feed after upload completes
   useEffect(() => {
-    if (upload.done) { fetchReels(); }
+    if (upload.done) {
+      setTimeout(() => fetchReels(), 500);
+    }
   }, [upload.done]);
 
-  // ── Upload Progress Banner ──────────────────────────────────────────────────
   const UploadBanner = (upload.isUploading || upload.done || upload.error) ? (
     <View style={[s.uploadBanner, { top: insets.top + 4 }]}>
       {upload.error ? (
-        // Error state
         <View style={[s.bannerInner, { backgroundColor: "#ef4444ee" }]}>
           <Feather name="alert-circle" size={16} color="#fff" />
           <Text style={s.bannerText} numberOfLines={1}>{upload.error}</Text>
@@ -260,13 +274,11 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
           </TouchableOpacity>
         </View>
       ) : upload.done ? (
-        // Success state
         <View style={[s.bannerInner, { backgroundColor: "#22c55eee" }]}>
           <Feather name="check-circle" size={16} color="#fff" />
-          <Text style={s.bannerText}>Reel uploaded successfully!</Text>
+          <Text style={s.bannerText}>Reel uploaded! Pull to refresh.</Text>
         </View>
       ) : (
-        // Uploading state
         <View style={[s.bannerInner, { backgroundColor: "#000000cc" }]}>
           <ActivityIndicator size="small" color="#f97316" />
           <View style={{ flex: 1 }}>
@@ -289,7 +301,7 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
     );
   }
 
-  if (reels.length === 0) {
+  if (reelsList.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000", paddingHorizontal: 32 }}>
         {UploadBanner}
@@ -312,32 +324,39 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
 
   return (
     <View style={{ flex: 1 }}>
-    {UploadBanner}
-    <FlatList
-      data={reels}
-      keyExtractor={(r) => String(r.id)}
-      renderItem={({ item, index }) => (
-        <ReelItem
-          reel={item}
-          isActive={index === activeIndex}
-          colors={colors}
-          currentUserId={user?.id ?? null}
-          tabBarHeight={tabBarHeight}
-          onDelete={(id) => setReels((prev) => prev.filter((r) => r.id !== id))}
-        />
-      )}
-      pagingEnabled
-      snapToInterval={SCREEN_H}
-      snapToAlignment="start"
-      decelerationRate="fast"
-      showsVerticalScrollIndicator={false}
-      onViewableItemsChanged={onViewableItemsChanged}
-      viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-      onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.5}
-      ListFooterComponent={loadingMore ? <View style={{ height: SCREEN_H, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}><ActivityIndicator color="#f97316" /></View> : null}
-      getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
-    />
+      {UploadBanner}
+      <FlatList
+        data={reelsList}
+        keyExtractor={(r) => String(r.id)}
+        renderItem={({ item, index }) => (
+          <ReelItem
+            reel={item}
+            isActive={index === activeIndex}
+            currentUserId={user?.id ?? null}
+            tabBarHeight={tabBarHeight}
+            onDelete={(id) => setReelsList((prev) => prev.filter((r) => r.id !== id))}
+          />
+        )}
+        pagingEnabled
+        snapToInterval={SCREEN_H}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        removeClippedSubviews
+        initialNumToRender={1}
+        ListFooterComponent={loadingMore ? (
+          <View style={{ height: SCREEN_H, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color="#f97316" />
+          </View>
+        ) : null}
+        getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
+      />
     </View>
   );
 }

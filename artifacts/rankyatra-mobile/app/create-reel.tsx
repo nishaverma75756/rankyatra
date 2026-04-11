@@ -23,73 +23,55 @@ interface VideoFrame {
   time: number;
 }
 
-// ── Web: HTML5 Canvas frame extraction ────────────────────────────────────────
-async function seekTo(video: HTMLVideoElement, timeSec: number): Promise<void> {
-  return new Promise((resolve) => {
-    const handler = () => resolve();
-    video.addEventListener("seeked", handler, { once: true });
-    video.currentTime = timeSec;
-  });
-}
-
-async function extractFramesWeb(blobUrl: string): Promise<VideoFrame[]> {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.src = blobUrl;
-    video.muted = true;
-    video.playsInline = true;
-    video.addEventListener("loadedmetadata", async () => {
-      const durMs = video.duration * 1000;
-      const step = durMs / (FRAME_COUNT + 1);
-      const canvas = document.createElement("canvas");
-      canvas.width = 180; canvas.height = 320;
-      const ctx = canvas.getContext("2d")!;
-      const frames: VideoFrame[] = [];
-      for (let i = 1; i <= FRAME_COUNT; i++) {
-        try {
-          await seekTo(video, (step * i) / 1000);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frames.push({ uri: canvas.toDataURL("image/jpeg", 0.65), time: step * i });
-        } catch {}
-      }
-      resolve(frames);
-    });
-    video.addEventListener("error", () => resolve([]));
-    video.load();
-  });
-}
-
-// ── Native: expo-video-thumbnails ──────────────────────────────────────────────
-async function extractFramesNative(uri: string, durationMs: number): Promise<VideoFrame[]> {
-  const VideoThumbnails = await import("expo-video-thumbnails");
-  const dur = Math.max(durationMs, 1000);
-  const step = Math.floor(dur / (FRAME_COUNT + 1));
-  const frames: VideoFrame[] = [];
-  for (let i = 1; i <= FRAME_COUNT; i++) {
-    try {
-      const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, { time: step * i, quality: 0.6 });
-      frames.push({ uri: fUri, time: step * i });
-    } catch {}
+// ── Extract single thumbnail (fast, before compression) ───────────────────────
+async function extractFirstThumb(uri: string): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  try {
+    const VideoThumbnails = await import("expo-video-thumbnails");
+    const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000, quality: 0.7 });
+    return thumbUri;
+  } catch {
+    return null;
   }
-  return frames;
 }
 
-// ── Compress video (native only) ────────────────────────────────────────────
+// ── Extract 8 frames for cover picker (native, after compression) ──────────────
+async function extractFramesNative(uri: string, durationMs: number): Promise<VideoFrame[]> {
+  try {
+    const VideoThumbnails = await import("expo-video-thumbnails");
+    const dur = Math.max(durationMs, 2000);
+    const step = Math.floor(dur / (FRAME_COUNT + 1));
+    const frames: VideoFrame[] = [];
+    for (let i = 1; i <= FRAME_COUNT; i++) {
+      try {
+        const { uri: fUri } = await VideoThumbnails.getThumbnailAsync(uri, {
+          time: step * i,
+          quality: 0.5,
+        });
+        frames.push({ uri: fUri, time: step * i });
+      } catch {}
+    }
+    return frames;
+  } catch {
+    return [];
+  }
+}
+
+// ── Compress video (native only, optional) ────────────────────────────────────
 async function compressVideo(
   uri: string,
   onProgress: (pct: number) => void
 ): Promise<{ uri: string; mime: string }> {
   if (Platform.OS === "web") return { uri, mime: "video/mp4" };
-
   try {
     const { Video } = await import("react-native-compressor");
     const result = await Video.compress(
       uri,
       {
         compressionMethod: "auto",
-        maxSize: 1280,           // max dimension px (Instagram-style)
-        bitrate: 2_000_000,     // 2 Mbps — good quality, small size
-        minimumFileSizeForCompress: 5, // compress if > 5MB
+        maxSize: 1280,
+        bitrate: 1_500_000,
+        minimumFileSizeForCompress: 20,
       },
       (progress) => {
         onProgress(Math.round(progress * 100));
@@ -97,7 +79,6 @@ async function compressVideo(
     );
     return { uri: result, mime: "video/mp4" };
   } catch {
-    // Fallback: use original if compression fails
     return { uri, mime: "video/mp4" };
   }
 }
@@ -121,26 +102,23 @@ export default function CreateReelScreen() {
 
   const canPost = !!videoUri && !!token && !loadingVideo && !compressStatus;
 
-  // ── Extract frames ──────────────────────────────────────────────────────────
-  const extractFrames = async (uri: string, durationMs: number) => {
-    setLoadingFrames(true);
-    setFrames([]);
-    setThumbUri(null);
-    setSelectedFrameIdx(0);
+  // ── Pick cover image from gallery ─────────────────────────────────────────
+  const pickThumbnailFromGallery = async () => {
     try {
-      let extracted: VideoFrame[] = [];
-      if (Platform.OS === "web") {
-        extracted = await extractFramesWeb(uri);
-      } else {
-        extracted = await extractFramesNative(uri, durationMs);
-      }
-      setFrames(extracted);
-      if (extracted.length > 0) {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setThumbUri(result.assets[0].uri);
+        setFrames([]);
         setSelectedFrameIdx(0);
-        setThumbUri(extracted[0].uri);
       }
-    } catch {}
-    setLoadingFrames(false);
+    } catch {
+      showError("Error", "Could not pick image from gallery.");
+    }
   };
 
   const applyFrame = (idx: number) => {
@@ -150,7 +128,7 @@ export default function CreateReelScreen() {
     setThumbUri(frame.uri);
   };
 
-  // ── Pick + compress video ────────────────────────────────────────────────────
+  // ── Pick + compress video ─────────────────────────────────────────────────
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -159,6 +137,9 @@ export default function CreateReelScreen() {
     }
     setLoadingVideo(true);
     setCompressStatus(null);
+    setFrames([]);
+    setThumbUri(null);
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["videos"],
@@ -183,25 +164,40 @@ export default function CreateReelScreen() {
         uri = dest;
       }
 
-      // Compress the video — Instagram style
+      // Step 1: Extract first thumbnail immediately (before compression)
       setLoadingVideo(false);
-      setCompressStatus("Compressing video... 0%");
+      setCompressStatus("Getting preview...");
+      const firstThumb = await extractFirstThumb(uri);
+      if (firstThumb) setThumbUri(firstThumb);
+
+      // Step 2: Compress the video
+      setCompressStatus("Compressing... 0%");
       const { uri: compressedUri, mime } = await compressVideo(uri, (pct) => {
         setCompressStatus(`Compressing... ${pct}%`);
       });
       setCompressStatus(null);
-
       setVideoUri(compressedUri);
       setVideoMime(mime);
-      await extractFrames(compressedUri, dur);
+
+      // Step 3: Extract more frames for picker in background
+      setLoadingFrames(true);
+      const extracted = await extractFramesNative(compressedUri, dur);
+      setFrames(extracted);
+      if (extracted.length > 0) {
+        setSelectedFrameIdx(0);
+        setThumbUri(extracted[0].uri);
+      }
+      setLoadingFrames(false);
+
     } catch (e: any) {
       setCompressStatus(null);
+      setLoadingFrames(false);
       showError("Error", "Could not load video. Please try a different clip.");
     }
     setLoadingVideo(false);
   };
 
-  // ── Share ───────────────────────────────────────────────────────────────────
+  // ── Share ─────────────────────────────────────────────────────────────────
   const handleShare = () => {
     if (!canPost || !videoUri) return;
     router.back();
@@ -240,8 +236,9 @@ export default function CreateReelScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Video + Cover preview */}
+        {/* Video + Cover preview row */}
         <View style={{ flexDirection: "row", gap: 10 }}>
+          {/* Video picker */}
           <TouchableOpacity
             style={[s.videoPicker, { backgroundColor: colors.card, borderColor: videoUri ? "#f97316" : colors.border, flex: 2 }]}
             onPress={pickVideo}
@@ -278,23 +275,36 @@ export default function CreateReelScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Cover preview */}
-          <View style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}>
-            {thumbUri ? (
-              <>
-                <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-                <View style={s.thumbOverlay}>
-                  <Feather name="image" size={12} color="#fff" />
-                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>Cover</Text>
+          {/* Cover preview + gallery picker */}
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={[s.videoPicker, { backgroundColor: colors.card, borderColor: thumbUri ? "#f97316" : colors.border, flex: 1, overflow: "hidden" }]}>
+              {thumbUri ? (
+                <>
+                  <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                  <View style={s.thumbOverlay}>
+                    <Feather name="image" size={12} color="#fff" />
+                    <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>Cover</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={s.center}>
+                  <Feather name="image" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+                  <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center", opacity: 0.6 }}>
+                    {loadingFrames || compressStatus ? "Loading..." : "Cover"}
+                  </Text>
                 </View>
-              </>
-            ) : (
-              <View style={s.center}>
-                <Feather name="image" size={22} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
-                <Text style={{ color: colors.mutedForeground, fontSize: 10, marginTop: 4, textAlign: "center", opacity: 0.6 }}>
-                  {loadingFrames ? "Extracting..." : "Cover preview"}
-                </Text>
-              </View>
+              )}
+            </View>
+            {/* Gallery thumbnail button */}
+            {videoUri && (
+              <TouchableOpacity
+                style={[s.galleryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={pickThumbnailFromGallery}
+                activeOpacity={0.8}
+              >
+                <Feather name="upload" size={13} color="#f97316" />
+                <Text style={{ color: "#f97316", fontSize: 10, fontWeight: "700" }}>Gallery</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -370,8 +380,8 @@ export default function CreateReelScreen() {
           </View>
           {[
             ["Pick any video", "Auto-compressed like Instagram"],
-            ["Tap Share", "Upload starts in background"],
-            ["Auto-appears", "Reel shows up when upload is done"],
+            ["Choose cover frame", "Pick any frame or from gallery"],
+            ["Tap Share", "Uploads in background — app stays open"],
           ].map(([title, sub], i) => (
             <View key={i} style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
               <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#f9731620", alignItems: "center", justifyContent: "center" }}>
@@ -409,6 +419,10 @@ const s = StyleSheet.create({
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "rgba(0,0,0,0.55)", paddingVertical: 5,
     alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4,
+  },
+  galleryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, borderRadius: 10, borderWidth: 1, paddingVertical: 8,
   },
   card: { borderRadius: 16, borderWidth: 1, padding: 14 },
   cardLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
