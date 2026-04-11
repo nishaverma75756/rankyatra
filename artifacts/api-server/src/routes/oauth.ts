@@ -218,4 +218,39 @@ if (FACEBOOK_APP_ID && FACEBOOK_APP_SECRET) {
   );
 }
 
+// ─── Native Google Sign-In (ID token from @react-native-google-signin) ──────
+router.post("/auth/google-native", async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: "idToken required" });
+    if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: "Google not configured" });
+
+    const { OAuth2Client } = await import("google-auth-library");
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) return res.status(400).json({ error: "Invalid Google token" });
+
+    const user = await findOrCreateOAuthUser({
+      provider: "google",
+      providerId: payload.sub,
+      email: payload.email,
+      name: payload.name || payload.email.split("@")[0],
+      avatarUrl: payload.picture || null,
+    });
+
+    const token = generateToken(user.id);
+    res.json({
+      token,
+      user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, isAdmin: user.isAdmin },
+    });
+  } catch (err: any) {
+    console.error("[auth/google-native]", err?.message || err);
+    res.status(401).json({ error: err?.message || "Google Sign-In failed" });
+  }
+});
+
 export default router;

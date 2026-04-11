@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -15,15 +15,18 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { signup as signupApi } from "@workspace/api-client-react";
+import { GoogleSignin, isErrorWithCode, statusCodes } from "@react-native-google-signin/google-signin";
 
-const PROD_URL = "https://rankyatra.in";
-const OAUTH_SERVER = PROD_URL;
-const MOBILE_OAUTH_REDIRECT = `rankyatra://oauth-callback`;
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  offlineAccess: false,
+});
 
 export default function SignupScreen() {
   const colors = useColors();
@@ -37,67 +40,42 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  const oauthHandledRef = useRef(false);
-
-  useEffect(() => {
-    const sub = Linking.addEventListener("url", ({ url }) => {
-      if (!url.startsWith("rankyatra://oauth-callback")) return;
-      if (oauthHandledRef.current) return;
-      oauthHandledRef.current = true;
-      handleOAuthUrl(url);
-    });
-    return () => sub.remove();
-  }, []);
-
-  const handleOAuthUrl = async (url: string) => {
+  // ── Native Google Sign-In ──────────────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      showError("Configuration Error", "Google Sign-In is not configured. Please contact support.");
+      return;
+    }
+    setGoogleLoading(true);
     try {
-      const parsed = Linking.parse(url);
-      const token = parsed.queryParams?.token as string | undefined;
-      const error = parsed.queryParams?.error as string | undefined;
-      if (error) throw new Error(decodeURIComponent(error));
-      if (!token) throw new Error("Google login se token nahi mila. Dobara try karo.");
-      const userRes = await fetch(`${PROD_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      const idToken = response.data?.idToken;
+      if (!idToken) throw new Error("Google token nahi mila. Dobara try karo.");
+
+      const serverRes = await fetch(`${BASE_URL}/api/auth/google-native`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
       });
-      if (!userRes.ok) throw new Error("User info load nahi ho saka.");
-      const user = await userRes.json();
-      await login(token, user);
+      const data = await serverRes.json();
+      if (!serverRes.ok) throw new Error(data.error || "Google Sign-In failed");
+
+      await login(data.token, data.user);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)/");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (isErrorWithCode(e)) {
+        if (e.code === statusCodes.SIGN_IN_CANCELLED) return;
+        if (e.code === statusCodes.IN_PROGRESS) return;
+        if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          showError("Google Sign-In", "Google Play Services not available on this device.");
+          return;
+        }
+      }
       showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
     } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    oauthHandledRef.current = false;
-    try {
-      const result = await WebBrowser.openAuthSessionAsync(
-        `${OAUTH_SERVER}/api/auth/google?mobile=1`,
-        MOBILE_OAUTH_REDIRECT,
-        { showInRecents: false }
-      );
-
-      if (result.type === "cancel" || result.type === "dismiss") {
-        await new Promise((r) => setTimeout(r, 600));
-        if (!oauthHandledRef.current) setGoogleLoading(false);
-        return;
-      }
-
-      if (result.type === "success" && result.url) {
-        if (oauthHandledRef.current) return;
-        oauthHandledRef.current = true;
-        await handleOAuthUrl(result.url);
-      } else {
-        setGoogleLoading(false);
-      }
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showError("Google Sign-In Failed", e?.message || "Kuch problem aayi. Dobara try karo.");
       setGoogleLoading(false);
     }
   };
