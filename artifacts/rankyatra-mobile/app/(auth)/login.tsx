@@ -21,8 +21,8 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { login as loginApi } from "@workspace/api-client-react";
 
-const PROD_URL = "https://rankyatra.in";
-const OAUTH_SERVER = "https://rankyatra.niskutech.com";
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+const OAUTH_SERVER = BASE_URL;
 const MOBILE_OAUTH_REDIRECT = `rankyatra://oauth-callback`;
 
 export default function LoginScreen() {
@@ -74,7 +74,7 @@ export default function LoginScreen() {
       const error = parsed.queryParams?.error as string | undefined;
       if (error) throw new Error(decodeURIComponent(error));
       if (!token) throw new Error("Google login se token nahi mila. Dobara try karo.");
-      const userRes = await fetch(`${PROD_URL}/api/me`, {
+      const userRes = await fetch(`${BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!userRes.ok) throw new Error("User info load nahi ho saka.");
