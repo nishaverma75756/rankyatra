@@ -50,7 +50,7 @@ export default function AdminUserDetail() {
     if (!userId) return;
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}` },
       });
       const data = await res.json();
       setUserRoles(data.map((r: any) => r.role));
@@ -71,7 +71,7 @@ export default function AdminUserDetail() {
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}`, "Content-Type": "application/json" },
         body: JSON.stringify({ role }),
       });
       if (!res.ok) { const e = await res.json(); throw e; }
@@ -87,7 +87,7 @@ export default function AdminUserDetail() {
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles/${role}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}` },
       });
       if (!res.ok) { const e = await res.json(); throw e; }
       toast({ title: `${ROLE_META[role]?.label} role revoked.` });

@@ -22,7 +22,7 @@ export default function AdminRoles() {
   const [filter, setFilter] = useState<string>("all");
 
   useEffect(() => {
-    const token = localStorage.getItem("auth_token");
+    const token = localStorage.getItem("rankyatra_token");
     fetch("/api/admin/roles", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setAllRoles(data))
