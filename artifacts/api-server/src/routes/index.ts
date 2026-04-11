@@ -24,6 +24,7 @@ import reportsRouter from "./reports";
 import postsRouter from "./posts";
 import reelsRouter from "./reels";
 import notificationsRouter from "./notifications";
+import rolesRouter from "./roles";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(reportsRouter);
 router.use(postsRouter);
 router.use(reelsRouter);
 router.use(notificationsRouter);
+router.use(rolesRouter);
 
 export default router;

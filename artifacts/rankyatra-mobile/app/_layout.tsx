@@ -299,6 +299,7 @@ export default function RootLayout() {
                     <Stack.Screen name="notifications" options={{ presentation: "card" }} />
                     <Stack.Screen name="create-post" options={{ presentation: "card" }} />
                     <Stack.Screen name="create-reel" options={{ presentation: "card" }} />
+                    <Stack.Screen name="group-dashboard" options={{ presentation: "card", headerShown: false }} />
                     <Stack.Screen name="oauth-callback" options={{ presentation: "fullScreenModal", headerShown: false, gestureEnabled: false }} />
                   </Stack>
                   <AppAlert />

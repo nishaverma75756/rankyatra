@@ -1,0 +1,424 @@
+import { Router } from "express";
+import { db, usersTable, userRolesTable, groupsTable, groupMembersTable, groupCommissionWithdrawalsTable, registrationsTable, notificationsTable } from "@workspace/db";
+import { eq, and, sum, count, desc, ne } from "drizzle-orm";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
+
+const router = Router();
+
+const COMMISSION_RATE = 0.05; // 5%
+
+// ─── ADMIN: list all role holders ───────────────────────────────────────────
+router.get("/admin/roles", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: userRolesTable.id,
+        userId: userRolesTable.userId,
+        role: userRolesTable.role,
+        assignedAt: userRolesTable.assignedAt,
+        userName: usersTable.name,
+        userEmail: usersTable.email,
+        userAvatar: usersTable.avatarUrl,
+      })
+      .from(userRolesTable)
+      .leftJoin(usersTable, eq(userRolesTable.userId, usersTable.id))
+      .orderBy(desc(userRolesTable.assignedAt));
+
+    // For each role holder, get their group member count
+    const enriched = await Promise.all(rows.map(async (r) => {
+      const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, r.userId));
+      let memberCount = 0;
+      let totalRevenue = "0.00";
+      let commission = "0.00";
+      if (group) {
+        const [mc] = await db.select({ cnt: count() }).from(groupMembersTable)
+          .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
+        memberCount = mc?.cnt ?? 0;
+
+        // Total exam fees paid by group members
+        const members = await db.select({ userId: groupMembersTable.userId })
+          .from(groupMembersTable)
+          .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
+        const memberIds = members.map(m => m.userId);
+        if (memberIds.length > 0) {
+          let rev = 0;
+          for (const uid of memberIds) {
+            const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+              .from(registrationsTable).where(eq(registrationsTable.userId, uid));
+            rev += Number(s?.total ?? 0);
+          }
+          totalRevenue = rev.toFixed(2);
+          const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
+            .from(groupCommissionWithdrawalsTable)
+            .where(and(eq(groupCommissionWithdrawalsTable.groupId, group.id), ne(groupCommissionWithdrawalsTable.status, "rejected")));
+          commission = (rev * COMMISSION_RATE - Number(withdrawn?.total ?? 0)).toFixed(2);
+        }
+      }
+      return { ...r, groupId: group?.id ?? null, groupName: group?.name ?? null, memberCount, totalRevenue, commission };
+    }));
+
+    res.json(enriched);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch roles" });
+  }
+});
+
+// ─── ADMIN: assign role to user ──────────────────────────────────────────────
+router.post("/admin/users/:userId/roles", requireAdmin, async (req: any, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const { role } = req.body;
+  const validRoles = ["teacher", "influencer", "promoter", "partner", "premium"];
+  if (!role || !validRoles.includes(role)) {
+    res.status(400).json({ error: "Invalid role" }); return;
+  }
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    // Upsert role (ignore if already exists)
+    await db.execute(`
+      INSERT INTO user_roles (user_id, role, assigned_by) VALUES (${userId}, '${role}', ${req.user.id})
+      ON CONFLICT (user_id, role) DO NOTHING
+    `);
+
+    // Create group for role holder if they don't have one
+    const [existing] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, userId));
+    if (!existing) {
+      await db.insert(groupsTable).values({ ownerId: userId, name: `${user.name}'s Group` });
+    }
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to assign role" });
+  }
+});
+
+// ─── ADMIN: revoke role from user ────────────────────────────────────────────
+router.delete("/admin/users/:userId/roles/:role", requireAdmin, async (req: any, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const { role } = req.params;
+  try {
+    await db.delete(userRolesTable)
+      .where(and(eq(userRolesTable.userId, userId), eq(userRolesTable.role, role as any)));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to revoke role" });
+  }
+});
+
+// ─── ADMIN: get user roles ───────────────────────────────────────────────────
+router.get("/admin/users/:userId/roles", requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const roles = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, userId));
+  res.json(roles);
+});
+
+// ─── ADMIN: commission withdrawals list ─────────────────────────────────────
+router.get("/admin/commission-withdrawals", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: groupCommissionWithdrawalsTable.id,
+        groupId: groupCommissionWithdrawalsTable.groupId,
+        ownerId: groupCommissionWithdrawalsTable.ownerId,
+        amount: groupCommissionWithdrawalsTable.amount,
+        status: groupCommissionWithdrawalsTable.status,
+        utrNumber: groupCommissionWithdrawalsTable.utrNumber,
+        upiId: groupCommissionWithdrawalsTable.upiId,
+        requestedAt: groupCommissionWithdrawalsTable.requestedAt,
+        processedAt: groupCommissionWithdrawalsTable.processedAt,
+        ownerName: usersTable.name,
+        ownerEmail: usersTable.email,
+        groupName: groupsTable.name,
+      })
+      .from(groupCommissionWithdrawalsTable)
+      .leftJoin(usersTable, eq(groupCommissionWithdrawalsTable.ownerId, usersTable.id))
+      .leftJoin(groupsTable, eq(groupCommissionWithdrawalsTable.groupId, groupsTable.id))
+      .orderBy(desc(groupCommissionWithdrawalsTable.requestedAt));
+    res.json(rows);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch commission withdrawals" });
+  }
+});
+
+// ─── ADMIN: approve/reject commission withdrawal ─────────────────────────────
+router.patch("/admin/commission-withdrawals/:id", requireAdmin, async (req: any, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { action, utrNumber } = req.body;
+  if (!["approve", "reject"].includes(action)) { res.status(400).json({ error: "Invalid action" }); return; }
+  try {
+    const status = action === "approve" ? "approved" : "rejected";
+    await db.update(groupCommissionWithdrawalsTable)
+      .set({ status, utrNumber: utrNumber ?? null, processedAt: new Date() })
+      .where(eq(groupCommissionWithdrawalsTable.id, id));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to process withdrawal" });
+  }
+});
+
+// ─── MY ROLES (mobile) ───────────────────────────────────────────────────────
+router.get("/roles/my", requireAuth, async (req: any, res) => {
+  const roles = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, req.user.id));
+  res.json(roles.map(r => r.role));
+});
+
+// ─── MY GROUP (as owner) ─────────────────────────────────────────────────────
+router.get("/groups/my", requireAuth, async (req: any, res) => {
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.json(null); return; }
+
+    const members = await db
+      .select({
+        id: groupMembersTable.id,
+        userId: groupMembersTable.userId,
+        status: groupMembersTable.status,
+        joinedAt: groupMembersTable.joinedAt,
+        name: usersTable.name,
+        email: usersTable.email,
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(groupMembersTable)
+      .leftJoin(usersTable, eq(groupMembersTable.userId, usersTable.id))
+      .where(eq(groupMembersTable.groupId, group.id))
+      .orderBy(desc(groupMembersTable.invitedAt));
+
+    // Commission calculation
+    const accepted = members.filter(m => m.status === "accepted");
+    let totalRevenue = 0;
+    for (const m of accepted) {
+      const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+        .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
+      totalRevenue += Number(s?.total ?? 0);
+    }
+    const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
+      .from(groupCommissionWithdrawalsTable)
+      .where(and(eq(groupCommissionWithdrawalsTable.groupId, group.id), ne(groupCommissionWithdrawalsTable.status, "rejected")));
+    const totalCommission = totalRevenue * COMMISSION_RATE;
+    const availableCommission = Math.max(0, totalCommission - Number(withdrawn?.total ?? 0));
+
+    res.json({
+      ...group,
+      members,
+      totalRevenue: totalRevenue.toFixed(2),
+      totalCommission: totalCommission.toFixed(2),
+      availableCommission: availableCommission.toFixed(2),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch group" });
+  }
+});
+
+// ─── RENAME GROUP ─────────────────────────────────────────────────────────────
+router.patch("/groups/my", requireAuth, async (req: any, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "Group name required" }); return; }
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+    await db.update(groupsTable).set({ name: name.trim(), updatedAt: new Date() }).where(eq(groupsTable.id, group.id));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to rename group" });
+  }
+});
+
+// ─── INVITE MEMBER by UID ─────────────────────────────────────────────────────
+router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
+  const { uid } = req.body; // UID is padded like RY0000000074 → extract numeric id
+  const rawUid = String(uid ?? "").replace(/[^0-9]/g, "");
+  const targetId = parseInt(rawUid, 10);
+  if (!targetId || isNaN(targetId)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.status(404).json({ error: "You don't have a group" }); return; }
+
+    const [target] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
+    if (!target) { res.status(404).json({ error: "User not found with this UID" }); return; }
+    if (target.id === req.user.id) { res.status(400).json({ error: "You can't invite yourself" }); return; }
+
+    // Check if already a member
+    const [existing] = await db.select().from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.userId, target.id)));
+    if (existing) {
+      const msg = existing.status === "accepted" ? "User is already in your group" : "Invitation already sent";
+      res.status(400).json({ error: msg }); return;
+    }
+
+    await db.insert(groupMembersTable).values({ groupId: group.id, userId: target.id, status: "pending" });
+
+    // Send notification to target user
+    try {
+      const [ownerUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+      await db.insert(notificationsTable).values({
+        userId: target.id,
+        type: "group_invite",
+        title: "Group Invitation",
+        body: `${ownerUser.name} ne aapko "${group.name}" group mein invite kiya hai`,
+        data: JSON.stringify({ groupId: group.id, groupName: group.name, inviterId: req.user.id }),
+        isRead: false,
+      });
+    } catch {}
+
+    res.json({ ok: true, targetName: target.name });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to send invitation" });
+  }
+});
+
+// ─── MY PENDING INVITES (as member) ──────────────────────────────────────────
+router.get("/groups/invites", requireAuth, async (req: any, res) => {
+  try {
+    const invites = await db
+      .select({
+        id: groupMembersTable.id,
+        groupId: groupMembersTable.groupId,
+        status: groupMembersTable.status,
+        invitedAt: groupMembersTable.invitedAt,
+        groupName: groupsTable.name,
+        ownerName: usersTable.name,
+        ownerAvatar: usersTable.avatarUrl,
+      })
+      .from(groupMembersTable)
+      .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+      .leftJoin(usersTable, eq(groupsTable.ownerId, usersTable.id))
+      .where(and(eq(groupMembersTable.userId, req.user.id), eq(groupMembersTable.status, "pending")));
+    res.json(invites);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch invites" });
+  }
+});
+
+// ─── MY MEMBERSHIPS ──────────────────────────────────────────────────────────
+router.get("/groups/memberships", requireAuth, async (req: any, res) => {
+  try {
+    const memberships = await db
+      .select({
+        id: groupMembersTable.id,
+        groupId: groupMembersTable.groupId,
+        status: groupMembersTable.status,
+        joinedAt: groupMembersTable.joinedAt,
+        groupName: groupsTable.name,
+        ownerName: usersTable.name,
+        ownerAvatar: usersTable.avatarUrl,
+      })
+      .from(groupMembersTable)
+      .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+      .leftJoin(usersTable, eq(groupsTable.ownerId, usersTable.id))
+      .where(and(eq(groupMembersTable.userId, req.user.id), eq(groupMembersTable.status, "accepted")));
+    res.json(memberships);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch memberships" });
+  }
+});
+
+// ─── ACCEPT / DECLINE INVITE ─────────────────────────────────────────────────
+router.patch("/groups/invites/:inviteId", requireAuth, async (req: any, res) => {
+  const inviteId = parseInt(req.params.inviteId, 10);
+  const { action } = req.body; // "accept" | "decline"
+  if (!["accept", "decline"].includes(action)) { res.status(400).json({ error: "Invalid action" }); return; }
+
+  try {
+    const [invite] = await db.select().from(groupMembersTable)
+      .where(and(eq(groupMembersTable.id, inviteId), eq(groupMembersTable.userId, req.user.id)));
+    if (!invite) { res.status(404).json({ error: "Invite not found" }); return; }
+
+    const status = action === "accept" ? "accepted" : "declined";
+    await db.update(groupMembersTable)
+      .set({ status, joinedAt: action === "accept" ? new Date() : null })
+      .where(eq(groupMembersTable.id, inviteId));
+
+    if (action === "accept") {
+      // Get group name for badge
+      const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, invite.groupId));
+      res.json({ ok: true, groupName: group?.name ?? "Group" });
+    } else {
+      res.json({ ok: true });
+    }
+  } catch {
+    res.status(500).json({ error: "Failed to process invite" });
+  }
+});
+
+// ─── GROUP MEMBER STATS (exam activity) ──────────────────────────────────────
+router.get("/groups/my/member-stats", requireAuth, async (req: any, res) => {
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.json([]); return; }
+
+    const members = await db
+      .select({ userId: groupMembersTable.userId, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+      .from(groupMembersTable)
+      .leftJoin(usersTable, eq(groupMembersTable.userId, usersTable.id))
+      .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
+
+    const stats = await Promise.all(members.map(async (m) => {
+      const [examCount] = await db.select({ cnt: count() }).from(registrationsTable)
+        .where(eq(registrationsTable.userId, m.userId));
+      const [spent] = await db.select({ total: sum(registrationsTable.entryFee) }).from(registrationsTable)
+        .where(eq(registrationsTable.userId, m.userId));
+      return {
+        userId: m.userId,
+        name: m.name,
+        avatarUrl: m.avatarUrl,
+        examsTaken: examCount?.cnt ?? 0,
+        totalSpent: spent?.total ?? "0.00",
+        commission: (Number(spent?.total ?? 0) * COMMISSION_RATE).toFixed(2),
+      };
+    }));
+
+    res.json(stats);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch member stats" });
+  }
+});
+
+// ─── WITHDRAW COMMISSION ─────────────────────────────────────────────────────
+router.post("/groups/my/commission/withdraw", requireAuth, async (req: any, res) => {
+  const { amount, upiId } = req.body;
+  const amt = Number(amount);
+  if (!amt || amt <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
+  if (!upiId?.trim()) { res.status(400).json({ error: "UPI ID required" }); return; }
+
+  try {
+    const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
+    if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+
+    // Check available commission
+    const members = await db.select({ userId: groupMembersTable.userId }).from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
+    let totalRevenue = 0;
+    for (const m of members) {
+      const [s] = await db.select({ total: sum(registrationsTable.entryFee) })
+        .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
+      totalRevenue += Number(s?.total ?? 0);
+    }
+    const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
+      .from(groupCommissionWithdrawalsTable)
+      .where(and(eq(groupCommissionWithdrawalsTable.groupId, group.id), ne(groupCommissionWithdrawalsTable.status, "rejected")));
+    const available = totalRevenue * COMMISSION_RATE - Number(withdrawn?.total ?? 0);
+
+    if (amt > available) {
+      res.status(400).json({ error: `Insufficient commission. Available: ₹${available.toFixed(2)}` }); return;
+    }
+
+    await db.insert(groupCommissionWithdrawalsTable).values({
+      groupId: group.id,
+      ownerId: req.user.id,
+      amount: String(amt),
+      upiId: upiId.trim(),
+      status: "pending",
+    });
+
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to request withdrawal" });
+  }
+});
+
+export default router;

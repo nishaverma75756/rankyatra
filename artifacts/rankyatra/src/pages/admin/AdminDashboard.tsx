@@ -127,6 +127,11 @@ export default function AdminDashboard() {
               )}
             </Link>
           </Button>
+          <Button asChild variant="outline" className="border-purple-500 text-purple-700 hover:bg-purple-50">
+            <Link href="/admin/roles" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" /> Roles &amp; Groups
+            </Link>
+          </Button>
         </div>
 
         {/* Stats */}

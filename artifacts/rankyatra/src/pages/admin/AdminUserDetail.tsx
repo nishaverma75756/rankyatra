@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck, TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck, TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff, GraduationCap, Star, Megaphone, Handshake, Crown, X } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,15 @@ import {
 import { useAdminGetUser, useAdminUpdateUser, useAdminBlockUser, useAdminAdjustWallet } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatUID } from "@/lib/utils";
+import axios from "axios";
+
+const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+  teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff" },
+  influencer: { label: "Influencer", icon: Star,          color: "#7c3aed", bg: "#f5f3ff" },
+  promoter:   { label: "Promoter",   icon: Megaphone,     color: "#d97706", bg: "#fffbeb" },
+  partner:    { label: "Partner",    icon: Handshake,     color: "#059669", bg: "#ecfdf5" },
+  premium:    { label: "Premium",    icon: Crown,         color: "#f97316", bg: "#fff7ed" },
+};
 
 export default function AdminUserDetail() {
   const { id } = useParams();
@@ -35,6 +44,18 @@ export default function AdminUserDetail() {
   const [walletAmount, setWalletAmount] = useState("");
   const [walletType, setWalletType] = useState<"credit" | "debit">("credit");
   const [walletNote, setWalletNote] = useState("");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+
+  const fetchRoles = async () => {
+    if (!userId) return;
+    try {
+      const { data } = await axios.get(`/api/admin/users/${userId}/roles`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+      });
+      setUserRoles(data.map((r: any) => r.role));
+    } catch {}
+  };
 
   useEffect(() => {
     if (u) {
@@ -42,6 +63,34 @@ export default function AdminUserDetail() {
       setEmail(u.email ?? "");
     }
   }, [u?.id]);
+
+  useEffect(() => { fetchRoles(); }, [userId]);
+
+  const handleAssignRole = async (role: string) => {
+    setRolesLoading(true);
+    try {
+      await axios.post(`/api/admin/users/${userId}/roles`, { role }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+      });
+      toast({ title: `${ROLE_META[role]?.label} role assigned!` });
+      fetchRoles();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.response?.data?.error ?? "Failed", variant: "destructive" });
+    } finally { setRolesLoading(false); }
+  };
+
+  const handleRevokeRole = async (role: string) => {
+    setRolesLoading(true);
+    try {
+      await axios.delete(`/api/admin/users/${userId}/roles/${role}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
+      });
+      toast({ title: `${ROLE_META[role]?.label} role revoked.` });
+      fetchRoles();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.response?.data?.error ?? "Failed", variant: "destructive" });
+    } finally { setRolesLoading(false); }
+  };
 
   const { mutate: updateUser, isPending: updating } = useAdminUpdateUser({
     mutation: {
@@ -178,6 +227,33 @@ export default function AdminUserDetail() {
               >
                 {u?.isAdmin ? <><ShieldOff className="h-3.5 w-3.5 mr-1" />Revoke Admin</> : <><Shield className="h-3.5 w-3.5 mr-1" />Grant Admin</>}
               </Button>
+            </div>
+
+            {/* ── Role Management ── */}
+            <div className="mt-5 pt-4 border-t border-border">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assign Roles</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(ROLE_META).map(([role, meta]) => {
+                  const hasRole = userRoles.includes(role);
+                  const Icon = meta.icon;
+                  return (
+                    <button
+                      key={role}
+                      disabled={rolesLoading}
+                      onClick={() => hasRole ? handleRevokeRole(role) : handleAssignRole(role)}
+                      style={{ background: hasRole ? meta.bg : undefined, borderColor: hasRole ? meta.color : undefined, color: hasRole ? meta.color : undefined }}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${hasRole ? "border-2" : "border border-border text-muted-foreground bg-muted hover:bg-secondary"}`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {meta.label}
+                      {hasRole && <X className="h-3 w-3 opacity-60" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {userRoles.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">Click a role to revoke it. Group dashboard auto-created.</p>
+              )}
             </div>
           </CardContent>
         </Card>

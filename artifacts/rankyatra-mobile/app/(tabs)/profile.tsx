@@ -58,6 +58,12 @@ export default function ProfileScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<{ id: number; name: string; avatarUrl: string | null }[]>([]);
+  const [myRoles, setMyRoles] = useState<string[]>([]);
+
+  const ROLE_COLORS: Record<string, string> = {
+    teacher: "#2563eb", influencer: "#7c3aed", promoter: "#d97706",
+    partner: "#059669", premium: "#f97316",
+  };
   const [loadingSettings, setLoadingSettings] = useState(false);
 
   const copyUID = useCallback(async () => {
@@ -94,7 +100,12 @@ export default function ProfileScreen() {
       refetchMe();
       refetchStats();
       refetchFollow();
-    }, [refetchMe, refetchStats, refetchFollow])
+      if (token) {
+        fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/roles/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then(r => r.ok ? r.json() : []).then(setMyRoles).catch(() => {});
+      }
+    }, [refetchMe, refetchStats, refetchFollow, token])
   );
 
   useEffect(() => {
@@ -363,6 +374,14 @@ export default function ProfileScreen() {
         <View style={[styles.header, { paddingTop: topPad }]}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Profile</Text>
           <View style={styles.headerBtns}>
+            {myRoles.length > 0 && (
+              <TouchableOpacity
+                onPress={() => { router.push("/group-dashboard"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[styles.themeToggle, { backgroundColor: (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20", borderColor: ROLE_COLORS[myRoles[0]] ?? "#f97316" }]}
+              >
+                <Feather name="users" size={17} color={ROLE_COLORS[myRoles[0]] ?? "#f97316"} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => { openSettings(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
               style={[styles.themeToggle, { backgroundColor: colors.card, borderColor: colors.border }]}

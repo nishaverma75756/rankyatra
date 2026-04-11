@@ -34,6 +34,7 @@ import AdminCategories from "@/pages/admin/AdminCategories";
 import AdminCompletedExams from "@/pages/admin/AdminCompletedExams";
 import AdminUpcomingExams from "@/pages/admin/AdminUpcomingExams";
 import AdminReports from "@/pages/admin/AdminReports";
+import AdminRoles from "@/pages/admin/AdminRoles";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import FAQ from "@/pages/FAQ";
@@ -179,6 +180,9 @@ function Router() {
       </Route>
       <Route path="/admin/reports">
         <ProtectedRoute component={AdminReports} />
+      </Route>
+      <Route path="/admin/roles">
+        <ProtectedRoute component={AdminRoles} />
       </Route>
       <Route path="/exam/:id/answer-sheet">
         <ProtectedRoute component={AnswerSheet} />
