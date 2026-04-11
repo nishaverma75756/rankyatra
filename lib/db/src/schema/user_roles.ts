@@ -10,6 +10,7 @@ export const userRolesTable = pgTable("user_roles", {
   role: text("role").$type<UserRole>().notNull(),
   assignedBy: integer("assigned_by").references(() => usersTable.id),
   assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export type UserRoleRow = typeof userRolesTable.$inferSelect;
