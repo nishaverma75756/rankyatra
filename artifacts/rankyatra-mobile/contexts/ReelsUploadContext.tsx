@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import * as FileSystem from "expo-file-system";
+import { Platform } from "react-native";
 
 export interface UploadState {
   isUploading: boolean;
@@ -39,10 +41,8 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
     error: null,
     done: false,
   });
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   const reset = useCallback(() => {
-    xhrRef.current?.abort();
     setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false });
   }, []);
 
@@ -57,66 +57,68 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
     token: string;
     onSuccess?: () => void;
   }) => {
-    setState({ isUploading: true, progress: 0, statusText: "Uploading reel...", error: null, done: false });
+    // Run async but don't await so it's fire-and-forget (background upload)
+    (async () => {
+      setState({ isUploading: true, progress: 5, statusText: "Preparing upload...", error: null, done: false });
 
-    const baseUrl = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-    const url = `${baseUrl}/api/reels/upload`;
+      try {
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        const url = `https://${domain}/api/reels/upload`;
 
-    const formData = new FormData();
+        // Ensure video URI is a local file URI (not content://)
+        let finalVideoUri = videoUri;
+        if (Platform.OS === "android" && videoUri.startsWith("content://")) {
+          const dest = `${FileSystem.cacheDirectory}reel_upload_${Date.now()}.mp4`;
+          await FileSystem.copyAsync({ from: videoUri, to: dest });
+          finalVideoUri = dest;
+        }
 
-    // Video file — append as blob with proper URI
-    const videoFilename = videoUri.split("/").pop() ?? `reel_${Date.now()}.mp4`;
-    formData.append("video", {
-      uri: videoUri,
-      name: videoFilename,
-      type: videoMime || "video/mp4",
-    } as any);
+        setState((s) => ({ ...s, progress: 10, statusText: "Uploading reel..." }));
 
-    // Optional thumbnail
-    if (thumbnailUri) {
-      const thumbFilename = thumbnailUri.split("/").pop() ?? `thumb_${Date.now()}.jpg`;
-      formData.append("thumbnail", {
-        uri: thumbnailUri,
-        name: thumbFilename,
-        type: thumbnailMime || "image/jpeg",
-      } as any);
-    }
+        // Read thumbnail as base64 if present
+        let thumbnailBase64: string | undefined;
+        if (thumbnailUri) {
+          try {
+            thumbnailBase64 = await FileSystem.readAsStringAsync(thumbnailUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          } catch {}
+        }
 
-    formData.append("caption", caption);
+        // Use FileSystem.uploadAsync — reliable native multipart upload
+        const result = await FileSystem.uploadAsync(url, finalVideoUri, {
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: "video",
+          mimeType: videoMime || "video/mp4",
+          parameters: {
+            caption: caption || "",
+            ...(thumbnailBase64
+              ? { thumbnailBase64, thumbnailMime: thumbnailMime || "image/jpeg" }
+              : {}),
+          },
+          headers: { Authorization: `Bearer ${token}` },
+          httpMethod: "POST",
+        });
 
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        setState((s) => ({ ...s, progress: pct, statusText: `Uploading... ${pct}%` }));
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        setState({ isUploading: false, progress: 100, statusText: "Reel published!", error: null, done: true });
-        onSuccess?.();
-        setTimeout(() => setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false }), 4000);
-      } else {
-        let msg = "Upload failed. Please try again.";
-        try { msg = JSON.parse(xhr.responseText)?.error ?? msg; } catch {}
+        if (result.status >= 200 && result.status < 300) {
+          setState({ isUploading: false, progress: 100, statusText: "Reel published!", error: null, done: true });
+          onSuccess?.();
+          setTimeout(
+            () => setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false }),
+            4000
+          );
+        } else {
+          let msg = "Upload failed. Please try again.";
+          try { msg = JSON.parse(result.body)?.error ?? msg; } catch {}
+          setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
+        }
+      } catch (e: any) {
+        const msg = e?.message?.includes("Network request failed")
+          ? "Network error. Check your connection and try again."
+          : `Upload failed: ${e?.message ?? "Unknown error"}`;
         setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
       }
-    };
-
-    xhr.onerror = () => {
-      setState({ isUploading: false, progress: 0, statusText: "", error: "Network error. Check your connection.", done: false });
-    };
-
-    xhr.onabort = () => {
-      setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false });
-    };
-
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.send(formData);
+    })();
   }, []);
 
   return (

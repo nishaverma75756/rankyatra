@@ -117,6 +117,8 @@ router.post(
       const videoFile = files?.["video"]?.[0];
       const thumbFile = files?.["thumbnail"]?.[0];
       const caption = (req.body?.caption ?? "").trim();
+      const thumbnailBase64: string | undefined = req.body?.thumbnailBase64;
+      const thumbnailMime: string = req.body?.thumbnailMime || "image/jpeg";
 
       if (!videoFile) {
         return res.status(400).json({ error: "Video file required" });
@@ -124,7 +126,20 @@ router.post(
 
       const base = getServerBaseUrl(req);
       const videoUrl = `${base}/uploads/videos/${videoFile.filename}`;
-      const thumbnailUrl = thumbFile ? `${base}/uploads/thumbnails/${thumbFile.filename}` : null;
+
+      // Determine thumbnail URL: file upload takes priority, then base64
+      let thumbnailUrl: string | null = null;
+      if (thumbFile) {
+        thumbnailUrl = `${base}/uploads/thumbnails/${thumbFile.filename}`;
+      } else if (thumbnailBase64) {
+        // Save base64 thumbnail to disk
+        const ext = thumbnailMime.includes("png") ? ".png" : ".jpg";
+        const thumbFilename = `thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const thumbPath = path.join(thumbsDir, thumbFilename);
+        const buffer = Buffer.from(thumbnailBase64, "base64");
+        fs.writeFileSync(thumbPath, buffer);
+        thumbnailUrl = `${base}/uploads/thumbnails/${thumbFilename}`;
+      }
 
       const [reel] = await db
         .insert(reels)
