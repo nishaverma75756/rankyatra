@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Image, ActivityIndicator,
-  TouchableOpacity, Platform, Dimensions,
+  TouchableOpacity, Platform, Dimensions, Modal, StatusBar, Pressable,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
+import { useVideoPlayer, VideoView } from "expo-video";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import { useEffect, useRef } from "react";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
@@ -157,6 +160,129 @@ function ProfilePostCard({ post, user, colors }: { post: any; user: any; colors:
   );
 }
 
+function ReelGridItem({ reel, cellSize, onPress }: { reel: any; cellSize: number; onPress: () => void }) {
+  const [thumb, setThumb] = useState<string | null>(reel.thumbnailUrl ?? null);
+  const tried = useRef(false);
+
+  useEffect(() => {
+    if (!thumb && reel.videoUrl && !tried.current) {
+      tried.current = true;
+      VideoThumbnails.getThumbnailAsync(reel.videoUrl, { time: 1000 })
+        .then((r) => setThumb(r.uri))
+        .catch(() => {});
+    }
+  }, [reel.videoUrl]);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={{
+        width: cellSize, height: cellSize * 1.5,
+        backgroundColor: "#111",
+        borderRadius: 8, overflow: "hidden",
+        alignItems: "center", justifyContent: "center",
+      }}
+    >
+      {thumb ? (
+        <Image source={{ uri: thumb }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+      ) : (
+        <View style={{ alignItems: "center", gap: 4, flex: 1, justifyContent: "center" }}>
+          <Feather name="play-circle" size={36} color="#ffffff60" />
+        </View>
+      )}
+      {/* Overlay stats */}
+      <View style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        paddingHorizontal: 6, paddingVertical: 5,
+        backgroundColor: "rgba(0,0,0,0.55)",
+        flexDirection: "row", alignItems: "center", gap: 8,
+      }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <Feather name="heart" size={11} color="#fff" />
+          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+            {reel.likeCount > 999 ? `${(reel.likeCount / 1000).toFixed(1)}k` : reel.likeCount}
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <Feather name="eye" size={11} color="#ffffff99" />
+          <Text style={{ color: "#ffffff99", fontSize: 10 }}>
+            {reel.viewCount > 999 ? `${(reel.viewCount / 1000).toFixed(1)}k` : reel.viewCount}
+          </Text>
+        </View>
+      </View>
+      {/* Play icon */}
+      <View style={{
+        position: "absolute", top: 6, right: 6,
+        width: 26, height: 26, borderRadius: 13,
+        backgroundColor: "rgba(0,0,0,0.45)",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Feather name="play" size={12} color="#ffffffcc" />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function ReelPlayerModal({ reel, onClose }: { reel: any; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = Dimensions.get("window");
+  const player = useVideoPlayer(reel.videoUrl, (p) => {
+    p.loop = true;
+    p.play();
+  });
+
+  return (
+    <Modal visible animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      <StatusBar hidden />
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <VideoView
+          player={player}
+          style={{ width, height }}
+          contentFit="contain"
+          nativeControls
+        />
+        {/* Caption */}
+        {!!reel.caption && (
+          <View style={{
+            position: "absolute", bottom: insets.bottom + 72, left: 16, right: 60,
+          }}>
+            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500", textShadowColor: "#000", textShadowRadius: 4 }}>
+              {reel.caption}
+            </Text>
+          </View>
+        )}
+        {/* Close button */}
+        <Pressable
+          onPress={onClose}
+          style={{
+            position: "absolute", top: insets.top + 12, left: 16,
+            width: 40, height: 40, borderRadius: 20,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Feather name="x" size={20} color="#fff" />
+        </Pressable>
+        {/* Stats row */}
+        <View style={{
+          position: "absolute", bottom: insets.bottom + 24, left: 16,
+          flexDirection: "row", alignItems: "center", gap: 16,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Feather name="heart" size={16} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>{reel.likeCount ?? 0}</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Feather name="eye" size={16} color="#ffffffaa" />
+            <Text style={{ color: "#ffffffaa", fontSize: 13 }}>{reel.viewCount ?? 0}</Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function UserPublicProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = parseInt(id ?? "0");
@@ -167,6 +293,7 @@ export default function UserPublicProfile() {
   const queryClient = useQueryClient();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0) + 16;
   const [activeTab, setActiveTab] = useState<"posts" | "reels" | "stats">("posts");
+  const [selectedReel, setSelectedReel] = useState<any | null>(null);
 
   const { data: profile, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/users", userId, "public-profile"],
@@ -507,47 +634,12 @@ export default function UserPublicProfile() {
     <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: insets.bottom + 32 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2 }}>
         {userReels.map((reel: any) => (
-          <View
+          <ReelGridItem
             key={reel.id}
-            style={{
-              width: REEL_CELL, height: REEL_CELL * 1.5,
-              backgroundColor: "#111",
-              borderRadius: 8, overflow: "hidden",
-              alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {reel.thumbnailUrl ? (
-              <Image source={{ uri: reel.thumbnailUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-            ) : (
-              <View style={{ alignItems: "center", gap: 4 }}>
-                <Feather name="play-circle" size={28} color="#ffffff60" />
-              </View>
-            )}
-            {/* Overlay — like + eye count */}
-            <View style={{
-              position: "absolute", bottom: 0, left: 0, right: 0,
-              paddingHorizontal: 6, paddingVertical: 5,
-              backgroundColor: "rgba(0,0,0,0.45)",
-              flexDirection: "row", alignItems: "center", gap: 8,
-            }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                <Feather name="heart" size={11} color="#fff" />
-                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
-                  {reel.likeCount > 999 ? `${(reel.likeCount / 1000).toFixed(1)}k` : reel.likeCount}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                <Feather name="eye" size={11} color="#ffffff99" />
-                <Text style={{ color: "#ffffff99", fontSize: 10 }}>
-                  {reel.viewCount > 999 ? `${(reel.viewCount / 1000).toFixed(1)}k` : reel.viewCount}
-                </Text>
-              </View>
-            </View>
-            {/* Play icon on top-right */}
-            <View style={{ position: "absolute", top: 6, right: 6 }}>
-              <Feather name="play" size={13} color="#ffffffcc" />
-            </View>
-          </View>
+            reel={reel}
+            cellSize={REEL_CELL}
+            onPress={() => setSelectedReel(reel)}
+          />
         ))}
       </View>
     </View>
@@ -587,6 +679,10 @@ export default function UserPublicProfile() {
         {TabBar}
         {activeTab === "posts" ? PostsContent : activeTab === "reels" ? ReelsContent : StatsContent}
       </ScrollView>
+
+      {selectedReel && (
+        <ReelPlayerModal reel={selectedReel} onClose={() => setSelectedReel(null)} />
+      )}
     </View>
   );
 }
