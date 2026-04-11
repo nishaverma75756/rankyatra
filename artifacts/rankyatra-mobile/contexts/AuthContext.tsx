@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface AuthUser {
@@ -106,6 +107,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Clear Google Sign-In session so account picker appears on next login
+    if (Platform.OS !== "web") {
+      try {
+        const { GoogleSignin } = await import("@react-native-google-signin/google-signin");
+        await GoogleSignin.signOut();
+      } catch {}
+    }
     await Promise.all([
       AsyncStorage.removeItem(AUTH_TOKEN_KEY),
       AsyncStorage.removeItem(AUTH_USER_KEY),
