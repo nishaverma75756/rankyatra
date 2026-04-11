@@ -219,15 +219,23 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
             4000
           );
         } else {
-          let msg = "Upload failed. Please try again.";
-          try { msg = JSON.parse(result.body)?.error ?? msg; } catch {}
+          let msg = `Upload failed (${result.status}).`;
+          try {
+            const parsed = JSON.parse(result.body);
+            msg = parsed?.error ?? parsed?.message ?? msg;
+          } catch {
+            // body is not JSON — show first 120 chars for diagnosis
+            if (result.body) msg = `Server error (${result.status}): ${result.body.slice(0, 120)}`;
+          }
+          console.error("[ReelsUpload] server error:", result.status, result.body?.slice(0, 200));
           setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
         }
       } catch (e: any) {
         const raw: string = e?.message ?? String(e) ?? "";
+        console.error("[ReelsUpload] exception:", raw);
         const msg = raw.toLowerCase().includes("network") || raw.toLowerCase().includes("cancelled")
           ? "Network error. Check your connection."
-          : "Upload failed. Please try again.";
+          : `Upload error: ${raw.slice(0, 100)}`;
         setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
       }
     })();
