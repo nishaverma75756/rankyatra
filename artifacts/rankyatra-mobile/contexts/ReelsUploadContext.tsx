@@ -220,12 +220,21 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
           );
         } else {
           let msg = `Upload failed (${result.status}).`;
-          try {
-            const parsed = JSON.parse(result.body);
-            msg = parsed?.error ?? parsed?.message ?? msg;
-          } catch {
-            // body is not JSON — show first 120 chars for diagnosis
-            if (result.body) msg = `Server error (${result.status}): ${result.body.slice(0, 120)}`;
+          if (result.status === 413) {
+            msg = "Video file bahut bada hai. Chhota ya kam quality ka clip try karein (max ~100MB).";
+          } else if (result.status === 401) {
+            msg = "Session expire ho gayi. App restart karein aur dobara login karein.";
+          } else if (result.status === 500) {
+            msg = "Server error. Thodi der baad try karein.";
+          } else {
+            try {
+              const parsed = JSON.parse(result.body);
+              msg = parsed?.error ?? parsed?.message ?? msg;
+            } catch {
+              if (result.body && !result.body.trim().startsWith("<")) {
+                msg = `Upload failed: ${result.body.slice(0, 120)}`;
+              }
+            }
           }
           console.error("[ReelsUpload] server error:", result.status, result.body?.slice(0, 200));
           setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
