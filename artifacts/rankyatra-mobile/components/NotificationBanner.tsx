@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import {
   Animated,
   Image,
@@ -6,7 +6,10 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
+  ActivityIndicator,
+  Keyboard,
 } from "react-native";
 
 const RANKYATRA_LOGO = require("../assets/images/notification-icon.png");
@@ -25,21 +28,30 @@ export type BannerNotification = {
 type Props = {
   notification: BannerNotification | null;
   onDismiss: () => void;
+  onReply?: (conversationId: number, text: string) => Promise<void>;
 };
 
 const BANNER_HEIGHT = 80;
-const AUTO_DISMISS_MS = 4500;
+const AUTO_DISMISS_MS = 5500;
 
-export default function NotificationBanner({ notification, onDismiss }: Props) {
-  const translateY = useRef(new Animated.Value(-BANNER_HEIGHT - 20)).current;
+export default function NotificationBanner({ notification, onDismiss, onReply }: Props) {
+  const translateY = useRef(new Animated.Value(-200)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [replyMode, setReplyMode] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  const isMessage = notification?.type === "message" && !!notification?.conversationId;
 
   const dismiss = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    Keyboard.dismiss();
     Animated.parallel([
       Animated.timing(translateY, {
-        toValue: -BANNER_HEIGHT - 20,
+        toValue: -200,
         duration: 280,
         useNativeDriver: true,
       }),
@@ -48,12 +60,20 @@ export default function NotificationBanner({ notification, onDismiss }: Props) {
         duration: 280,
         useNativeDriver: true,
       }),
-    ]).start(() => onDismiss());
+    ]).start(() => {
+      setReplyMode(false);
+      setReplyText("");
+      setSent(false);
+      onDismiss();
+    });
   }, [translateY, opacity, onDismiss]);
 
   useEffect(() => {
     if (!notification) return;
-    translateY.setValue(-BANNER_HEIGHT - 20);
+    setReplyMode(false);
+    setReplyText("");
+    setSent(false);
+    translateY.setValue(-200);
     opacity.setValue(0);
     Animated.parallel([
       Animated.spring(translateY, {
@@ -76,7 +96,7 @@ export default function NotificationBanner({ notification, onDismiss }: Props) {
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
+      onMoveShouldSetPanResponder: (_, g) => !replyMode && Math.abs(g.dy) > 5,
       onPanResponderMove: (_, g) => {
         if (g.dy < 0) translateY.setValue(g.dy);
       },
@@ -93,6 +113,28 @@ export default function NotificationBanner({ notification, onDismiss }: Props) {
     })
   ).current;
 
+  const handleReplyPress = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setReplyMode(true);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const handleSendReply = async () => {
+    const text = replyText.trim();
+    if (!text || !notification?.conversationId || !onReply) return;
+    setSending(true);
+    try {
+      await onReply(notification.conversationId, text);
+      setSent(true);
+      setReplyText("");
+      setTimeout(dismiss, 1200);
+    } catch {
+      setSending(false);
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (!notification) return null;
 
   const initials = notification.title
@@ -104,37 +146,88 @@ export default function NotificationBanner({ notification, onDismiss }: Props) {
       style={[styles.wrapper, { transform: [{ translateY }], opacity }]}
       {...panResponder.panHandlers}
     >
-      <Pressable
-        style={styles.card}
-        onPress={() => {
-          notification.onPress?.();
-          dismiss();
-        }}
-      >
+      <View style={styles.card}>
         <View style={styles.accentBar} />
-        <View style={styles.avatarContainer}>
-          {notification.avatar && notification.avatar.startsWith("http") ? (
-            <Image source={{ uri: notification.avatar }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarInitials}>{initials}</Text>
+
+        <Pressable
+          style={styles.mainRow}
+          onPress={() => {
+            if (!replyMode) {
+              notification.onPress?.();
+              dismiss();
+            }
+          }}
+        >
+          <View style={styles.avatarContainer}>
+            {notification.avatar && notification.avatar.startsWith("http") ? (
+              <Image source={{ uri: notification.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              </View>
+            )}
+            <View style={styles.appIconBadge}>
+              <Image source={RANKYATRA_LOGO} style={styles.appIconImage} resizeMode="contain" />
             </View>
+          </View>
+
+          <View style={styles.content}>
+            <View style={styles.headerRow}>
+              <Text style={styles.title} numberOfLines={1}>{notification.title}</Text>
+              <Text style={styles.appName}>RankYatra</Text>
+            </View>
+            {!replyMode && (
+              <Text style={styles.body} numberOfLines={2}>{notification.body}</Text>
+            )}
+          </View>
+
+          {!replyMode && (
+            <Pressable onPress={dismiss} style={styles.closeBtn} hitSlop={12}>
+              <Text style={styles.closeBtnText}>✕</Text>
+            </Pressable>
           )}
-          <View style={styles.appIconBadge}>
-            <Image source={RANKYATRA_LOGO} style={styles.appIconImage} resizeMode="contain" />
-          </View>
-        </View>
-        <View style={styles.content}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title} numberOfLines={1}>{notification.title}</Text>
-            <Text style={styles.appName}>RankYatra</Text>
-          </View>
-          <Text style={styles.body} numberOfLines={2}>{notification.body}</Text>
-        </View>
-        <Pressable onPress={dismiss} style={styles.closeBtn} hitSlop={12}>
-          <Text style={styles.closeBtnText}>✕</Text>
         </Pressable>
-      </Pressable>
+
+        {replyMode ? (
+          <View style={styles.replyRow}>
+            <TextInput
+              ref={inputRef}
+              style={styles.replyInput}
+              placeholder={sent ? "Message sent ✓" : "Reply..."}
+              placeholderTextColor={sent ? "#22c55e" : "#94a3b8"}
+              value={replyText}
+              onChangeText={setReplyText}
+              editable={!sending && !sent}
+              returnKeyType="send"
+              onSubmitEditing={handleSendReply}
+              multiline={false}
+            />
+            <Pressable
+              onPress={handleSendReply}
+              style={[styles.sendBtn, (!replyText.trim() || sending || sent) && styles.sendBtnDisabled]}
+              disabled={!replyText.trim() || sending || sent}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.sendBtnText}>Send</Text>
+              )}
+            </Pressable>
+            <Pressable onPress={dismiss} style={styles.cancelBtn} hitSlop={8}>
+              <Text style={styles.cancelBtnText}>✕</Text>
+            </Pressable>
+          </View>
+        ) : isMessage && onReply ? (
+          <View style={styles.actionsRow}>
+            <Pressable style={styles.actionBtn} onPress={handleReplyPress}>
+              <Text style={styles.actionBtnText}>↩ Reply</Text>
+            </Pressable>
+            <Pressable style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={dismiss}>
+              <Text style={styles.actionBtnTextSecondary}>Dismiss</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
     </Animated.View>
   );
 }
@@ -153,23 +246,27 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 18,
-    paddingVertical: 12,
-    paddingRight: 12,
-    paddingLeft: 0,
-    minHeight: BANNER_HEIGHT,
     overflow: "hidden",
   },
   accentBar: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
     width: 4,
-    alignSelf: "stretch",
     backgroundColor: "#f97316",
     borderTopLeftRadius: 18,
     borderBottomLeftRadius: 18,
-    marginRight: 12,
+  },
+  mainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingRight: 12,
+    paddingLeft: 16,
+    minHeight: BANNER_HEIGHT,
   },
   avatarContainer: {
     position: "relative",
@@ -248,6 +345,80 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   closeBtnText: {
+    fontSize: 13,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  actionBtn: {
+    flex: 1,
+    backgroundColor: "#f97316",
+    borderRadius: 10,
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+  actionBtnSecondary: {
+    backgroundColor: "#f1f5f9",
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  actionBtnTextSecondary: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  replyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  replyInput: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    maxHeight: 80,
+  },
+  sendBtn: {
+    backgroundColor: "#f97316",
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 60,
+  },
+  sendBtnDisabled: {
+    backgroundColor: "#fed7aa",
+  },
+  sendBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  cancelBtn: {
+    padding: 4,
+  },
+  cancelBtnText: {
     fontSize: 13,
     color: "#94a3b8",
     fontWeight: "600",

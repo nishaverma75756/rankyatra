@@ -65,6 +65,7 @@ type PushMessage = {
 type PushOptions = {
   category?: "message" | "default";
   channelId?: string;
+  imageUrl?: string;
 };
 
 export async function sendPushToUser(
@@ -106,6 +107,12 @@ export async function sendPushToUser(
           : {};
         if (options.category) fcmData["categoryId"] = options.category;
 
+        const androidNotif: admin.messaging.AndroidNotification = {
+          sound: "default",
+          channelId,
+          ...(options.imageUrl ? { imageUrl: options.imageUrl } : {}),
+        };
+
         const results = await Promise.allSettled(
           fcmTokens.map((token) =>
             messaging.send({
@@ -114,10 +121,7 @@ export async function sendPushToUser(
               data: fcmData,
               android: {
                 priority: "high",
-                notification: {
-                  sound: "default",
-                  channelId,
-                },
+                notification: androidNotif,
               },
             })
           )
@@ -171,5 +175,18 @@ export async function getDisplayName(fromUserId: number): Promise<string> {
     return user?.name ?? "Someone";
   } catch {
     return "Someone";
+  }
+}
+
+export async function getSenderInfo(fromUserId: number): Promise<{ name: string; avatarUrl: string | null }> {
+  try {
+    const [user] = await db
+      .select({ name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable)
+      .where(eq(usersTable.id, fromUserId))
+      .limit(1);
+    return { name: user?.name ?? "Someone", avatarUrl: user?.avatarUrl ?? null };
+  } catch {
+    return { name: "Someone", avatarUrl: null };
   }
 }

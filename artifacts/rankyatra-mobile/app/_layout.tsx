@@ -178,7 +178,7 @@ function PushNotificationSetup() {
         const replyText = (response as any).userText?.trim();
         if (replyText && token) {
           try {
-            await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/messages`, {
+            await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/chat/messages`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -201,10 +201,23 @@ function PushNotificationSetup() {
     };
   }, [user, token]);
 
+  const handleBannerReply = async (conversationId: number, text: string) => {
+    if (!token) return;
+    await fetch(`https://${process.env.EXPO_PUBLIC_DOMAIN}/api/chat/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ conversationId, content: text }),
+    });
+  };
+
   return (
     <NotificationBanner
       notification={banner}
       onDismiss={() => setBanner(null)}
+      onReply={handleBannerReply}
     />
   );
 }
