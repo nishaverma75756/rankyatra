@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, userRolesTable, groupsTable, groupMembersTable, groupCommissionWithdrawalsTable, registrationsTable, notificationsTable, examsTable, submissionsTable } from "@workspace/db";
-import { eq, and, sum, count, desc, ne, sql, ilike, or } from "drizzle-orm";
+import { eq, and, sum, count, desc, ne, sql, ilike, or, gte } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { sendGroupInviteEmail } from "../lib/email";
 
@@ -270,7 +270,7 @@ router.get("/groups/members/:memberId/detail", requireAuth, async (req: any, res
     const [member] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, avatarUrl: usersTable.avatarUrl })
       .from(usersTable).where(eq(usersTable.id, memberId));
 
-    // All registrations with exam info
+    // All registrations with exam info — only AFTER joining the group
     const regs = await db.select({
       examId: registrationsTable.examId,
       amountPaid: registrationsTable.amountPaid,
@@ -282,7 +282,10 @@ router.get("/groups/members/:memberId/detail", requireAuth, async (req: any, res
       examStartTime: examsTable.startTime,
     }).from(registrationsTable)
       .leftJoin(examsTable, eq(registrationsTable.examId, examsTable.id))
-      .where(eq(registrationsTable.userId, memberId))
+      .where(and(
+        eq(registrationsTable.userId, memberId),
+        membership.joinedAt ? gte(registrationsTable.registeredAt, membership.joinedAt) : sql`true`
+      ))
       .orderBy(desc(registrationsTable.registeredAt));
 
     // Submissions (score, rank)
@@ -347,12 +350,16 @@ router.get("/groups/my", requireAuth, async (req: any, res) => {
       .where(eq(groupMembersTable.groupId, group.id))
       .orderBy(desc(groupMembersTable.invitedAt));
 
-    // Commission calculation
+    // Commission calculation — only registrations AFTER member joined the group
     const accepted = members.filter(m => m.status === "accepted");
     let totalRevenue = 0;
     for (const m of accepted) {
       const [s] = await db.select({ total: sum(registrationsTable.amountPaid) })
-        .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
+        .from(registrationsTable)
+        .where(and(
+          eq(registrationsTable.userId, m.userId),
+          m.joinedAt ? gte(registrationsTable.registeredAt, m.joinedAt) : sql`true`
+        ));
       totalRevenue += Number(s?.total ?? 0);
     }
     const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
@@ -535,16 +542,17 @@ router.get("/groups/my/member-stats", requireAuth, async (req: any, res) => {
     if (!group) { res.json([]); return; }
 
     const members = await db
-      .select({ userId: groupMembersTable.userId, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+      .select({ userId: groupMembersTable.userId, joinedAt: groupMembersTable.joinedAt, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
       .from(groupMembersTable)
       .leftJoin(usersTable, eq(groupMembersTable.userId, usersTable.id))
       .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
 
     const stats = await Promise.all(members.map(async (m) => {
+      const afterJoin = m.joinedAt ? gte(registrationsTable.registeredAt, m.joinedAt) : sql`true`;
       const [examCount] = await db.select({ cnt: count() }).from(registrationsTable)
-        .where(eq(registrationsTable.userId, m.userId));
+        .where(and(eq(registrationsTable.userId, m.userId), afterJoin));
       const [spent] = await db.select({ total: sum(registrationsTable.amountPaid) }).from(registrationsTable)
-        .where(eq(registrationsTable.userId, m.userId));
+        .where(and(eq(registrationsTable.userId, m.userId), afterJoin));
       return {
         userId: m.userId,
         name: m.name,
@@ -572,13 +580,17 @@ router.post("/groups/my/commission/withdraw", requireAuth, async (req: any, res)
     const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
     if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
-    // Check available commission
-    const members = await db.select({ userId: groupMembersTable.userId }).from(groupMembersTable)
+    // Check available commission — only post-join registrations
+    const members = await db.select({ userId: groupMembersTable.userId, joinedAt: groupMembersTable.joinedAt }).from(groupMembersTable)
       .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.status, "accepted")));
     let totalRevenue = 0;
     for (const m of members) {
       const [s] = await db.select({ total: sum(registrationsTable.amountPaid) })
-        .from(registrationsTable).where(eq(registrationsTable.userId, m.userId));
+        .from(registrationsTable)
+        .where(and(
+          eq(registrationsTable.userId, m.userId),
+          m.joinedAt ? gte(registrationsTable.registeredAt, m.joinedAt) : sql`true`
+        ));
       totalRevenue += Number(s?.total ?? 0);
     }
     const [withdrawn] = await db.select({ total: sum(groupCommissionWithdrawalsTable.amount) })
