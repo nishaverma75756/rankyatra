@@ -630,11 +630,16 @@ export default function MomentsScreen() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  // Refresh posts + counts when screen gains focus
+  // Track whether this tab is currently focused (used to pause reels)
+  const [isMomentsFocused, setIsMomentsFocused] = useState(false);
+
+  // Refresh posts + counts when screen gains focus; pause reels on blur
   useFocusEffect(useCallback(() => {
+    setIsMomentsFocused(true);
     fetchPosts(undefined, true);
     refreshMessages();
     refreshNotifications();
+    return () => setIsMomentsFocused(false);
   }, [fetchPosts, refreshMessages, refreshNotifications]));
 
   const onRefresh = () => { setRefreshing(true); fetchPosts(undefined, true); };
@@ -728,7 +733,7 @@ export default function MomentsScreen() {
       {/* ── Reels Feed ── */}
       {activeTab === "reels" && (
         <View style={styles.flex}>
-          <ReelsFeed colors={colors} tabBarHeight={insets.bottom + 60} />
+          <ReelsFeed colors={colors} tabBarHeight={insets.bottom + 60} isTabFocused={isMomentsFocused} />
         </View>
       )}
 

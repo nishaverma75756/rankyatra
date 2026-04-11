@@ -222,7 +222,7 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
 }
 
 // ─── Reels Feed ───────────────────────────────────────────────────────────────
-export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBarHeight: number }) {
+export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }: { colors: any; tabBarHeight: number; isTabFocused?: boolean }) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const upload = useReelsUpload();
@@ -343,7 +343,7 @@ export default function ReelsFeed({ colors, tabBarHeight }: { colors: any; tabBa
         renderItem={({ item, index }) => (
           <ReelItem
             reel={item}
-            isActive={index === activeIndex}
+            isActive={index === activeIndex && isTabFocused}
             currentUserId={user?.id ?? null}
             tabBarHeight={tabBarHeight}
             onDelete={(id) => setReelsList((prev) => prev.filter((r) => r.id !== id))}
