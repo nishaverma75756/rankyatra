@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
 import * as FileSystem from "expo-file-system";
-import { uploadAsync, FileSystemUploadType } from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 export interface UploadState {
@@ -37,27 +36,50 @@ const ReelsUploadContext = createContext<ReelsUploadContextType>({
 
 const UPLOAD_URL = "https://rankyatra.in/api/reels/upload";
 
-// ── Web upload ────────────────────────────────────────────────────────────────
-async function uploadViaWebXHR(
-  videoFile: File,
+// ── XHR upload — works for both web and native, shows real progress ────────────
+function uploadViaXHR(
+  videoUri: string | null,
+  videoFile: File | null,
+  videoMime: string,
   caption: string,
+  thumbnailBase64: string | undefined,
+  thumbnailMime: string,
   token: string,
   onProgress: (pct: number) => void,
   xhrRef: React.MutableRefObject<XMLHttpRequest | null>
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
-    formData.append("video", videoFile, videoFile.name || `reel_${Date.now()}.mp4`);
+
+    if (videoFile) {
+      // Web: use real File object
+      formData.append("video", videoFile, videoFile.name || `reel_${Date.now()}.mp4`);
+    } else if (videoUri) {
+      // Native: React Native FormData accepts { uri, name, type }
+      const filename = videoUri.split("/").pop() ?? `reel_${Date.now()}.mp4`;
+      formData.append("video", { uri: videoUri, name: filename, type: videoMime || "video/mp4" } as any);
+    } else {
+      reject(new Error("No video source")); return;
+    }
+
     formData.append("caption", caption || "");
+    if (thumbnailBase64) {
+      formData.append("thumbnailBase64", thumbnailBase64);
+      formData.append("thumbnailMime", thumbnailMime || "image/jpeg");
+    }
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
+
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
     };
     xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
     xhr.onerror = () => reject(new Error("Network request failed"));
     xhr.onabort = () => reject(new Error("Upload cancelled"));
+
     xhr.open("POST", UPLOAD_URL);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.send(formData);
@@ -88,27 +110,15 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
     videoFile?: File;
   }) => {
     (async () => {
-      setState({ isUploading: true, progress: 5, statusText: "Preparing...", error: null, done: false });
+      setState({ isUploading: true, progress: 3, statusText: "Preparing...", error: null, done: false });
 
       try {
-        let result: { status: number; body: string };
+        let finalVideoUri: string | null = videoUri;
 
-        if (Platform.OS === "web") {
-          if (!videoFile) {
-            setState({ isUploading: false, progress: 0, statusText: "", error: "Could not read video file.", done: false });
-            return;
-          }
-          setState((s) => ({ ...s, progress: 10, statusText: "Uploading..." }));
-          result = await uploadViaWebXHR(
-            videoFile, caption, token,
-            (pct) => setState((s) => ({ ...s, progress: 10 + Math.round(pct * 0.88), statusText: `Uploading... ${pct}%` })),
-            xhrRef
-          );
-        } else {
-          // Native: copy content:// URI to cache if needed
-          let finalVideoUri = videoUri;
+        if (Platform.OS !== "web") {
+          // Copy content:// URI to local cache (required on Android)
           if (Platform.OS === "android" && videoUri.startsWith("content://")) {
-            setState((s) => ({ ...s, progress: 8, statusText: "Reading video..." }));
+            setState((s) => ({ ...s, progress: 6, statusText: "Reading video..." }));
             const dest = `${FileSystem.cacheDirectory}reel_up_${Date.now()}.mp4`;
             await FileSystem.copyAsync({ from: videoUri, to: dest });
             finalVideoUri = dest;
@@ -124,51 +134,49 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
             } catch {}
           }
 
-          setState((s) => ({ ...s, progress: 12, statusText: "Uploading reel..." }));
+          setState((s) => ({ ...s, progress: 10, statusText: "Uploading..." }));
 
-          result = await uploadAsync(UPLOAD_URL, finalVideoUri, {
-            uploadType: FileSystemUploadType.MULTIPART,
-            fieldName: "video",
-            mimeType: videoMime || "video/mp4",
-            parameters: {
-              caption: caption || "",
-              ...(thumbnailBase64 ? { thumbnailBase64, thumbnailMime: thumbnailMime || "image/jpeg" } : {}),
-            },
-            headers: { Authorization: `Bearer ${token}` },
-            httpMethod: "POST",
-          });
-
-          setState((s) => ({ ...s, progress: 95, statusText: "Saving..." }));
-        }
-
-        if (result.status >= 200 && result.status < 300) {
-          setState({ isUploading: false, progress: 100, statusText: "Reel published!", error: null, done: true });
-          onSuccess?.();
-          setTimeout(
-            () => setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false }),
-            4000
+          const result = await uploadViaXHR(
+            finalVideoUri, null, videoMime, caption,
+            thumbnailBase64, thumbnailMime || "image/jpeg",
+            token,
+            (pct) => setState((s) => ({
+              ...s,
+              progress: 10 + Math.round(pct * 0.88),
+              statusText: `Uploading... ${pct}%`,
+            })),
+            xhrRef
           );
+
+          handleResult(result, onSuccess, setState);
         } else {
-          let msg = `Upload failed (${result.status}).`;
-          if (result.status === 413) {
-            msg = "Video bahut badi hai. Server pe size limit increase karni hogi.";
-          } else if (result.status === 401) {
-            msg = "Session expire ho gayi. Dobara login karein.";
-          } else {
-            try {
-              const parsed = JSON.parse(result.body);
-              msg = parsed?.error ?? parsed?.message ?? msg;
-            } catch {
-              if (result.body && !result.body.trim().startsWith("<")) {
-                msg = result.body.slice(0, 120);
-              }
-            }
+          // Web
+          if (!videoFile) {
+            setState({ isUploading: false, progress: 0, statusText: "", error: "Video file nahi mila.", done: false });
+            return;
           }
-          setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
+
+          setState((s) => ({ ...s, progress: 10, statusText: "Uploading..." }));
+
+          const result = await uploadViaXHR(
+            null, videoFile, videoMime, caption,
+            undefined, thumbnailMime || "image/jpeg",
+            token,
+            (pct) => setState((s) => ({
+              ...s,
+              progress: 10 + Math.round(pct * 0.88),
+              statusText: `Uploading... ${pct}%`,
+            })),
+            xhrRef
+          );
+
+          handleResult(result, onSuccess, setState);
         }
       } catch (e: any) {
         const raw: string = e?.message ?? String(e) ?? "";
-        const msg = raw.toLowerCase().includes("network") || raw.toLowerCase().includes("failed to fetch")
+        const msg = raw.toLowerCase().includes("cancel")
+          ? "Upload cancel ho gaya."
+          : raw.toLowerCase().includes("network")
           ? "Network error. Internet check karein aur dobara try karein."
           : `Upload error: ${raw.slice(0, 100)}`;
         setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
@@ -181,6 +189,38 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
       {children}
     </ReelsUploadContext.Provider>
   );
+}
+
+function handleResult(
+  result: { status: number; body: string },
+  onSuccess: (() => void) | undefined,
+  setState: React.Dispatch<React.SetStateAction<UploadState>>
+) {
+  if (result.status >= 200 && result.status < 300) {
+    setState({ isUploading: false, progress: 100, statusText: "Reel published!", error: null, done: true });
+    onSuccess?.();
+    setTimeout(
+      () => setState({ isUploading: false, progress: 0, statusText: "", error: null, done: false }),
+      4000
+    );
+  } else {
+    let msg = `Upload failed (${result.status}).`;
+    if (result.status === 413) {
+      msg = "Video bahut badi hai. Server pe size limit badhani hogi.";
+    } else if (result.status === 401) {
+      msg = "Session expire ho gayi. Dobara login karein.";
+    } else {
+      try {
+        const parsed = JSON.parse(result.body);
+        msg = parsed?.error ?? parsed?.message ?? msg;
+      } catch {
+        if (result.body && !result.body.trim().startsWith("<")) {
+          msg = result.body.slice(0, 120);
+        }
+      }
+    }
+    setState({ isUploading: false, progress: 0, statusText: "", error: msg, done: false });
+  }
 }
 
 export function useReelsUpload() {
