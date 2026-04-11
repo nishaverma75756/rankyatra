@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   Modal,
   Share,
   Animated,
-  Keyboard,
 } from "react-native";
 import { showAlert, showSuccess, showError } from "@/utils/alert";
 import { useLocalSearchParams, router } from "expo-router";
@@ -153,8 +152,6 @@ export default function ChatScreen() {
   const [msgActionItem, setMsgActionItem] = useState<Message | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
-  const isAtBottomRef = useRef(true);
-
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
@@ -162,15 +159,6 @@ export default function ChatScreen() {
   const isMounted = useRef(true);
 
   useEffect(() => () => { isMounted.current = false; }, []);
-
-  useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => {
-      if (isAtBottomRef.current) {
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-      }
-    });
-    return () => show.remove();
-  }, []);
 
   // Load conversation info + messages
   useEffect(() => {
@@ -316,30 +304,15 @@ export default function ChatScreen() {
 
   const { send } = useChatSocket(token, handleWsMessage);
 
-  // Track whether initial scroll has happened
-  const initialScrolled = useRef(false);
-
-  // Auto-scroll to bottom only when new message arrives AND user is already at bottom
-  useEffect(() => {
-    if (messages.length === 0) return;
-    if (initialScrolled.current && isAtBottomRef.current) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-    }
-  }, [messages.length]);
-
-  // Scroll down when typing indicator appears so it's always visible
-  useEffect(() => {
-    if (typingVisible) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    }
-  }, [typingVisible]);
+  // Inverted FlatList: newest messages at bottom — no manual scroll needed
+  // Reversed so index 0 = newest (shown at bottom of inverted list)
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
   const handleSend = async () => {
     const content = text.trim();
     if (!content || sending) return;
     setText("");
     setSending(true);
-    isAtBottomRef.current = true; // Always scroll after sending
     try {
       const msg = await customFetch<Message>("/api/chat/messages", {
         method: "POST",
@@ -347,7 +320,7 @@ export default function ChatScreen() {
         headers: { "Content-Type": "application/json" },
       });
       setMessages((prev) => [...prev, msg]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+      // inverted FlatList — new message appears at bottom automatically, no scroll needed
     } catch {}
     setSending(false);
   };
@@ -503,7 +476,8 @@ export default function ChatScreen() {
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isMine = item.senderId === user?.id;
-    const prevItem = messages[index - 1];
+    // In inverted FlatList with reversed data: index+1 is the message visually above (older)
+    const prevItem = reversedMessages[index + 1];
     const showDateLabel = !prevItem || formatDateLabel(item.createdAt) !== formatDateLabel(prevItem.createdAt);
     const avatarUrl = convInfo?.otherUser?.avatarUrl;
     const avatarName = convInfo?.otherUser?.name ?? "?";
@@ -774,7 +748,7 @@ export default function ChatScreen() {
       {/* KAV wraps only messages + input — header stays fixed above */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
       {/* Messages */}
@@ -785,40 +759,24 @@ export default function ChatScreen() {
       ) : (
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={reversedMessages}
+          inverted
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
           contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: "flex-end",
             paddingHorizontal: 12,
-            paddingTop: 12,
-            paddingBottom: 8,
+            paddingTop: 8,
+            paddingBottom: 12,
           }}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => {
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
-            isAtBottomRef.current = distanceFromBottom < 60;
-          }}
           scrollEventThrottle={100}
-          onContentSizeChange={() => {
-            if (!initialScrolled.current) {
-              setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: false });
-                initialScrolled.current = true;
-              }, 80);
-            } else if (isAtBottomRef.current) {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }
-          }}
           ListEmptyComponent={
-            <View style={[styles.flex, styles.center, { paddingTop: 60 }]}>
+            <View style={[styles.center, { paddingVertical: 60 }]}>
               <Feather name="message-circle" size={42} color={colors.mutedForeground} />
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Say hello!</Text>
             </View>
           }
-          ListFooterComponent={typingVisible ? (
+          ListHeaderComponent={typingVisible ? (
             <View style={[styles.typingRow]}>
               <View style={[styles.msgRow, styles.msgRowLeft]}>
                 <View style={styles.msgAvatar}>
