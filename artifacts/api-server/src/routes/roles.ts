@@ -76,10 +76,11 @@ router.post("/admin/users/:userId/roles", requireAdmin, async (req: any, res) =>
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
     // Upsert role (ignore if already exists)
-    await db.execute(`
-      INSERT INTO user_roles (user_id, role, assigned_by) VALUES (${userId}, '${role}', ${req.user.id})
-      ON CONFLICT (user_id, role) DO NOTHING
-    `);
+    const [existingRole] = await db.select().from(userRolesTable)
+      .where(and(eq(userRolesTable.userId, userId), eq(userRolesTable.role, role)));
+    if (!existingRole) {
+      await db.insert(userRolesTable).values({ userId, role, assignedBy: req.user.id });
+    }
 
     // Create group for role holder if they don't have one
     const [existing] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, userId));
