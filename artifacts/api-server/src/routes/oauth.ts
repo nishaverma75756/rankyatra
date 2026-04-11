@@ -79,11 +79,9 @@ async function findOrCreateOAuthUser(opts: {
   }
 }
 
-// Mobile OAuth: redirect to intermediate HTTPS page which fires the deep link via JS.
-// Chrome Custom Tabs on Android does NOT follow custom scheme (rankyatra://) redirects directly —
-// an intermediate HTTPS page with window.location.href is required to trigger the intent.
-const MOBILE_OAUTH_INTERMEDIATE = `${FRONTEND_URL}/api/mobile-oauth`;
-
+// Mobile OAuth: expo-web-browser's openAuthSessionAsync watches for redirects to rankyatra://.
+// We redirect DIRECTLY to rankyatra:// — no intermediate HTML page needed.
+// openAuthSessionAsync intercepts the redirect and returns the URL to the app.
 function handleOAuthCallback(provider: "google" | "facebook") {
   return async (req: Request, res: Response): Promise<void> => {
     const isMobile = (req as any).oauthIsMobile === true;
@@ -100,102 +98,20 @@ function handleOAuthCallback(provider: "google" | "facebook") {
       });
 
       if (isMobile) {
-        // Redirect to HTTPS intermediate page — JS there fires rankyatra:// deep link
-        res.redirect(`${MOBILE_OAUTH_INTERMEDIATE}?token=${encodeURIComponent(token)}`);
+        // Direct deep link redirect — openAuthSessionAsync catches this automatically
+        res.redirect(`rankyatra://oauth-callback?token=${encodeURIComponent(token)}`);
       } else {
         res.redirect(`${FRONTEND_URL}/oauth-callback?token=${encodeURIComponent(token)}`);
       }
     } catch (err: any) {
       if ((req as any).oauthIsMobile) {
-        res.redirect(`${MOBILE_OAUTH_INTERMEDIATE}?error=${encodeURIComponent(err.message || "OAuth failed")}`);
+        res.redirect(`rankyatra://oauth-callback?error=${encodeURIComponent(err.message || "OAuth failed")}`);
       } else {
         res.redirect(`${FRONTEND_URL}/oauth-callback?error=${encodeURIComponent(err.message || "OAuth failed")}`);
       }
     }
   };
 }
-
-// Intermediate page for mobile OAuth.
-// Chrome Custom Tabs on Android blocks window.location.href to custom schemes (rankyatra://).
-// Solution: use Android Intent URL format which Chrome fires as a native Android Intent,
-// bypassing the custom scheme restriction and opening the app directly.
-router.get("/mobile-oauth", (req, res) => {
-  const token = req.query.token as string || "";
-  const error = req.query.error as string || "";
-
-  const params = token
-    ? `token=${encodeURIComponent(token)}`
-    : `error=${encodeURIComponent(error)}`;
-
-  // Android Intent URL — works in Chrome and Chrome Custom Tabs
-  // format: intent://<path>?<params>#Intent;scheme=<scheme>;package=<package>;end
-  const intentUrl = `intent://oauth-callback?${params}#Intent;scheme=rankyatra;package=com.niskutech.rankyatra;end`;
-
-  // Standard custom scheme — fallback for iOS and direct browser (non-Custom Tab)
-  const deepLink = `rankyatra://oauth-callback?${params}`;
-
-  res.send(`<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RankYatra — Completing Sign-in</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{min-height:100vh;display:flex;align-items:center;justify-content:center;
-       background:#fff7ed;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:24px}
-  .card{text-align:center;max-width:320px;width:100%}
-  .logo{font-size:30px;font-weight:900;color:#f97316;letter-spacing:-1px;margin-bottom:6px}
-  .sub{font-size:14px;color:#64748b;margin-bottom:28px}
-  .spinner{width:40px;height:40px;border:3px solid #fed7aa;border-top-color:#f97316;
-           border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .msg{font-size:15px;color:#475569;margin-bottom:20px}
-  .btn{display:inline-block;background:#f97316;color:#fff;font-size:15px;font-weight:700;
-       border-radius:12px;padding:14px 28px;text-decoration:none;cursor:pointer;border:none;width:100%}
-  .btn:active{opacity:0.85}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="logo">RankYatra</div>
-  <div class="sub">Completing Google sign-in...</div>
-  <div class="spinner"></div>
-  <div class="msg" id="msg">Opening app automatically...</div>
-  <a class="btn" id="openBtn" href="${intentUrl}" style="display:none">Open RankYatra App</a>
-</div>
-<script>
-  var intentUrl = ${JSON.stringify(intentUrl)};
-  var deepLink  = ${JSON.stringify(deepLink)};
-  var ua = navigator.userAgent || "";
-  var isAndroid = /Android/i.test(ua);
-  var isIOS = /iPhone|iPad|iPod/i.test(ua);
-  var opened = false;
-
-  function tryOpen() {
-    if (opened) return;
-    opened = true;
-    if (isAndroid) {
-      // Use Android Intent URL — Chrome/Custom Tab fires this as a native intent
-      window.location.href = intentUrl;
-    } else {
-      // iOS / desktop — standard custom scheme
-      window.location.href = deepLink;
-    }
-  }
-
-  // Try immediately
-  tryOpen();
-
-  // Show manual button after 2 seconds if still here
-  setTimeout(function() {
-    document.getElementById('msg').textContent = 'If the app did not open, tap the button below:';
-    var btn = document.getElementById('openBtn');
-    btn.href = isAndroid ? intentUrl : deepLink;
-    btn.style.display = 'block';
-  }, 2000);
-</script>
-</body></html>`);
-});
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(

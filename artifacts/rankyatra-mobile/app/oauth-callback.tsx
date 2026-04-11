@@ -5,6 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { showError } from "@/utils/alert";
 import * as Haptics from "expo-haptics";
 import { Image } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+
+// Required: tells expo-web-browser to close the auth session on this screen
+WebBrowser.maybeCompleteAuthSession();
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
