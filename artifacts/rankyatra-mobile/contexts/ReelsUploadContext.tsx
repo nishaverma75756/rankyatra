@@ -142,8 +142,8 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
             token,
             (pct) => setState((s) => ({
               ...s,
-              progress: 10 + Math.round(pct * 0.88),
-              statusText: `Uploading... ${pct}%`,
+              progress: Math.min(97, 10 + Math.round(Math.min(pct, 100) * 0.87)),
+              statusText: `Uploading... ${Math.min(pct, 100)}%`,
             })),
             xhrRef
           );
@@ -164,8 +164,8 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
             token,
             (pct) => setState((s) => ({
               ...s,
-              progress: 10 + Math.round(pct * 0.88),
-              statusText: `Uploading... ${pct}%`,
+              progress: Math.min(97, 10 + Math.round(Math.min(pct, 100) * 0.87)),
+              statusText: `Uploading... ${Math.min(pct, 100)}%`,
             })),
             xhrRef
           );
