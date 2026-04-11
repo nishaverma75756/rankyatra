@@ -36,7 +36,7 @@ function formatGroupId(id: number) {
   return `GRP-${String(id).padStart(4, "0")}`;
 }
 
-function Avatar({ name, url, size = 38, colors }: { name: string; url: string | null; size?: number; colors: any }) {
+function Avatar({ name, url, size = 38 }: { name: string; url: string | null; size?: number }) {
   const resolved = resolveAvatar(url);
   if (resolved) return <Image source={{ uri: resolved }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   return (
@@ -58,7 +58,6 @@ function GroupCardItem({ group, colors, onJoin, onLeave, loading }: {
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Left: Group photo / avatar */}
       {group.photoUrl ? (
         <Image source={{ uri: group.photoUrl }} style={{ width: 52, height: 52, borderRadius: 26, flexShrink: 0 }} />
       ) : (
@@ -67,14 +66,13 @@ function GroupCardItem({ group, colors, onJoin, onLeave, loading }: {
         </View>
       )}
 
-      {/* Middle: Info */}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[styles.groupName, { color: colors.foreground }]} numberOfLines={1}>{group.name}</Text>
         <Text style={[styles.groupId, { color: colors.mutedForeground }]}>{formatGroupId(group.id)}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
-          {group.ownerAvatar || group.ownerName ? (
+          {(group.ownerAvatar || group.ownerName) ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Avatar name={group.ownerName ?? "?"} url={group.ownerAvatar} size={18} colors={colors} />
+              <Avatar name={group.ownerName ?? "?"} url={group.ownerAvatar} size={18} />
               <Text style={[styles.ownerName, { color: colors.mutedForeground }]} numberOfLines={1}>{group.ownerName}</Text>
             </View>
           ) : null}
@@ -85,30 +83,18 @@ function GroupCardItem({ group, colors, onJoin, onLeave, loading }: {
         </View>
       </View>
 
-      {/* Right: Action button */}
       {isOwner ? (
-        <TouchableOpacity
-          style={[styles.ownerBadge]}
-          onPress={() => router.push("/group-dashboard")}
-        >
+        <TouchableOpacity style={styles.ownerBadge} onPress={() => router.push("/group-dashboard")}>
           <Text style={styles.ownerBadgeText}>My Group</Text>
         </TouchableOpacity>
       ) : isJoined ? (
-        <TouchableOpacity
-          style={[styles.leaveBtn, { borderColor: "#ef4444" }]}
-          onPress={() => onLeave(group.id)}
-          disabled={loading}
-        >
+        <TouchableOpacity style={[styles.leaveBtn, { borderColor: "#ef4444" }]} onPress={() => onLeave(group.id)} disabled={loading}>
           {loading ? <ActivityIndicator size="small" color="#ef4444" /> : (
             <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "700" }}>Leave</Text>
           )}
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity
-          style={[styles.joinBtn, { backgroundColor: "#f97316", opacity: loading ? 0.7 : 1 }]}
-          onPress={() => onJoin(group.id)}
-          disabled={loading}
-        >
+        <TouchableOpacity style={[styles.joinBtn, { backgroundColor: "#f97316", opacity: loading ? 0.7 : 1 }]} onPress={() => onJoin(group.id)} disabled={loading}>
           {loading ? <ActivityIndicator size="small" color="#fff" /> : (
             <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Join</Text>
           )}
@@ -117,6 +103,51 @@ function GroupCardItem({ group, colors, onJoin, onLeave, loading }: {
     </View>
   );
 }
+
+function LeaderboardItem({ group, rank, colors }: { group: GroupCard; rank: number; colors: any }) {
+  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+
+  return (
+    <View style={[styles.lbRow, {
+      backgroundColor: rank <= 3 ? (colors.card) : colors.background,
+      borderColor: rank === 1 ? "#f59e0b" : rank === 2 ? "#94a3b8" : rank === 3 ? "#cd7f32" : colors.border,
+    }]}>
+      {/* Rank */}
+      <View style={styles.lbRank}>
+        {medal ? (
+          <Text style={{ fontSize: 22 }}>{medal}</Text>
+        ) : (
+          <Text style={{ fontSize: 15, fontWeight: "800", color: colors.mutedForeground }}>#{rank}</Text>
+        )}
+      </View>
+
+      {/* Group photo */}
+      {group.photoUrl ? (
+        <Image source={{ uri: group.photoUrl }} style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0 }} />
+      ) : (
+        <View style={[styles.groupAvatar, { backgroundColor: "#f9731615", width: 44, height: 44, borderRadius: 22 }]}>
+          <Feather name="users" size={18} color="#f97316" />
+        </View>
+      )}
+
+      {/* Info */}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.groupName, { color: colors.foreground, fontSize: 14 }]} numberOfLines={1}>{group.name}</Text>
+        {group.ownerName ? (
+          <Text style={[styles.ownerName, { color: colors.mutedForeground }]} numberOfLines={1}>{group.ownerName}</Text>
+        ) : null}
+      </View>
+
+      {/* Members count */}
+      <View style={{ alignItems: "center" }}>
+        <Text style={{ fontSize: 18, fontWeight: "900", color: "#f97316" }}>{group.memberCount}</Text>
+        <Text style={{ fontSize: 10, color: colors.mutedForeground, fontWeight: "600" }}>members</Text>
+      </View>
+    </View>
+  );
+}
+
+type Tab = "mygroup" | "popular" | "leaderboard";
 
 export default function GroupsExploreScreen() {
   const colors = useColors();
@@ -129,6 +160,7 @@ export default function GroupsExploreScreen() {
   const [search, setSearch] = useState("");
   const [searching, setSearching] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("mygroup");
 
   const fetchGroups = useCallback(async (q = "") => {
     try {
@@ -204,7 +236,14 @@ export default function GroupsExploreScreen() {
   };
 
   const myGroups = groups.filter((g) => g.isJoined || g.isOwner);
-  const otherGroups = groups.filter((g) => !g.isJoined && !g.isOwner);
+  const popularGroups = groups.filter((g) => !g.isJoined && !g.isOwner);
+  const leaderboard = [...groups].sort((a, b) => b.memberCount - a.memberCount);
+
+  const TABS: { key: Tab; label: string; icon: string }[] = [
+    { key: "mygroup", label: "My Group", icon: "shield" },
+    { key: "popular", label: "Popular", icon: "globe" },
+    { key: "leaderboard", label: "Leaderboard", icon: "award" },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -217,76 +256,120 @@ export default function GroupsExploreScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Search bar */}
-      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Feather name="search" size={16} color={colors.mutedForeground} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.foreground }]}
-          placeholder="Group name ya ID se dhundein..."
-          placeholderTextColor={colors.mutedForeground}
-          value={search}
-          onChangeText={handleSearch}
-          returnKeyType="search"
-          autoCapitalize="none"
-        />
-        {searching && <ActivityIndicator size="small" color={colors.primary} />}
-        {!!search && !searching && (
-          <TouchableOpacity onPress={() => handleSearch("")}>
-            <Feather name="x" size={16} color={colors.mutedForeground} />
+      {/* Tab Bar */}
+      <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        {TABS.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tabItem, activeTab === tab.key && { borderBottomColor: "#f97316", borderBottomWidth: 2.5 }]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Feather name={tab.icon as any} size={14} color={activeTab === tab.key ? "#f97316" : colors.mutedForeground} />
+            <Text style={[styles.tabLabel, { color: activeTab === tab.key ? "#f97316" : colors.mutedForeground, fontWeight: activeTab === tab.key ? "700" : "500" }]}>
+              {tab.label}
+            </Text>
           </TouchableOpacity>
-        )}
+        ))}
       </View>
+
+      {/* Search bar — only on Popular tab */}
+      {activeTab === "popular" && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.foreground }]}
+            placeholder="Group name ya ID se dhundein..."
+            placeholderTextColor={colors.mutedForeground}
+            value={search}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+            autoCapitalize="none"
+          />
+          {searching && <ActivityIndicator size="small" color={colors.primary} />}
+          {!!search && !searching && (
+            <TouchableOpacity onPress={() => handleSearch("")}>
+              <Feather name="x" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, paddingTop: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, paddingTop: 10 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
         >
-          {groups.length === 0 && (
-            <View style={styles.empty}>
-              <Feather name="users" size={48} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Koi group nahi mila</Text>
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Kisi aur search term se try karein</Text>
-            </View>
+          {/* ── MY GROUP TAB ── */}
+          {activeTab === "mygroup" && (
+            myGroups.length === 0 ? (
+              <View style={styles.empty}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#f9731615", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="shield" size={30} color="#f97316" />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aap kisi group mein nahi hain</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Popular tab se koi group join karein</Text>
+                <TouchableOpacity
+                  style={{ marginTop: 12, backgroundColor: "#f97316", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}
+                  onPress={() => setActiveTab("popular")}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>Groups Dhundein</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mere Groups ({myGroups.length})</Text>
+                {myGroups.map((g) => (
+                  <GroupCardItem key={g.id} group={g} colors={colors} onJoin={handleJoin} onLeave={handleLeave} loading={actionLoading === g.id} />
+                ))}
+              </>
+            )
           )}
 
-          {/* My Groups Section */}
-          {myGroups.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Mere Groups</Text>
-              {myGroups.map((g) => (
-                <GroupCardItem
-                  key={g.id}
-                  group={g}
-                  colors={colors}
-                  onJoin={handleJoin}
-                  onLeave={handleLeave}
-                  loading={actionLoading === g.id}
-                />
-              ))}
-            </>
+          {/* ── POPULAR TAB ── */}
+          {activeTab === "popular" && (
+            popularGroups.length === 0 ? (
+              <View style={styles.empty}>
+                <Feather name="users" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                  {search ? "Koi group nahi mila" : "Koi aur group nahi hai"}
+                </Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  {search ? "Kisi aur search term se try karein" : "Aap pehle se sabhi groups mein hain"}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                  {search ? `Results (${popularGroups.length})` : `Popular Groups (${popularGroups.length})`}
+                </Text>
+                {popularGroups.map((g) => (
+                  <GroupCardItem key={g.id} group={g} colors={colors} onJoin={handleJoin} onLeave={handleLeave} loading={actionLoading === g.id} />
+                ))}
+              </>
+            )
           )}
 
-          {/* All/Popular Groups */}
-          {otherGroups.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                {search ? "Results" : "Popular Groups"}
-              </Text>
-              {otherGroups.map((g) => (
-                <GroupCardItem
-                  key={g.id}
-                  group={g}
-                  colors={colors}
-                  onJoin={handleJoin}
-                  onLeave={handleLeave}
-                  loading={actionLoading === g.id}
-                />
-              ))}
-            </>
+          {/* ── LEADERBOARD TAB ── */}
+          {activeTab === "leaderboard" && (
+            leaderboard.length === 0 ? (
+              <View style={styles.empty}>
+                <Feather name="award" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Abhi koi group nahi</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Group Leaderboard 🏆</Text>
+                <Text style={[{ fontSize: 12, color: colors.mutedForeground, marginBottom: 12 }]}>
+                  Sabse zyada members wale groups
+                </Text>
+                {leaderboard.map((g, i) => (
+                  <LeaderboardItem key={g.id} group={g} rank={i + 1} colors={colors} />
+                ))}
+              </>
+            )
           )}
         </ScrollView>
       )}
@@ -305,27 +388,39 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "700" },
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 8,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 12,
+    borderBottomWidth: 2.5,
+    borderBottomColor: "transparent",
+  },
+  tabLabel: { fontSize: 13 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: 10,
+    marginBottom: 2,
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
     gap: 8,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingVertical: 0,
-  },
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
   sectionTitle: {
     fontSize: 13,
     fontWeight: "700",
-    marginTop: 16,
+    marginTop: 4,
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -347,19 +442,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  groupName: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
+  groupName: { fontSize: 15, fontWeight: "700" },
   groupId: {
     fontSize: 11,
     fontWeight: "600",
     marginTop: 1,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
-  ownerName: {
-    fontSize: 12,
-  },
+  ownerName: { fontSize: 12 },
   joinBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -388,14 +478,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  ownerBadgeText: {
-    color: "#f97316",
-    fontSize: 11,
-    fontWeight: "700",
+  ownerBadgeText: { color: "#f97316", fontSize: 11, fontWeight: "700" },
+  lbRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 10,
+  },
+  lbRank: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   empty: {
     alignItems: "center",
-    marginTop: 80,
+    marginTop: 60,
     gap: 10,
   },
   emptyTitle: { fontSize: 16, fontWeight: "700" },
