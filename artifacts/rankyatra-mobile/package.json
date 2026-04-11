@@ -65,13 +65,13 @@
     "expo-brightness": "~14.0.8",
     "expo-clipboard": "^8.0.8",
     "expo-device": "~8.0.10",
-    "expo-file-system": "^55.0.15",
+    "expo-file-system": "^19.0.21",
     "expo-keep-awake": "~15.0.8",
     "expo-notifications": "~0.32.16",
     "expo-screen-capture": "~8.0.9",
     "expo-screen-orientation": "^9.0.8",
-    "expo-video": "^55.0.14",
-    "expo-video-thumbnails": "^55.0.13",
+    "expo-video": "^3.0.16",
+    "expo-video-thumbnails": "^10.0.8",
     "react-native-compressor": "^1.16.0"
   }
 }
