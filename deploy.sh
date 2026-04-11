@@ -6,6 +6,7 @@ echo "=== RankYatra Deploy Script ==="
 # 1. Pull latest code
 echo "[1/8] Pulling latest code..."
 git checkout -- .
+rm -rf artifacts/rankyatra/dist
 git pull origin main
 
 # 2. Install dependencies
