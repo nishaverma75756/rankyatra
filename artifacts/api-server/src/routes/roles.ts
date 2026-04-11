@@ -381,6 +381,12 @@ router.patch("/groups/my", requireAuth, async (req: any, res) => {
   try {
     const [group] = await db.select().from(groupsTable).where(eq(groupsTable.ownerId, req.user.id));
     if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+    // Duplicate name check (case-insensitive, excluding own group)
+    const [dupName] = await db.select({ id: groupsTable.id }).from(groupsTable)
+      .where(and(ilike(groupsTable.name, name.trim()), ne(groupsTable.id, group.id)));
+    if (dupName) {
+      res.status(400).json({ error: `"${name.trim()}" naam ka group pehle se exist karta hai. Koi aur naam choose karein.` }); return;
+    }
     await db.update(groupsTable).set({ name: name.trim(), updatedAt: new Date() }).where(eq(groupsTable.id, group.id));
     res.json({ ok: true });
   } catch {
@@ -403,12 +409,23 @@ router.post("/groups/my/invite", requireAuth, async (req: any, res) => {
     if (!target) { res.status(404).json({ error: "User not found with this UID" }); return; }
     if (target.id === req.user.id) { res.status(400).json({ error: "You can't invite yourself" }); return; }
 
-    // Check if already a member
-    const [existing] = await db.select().from(groupMembersTable)
+    // Check if already a member of THIS group (pending or accepted)
+    const [existingThisGroup] = await db.select().from(groupMembersTable)
       .where(and(eq(groupMembersTable.groupId, group.id), eq(groupMembersTable.userId, target.id)));
-    if (existing) {
-      const msg = existing.status === "accepted" ? "User is already in your group" : "Invitation already sent";
+    if (existingThisGroup) {
+      const msg = existingThisGroup.status === "accepted"
+        ? `${target.name} already a part of "${group.name}" group`
+        : `${target.name} ko invite pehle se bheja ja chuka hai`;
       res.status(400).json({ error: msg }); return;
+    }
+    // Check if target is already accepted member of ANY other group
+    const [alreadyInOtherGroup] = await db
+      .select({ groupName: groupsTable.name })
+      .from(groupMembersTable)
+      .innerJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+      .where(and(eq(groupMembersTable.userId, target.id), eq(groupMembersTable.status, "accepted")));
+    if (alreadyInOtherGroup) {
+      res.status(400).json({ error: `${target.name} already a part of "${alreadyInOtherGroup.groupName}" group` }); return;
     }
 
     const [newMember] = await db.insert(groupMembersTable).values({ groupId: group.id, userId: target.id, status: "pending" }).returning({ id: groupMembersTable.id });
