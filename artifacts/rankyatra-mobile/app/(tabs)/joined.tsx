@@ -273,7 +273,6 @@ export default function JoinedExamsScreen() {
                 <Text style={[styles.sectionLabel, { color: "#ef4444" }]}>🔴 Live Now</Text>
                 {liveExams.map((exam) => {
                   const alreadySubmitted = submittedExamIds.has(exam.id);
-                  const solutionPdfUrl = (exam as any).solutionPdfUrl ?? null;
                   return (
                     <View
                       key={exam.id}
@@ -320,16 +319,7 @@ export default function JoinedExamsScreen() {
                           </Text>
                         </View>
                       </TouchableOpacity>
-                      {alreadySubmitted && !!solutionPdfUrl && (
-                        <TouchableOpacity
-                          style={[styles.liveStartBtn, { backgroundColor: "#7c3aed", marginTop: 8 }]}
-                          onPress={() => router.push(`/exam/${exam.id}/answer-sheet` as any)}
-                          activeOpacity={0.85}
-                        >
-                          <Feather name="file-text" size={16} color="#fff" />
-                          <Text style={styles.liveStartBtnText}>View Answer Sheet</Text>
-                        </TouchableOpacity>
-                      )}
+                      {/* Answer Sheet hidden while exam is still LIVE — only shown after exam ends */}
                     </View>
                   );
                 })}

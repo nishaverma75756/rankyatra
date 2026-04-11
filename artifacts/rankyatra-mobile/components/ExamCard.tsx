@@ -113,8 +113,28 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
       );
     }
 
-    // Registered — check submission status ONLY for ended/live exams
-    if (hasSubmitted && (timeInfo.status === "ended" || timeInfo.status === "live")) {
+    // Registered + submitted — show result/answer sheet
+    if (hasSubmitted && timeInfo.status === "live") {
+      // Exam still live — only See Result, no Answer Sheet yet
+      return (
+        <View style={styles.actionBtnGroup}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.success }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/results`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="bar-chart-2" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>See Result</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (hasSubmitted && timeInfo.status === "ended") {
+      // Exam ended — show both See Result + Answer Sheet
       return (
         <View style={styles.actionBtnGroup}>
           <TouchableOpacity
@@ -260,8 +280,25 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
         </View>
       </View>
 
-      {/* Two-button row: See Result + Answer Sheet — shown below meta row */}
-      {hasSubmitted && (timeInfo.status === "ended" || timeInfo.status === "live") && (
+      {/* Submitted + live — only See Result (no Answer Sheet) */}
+      {hasSubmitted && timeInfo.status === "live" && (
+        <View style={styles.actionBtnRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.success }]}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/exam/${exam.id}/results`);
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather name="bar-chart-2" size={12} color="#fff" />
+            <Text style={styles.actionBtnText}>See Result</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Submitted + ended — See Result + Answer Sheet both */}
+      {hasSubmitted && timeInfo.status === "ended" && (
         <View style={styles.actionBtnRow}>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.success }]}
