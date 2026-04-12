@@ -76,48 +76,59 @@ export default function OnboardingPopup() {
   // Prevent re-triggering within the same session after dismissal
   const shownThisSession = useRef(false);
 
+  // Always keep a ref to the latest user so the delayed check
+  // reads fresh data (after server refresh) instead of stale login data
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (shownThisSession.current || !user) return;
 
-    const checkAndShow = async () => {
+    // Mark immediately so multiple timers are never started
+    shownThisSession.current = true;
+
+    // Wait 10 seconds before checking — gives new Google/OAuth users time
+    // to settle in and allows the server refresh to complete so we read
+    // accurate phone/preferences/kyc data before deciding to show the popup
+    const timer = setTimeout(async () => {
+      const currentUser = userRef.current;
+      if (!currentUser) return; // User logged out during the wait
+
       for (const p of POPUPS) {
-        // Condition already met — skip
-        if (!p.isMissing(user)) continue;
+        // Condition already met with latest data — skip
+        if (!p.isMissing(currentUser)) continue;
 
         // User permanently dismissed this popup before — skip
         const dismissed = await AsyncStorage.getItem(DISMISSED_KEY(p.key));
         if (dismissed === "1") continue;
 
-        // This is the popup to show
-        shownThisSession.current = true;
+        // Show this popup
         setPopup(p);
         setVisible(true);
 
-        // Animate in after a short delay
-        setTimeout(() => {
-          Animated.parallel([
-            Animated.spring(slideAnim, {
-              toValue: 0,
-              useNativeDriver: true,
-              damping: 20,
-              stiffness: 150,
-            }),
-            Animated.timing(fadeAnim, {
-              toValue: 1,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }, 2000);
+        // Animate in immediately (no extra delay needed — 10s already passed)
+        Animated.parallel([
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            damping: 20,
+            stiffness: 150,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start();
 
         return; // Show only one
       }
-    };
+    }, 10000); // 10 seconds grace period
 
-    checkAndShow();
+    return () => clearTimeout(timer); // Cancel if user logs out or component unmounts
   }, [user?.id]); // re-evaluate only when the logged-in user changes
 
   const animateOut = (cb?: () => void) => {
