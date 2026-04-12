@@ -131,8 +131,11 @@ Utility scripts package. Each script is a `.ts` file in `src/` with a correspond
 ### EC2 Deploy Commands
 
 ```bash
-# Deploy karna
+# Deploy karna (git pull + build + restart)
 cd ~/rankyatra && git pull origin main && setsid bash deploy.sh > deploy.log 2>&1 &
+
+# Ya sirf deploy script chalao (without git pull, agar already pulled)
+cd ~/rankyatra && setsid bash deploy.sh > deploy.log 2>&1 &
 
 # Deploy log check
 tail -f ~/rankyatra/deploy.log
@@ -140,6 +143,9 @@ tail -f ~/rankyatra/deploy.log
 # Deploy status
 pm2 status
 pm2 logs rankyatra-api --lines 50
+
+# DB schema push (EC2 pe — sirf jab schema change hua ho)
+cd ~/rankyatra/lib/db && DATABASE_URL="postgresql://rankyatra:StrongPass123@localhost:5432/rankyatradb" pnpm run push
 ```
 
 ### Android APK Build (Expo)
