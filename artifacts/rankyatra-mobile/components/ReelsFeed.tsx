@@ -149,11 +149,6 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
         pointerEvents="none"
       />
 
-      {/* Top bar */}
-      <View style={[s.topBar, { paddingTop: 54 }]}>
-        <Text style={s.reelsLabel}>Reels</Text>
-      </View>
-
       {/* Right action buttons */}
       <View style={[s.rightActions, { bottom: tabBarHeight + 120 }]}>
         <TouchableOpacity style={s.actionBtn} onPress={toggleLike} activeOpacity={0.7}>
