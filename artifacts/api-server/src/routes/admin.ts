@@ -9,11 +9,25 @@ import {
   verificationsTable,
 } from "@workspace/db";
 import { eq, count, sum, desc, asc, like, sql } from "drizzle-orm";
-import { requireAdmin } from "../middlewares/auth";
+import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewares/auth";
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
 
 const router: IRouter = Router();
+
+// ── GET /admin/me — current admin info ───────────────────────────────────────
+router.get("/admin/me", requireAdmin, async (req: any, res): Promise<void> => {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
+  if (!user) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    isAdmin: user.isAdmin,
+    isSuperAdmin: user.isSuperAdmin,
+    adminPermissions: user.adminPermissions ?? [],
+  });
+});
 
 router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
   const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
@@ -37,6 +51,8 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
         walletBalance: user.walletBalance,
         avatarUrl: user.avatarUrl ?? null,
         isAdmin: user.isAdmin,
+        isSuperAdmin: user.isSuperAdmin ?? false,
+        adminPermissions: user.adminPermissions ?? [],
         isBlocked: user.isBlocked,
         createdAt: user.createdAt.toISOString(),
         totalExamsTaken: examStats?.count ?? 0,
@@ -72,6 +88,8 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
     walletBalance: user.walletBalance,
     avatarUrl: user.avatarUrl ?? null,
     isAdmin: user.isAdmin,
+    isSuperAdmin: user.isSuperAdmin ?? false,
+    adminPermissions: user.adminPermissions ?? [],
     isBlocked: user.isBlocked,
     createdAt: user.createdAt.toISOString(),
     totalExamsTaken: examStats?.count ?? 0,
@@ -84,8 +102,15 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
   });
 });
 
-router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/admin/users/:userId", requireAdmin, async (req: any, res): Promise<void> => {
   const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
+
+  // Protect super admin — nobody can edit a super admin except themselves
+  const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (targetUser?.isSuperAdmin && req.user!.id !== userId) {
+    res.status(403).json({ error: "Super admin cannot be modified by other admins" });
+    return;
+  }
 
   const { name, email, password, walletBalance, isAdmin } = req.body;
   const updates: Partial<typeof usersTable.$inferInsert> = {};
@@ -94,7 +119,21 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
   if (email !== undefined) updates.email = email;
   if (password !== undefined) updates.passwordHash = await bcrypt.hash(password, 10);
   if (walletBalance !== undefined) updates.walletBalance = walletBalance;
-  if (isAdmin !== undefined) updates.isAdmin = isAdmin;
+
+  // Only super admin can grant/revoke admin status
+  if (isAdmin !== undefined) {
+    if (!req.user!.isSuperAdmin) {
+      res.status(403).json({ error: "Only super admin can grant or revoke admin access" });
+      return;
+    }
+    // Cannot revoke super admin's own admin status
+    if (targetUser?.isSuperAdmin && !isAdmin) {
+      res.status(403).json({ error: "Super admin cannot be demoted" });
+      return;
+    }
+    updates.isAdmin = isAdmin;
+    if (!isAdmin) updates.adminPermissions = []; // Clear permissions when revoking admin
+  }
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
   if (!user) {
@@ -121,9 +160,41 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
   });
 });
 
-router.patch("/admin/users/:userId/block", requireAdmin, async (req, res): Promise<void> => {
+// ── Super admin only: update another admin's permissions ─────────────────────
+router.patch("/admin/users/:userId/admin-permissions", requireSuperAdmin, async (req: any, res): Promise<void> => {
+  const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
+  const { permissions, isAdmin } = req.body as { permissions: string[]; isAdmin?: boolean };
+
+  const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!targetUser) { res.status(404).json({ error: "User not found" }); return; }
+  if (targetUser.isSuperAdmin) { res.status(403).json({ error: "Cannot modify another super admin" }); return; }
+
+  const updates: Partial<typeof usersTable.$inferInsert> = {
+    adminPermissions: permissions ?? [],
+  };
+  if (isAdmin !== undefined) updates.isAdmin = isAdmin;
+  if (isAdmin === false) updates.adminPermissions = [];
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    isAdmin: updated.isAdmin,
+    isSuperAdmin: updated.isSuperAdmin,
+    adminPermissions: updated.adminPermissions ?? [],
+  });
+});
+
+router.patch("/admin/users/:userId/block", requireAdmin, async (req: any, res): Promise<void> => {
   const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
   const { isBlocked } = req.body;
+
+  // Protect super admin from being blocked
+  const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (targetUser?.isSuperAdmin) {
+    res.status(403).json({ error: "Super admin cannot be blocked" });
+    return;
+  }
 
   const [user] = await db
     .update(usersTable)
@@ -157,7 +228,7 @@ router.delete("/admin/users/:userId", requireAdmin, async (req, res): Promise<vo
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  if (user.isAdmin) { res.status(403).json({ error: "Admin users cannot be deleted" }); return; }
+  if (user.isAdmin || user.isSuperAdmin) { res.status(403).json({ error: "Admin users cannot be deleted" }); return; }
 
   // Delete in the correct order to avoid FK constraint violations
   // (tables without ON DELETE CASCADE must be cleaned manually)

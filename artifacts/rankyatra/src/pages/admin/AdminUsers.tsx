@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Trash2, Crown, Shield } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +129,16 @@ export default function AdminUsers() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-sm">{u.name}</p>
-                        {u.isAdmin && <Badge className="text-xs bg-primary/10 text-primary">Admin</Badge>}
+                        {u.isSuperAdmin && (
+                          <Badge className="text-xs bg-amber-500 text-white flex items-center gap-1 py-0">
+                            <Crown className="h-3 w-3" /> Super Admin
+                          </Badge>
+                        )}
+                        {u.isAdmin && !u.isSuperAdmin && (
+                          <Badge className="text-xs bg-primary/10 text-primary flex items-center gap-1 py-0">
+                            <Shield className="h-3 w-3" /> Admin
+                          </Badge>
+                        )}
                         {u.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
                         {u.verificationStatus === "verified" ? (
                           <Badge className="text-xs bg-green-100 text-green-700 border border-green-200 flex items-center gap-1 py-0">

@@ -18,6 +18,8 @@ function userPayload(user: typeof usersTable.$inferSelect) {
     walletBalance: user.walletBalance,
     avatarUrl: user.avatarUrl,
     isAdmin: user.isAdmin,
+    isSuperAdmin: user.isSuperAdmin ?? false,
+    adminPermissions: user.adminPermissions ?? [],
     isBlocked: user.isBlocked,
     emailVerified: user.emailVerified,
     verificationStatus: user.verificationStatus,

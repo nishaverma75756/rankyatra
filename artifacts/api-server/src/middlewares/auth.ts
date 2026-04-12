@@ -10,6 +10,8 @@ export interface AuthUser {
   email: string;
   name: string;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  adminPermissions: string[];
   isBlocked: boolean;
 }
 
@@ -31,7 +33,15 @@ export function verifyToken(token: string): AuthUser | null {
 
 export function generateToken(user: AuthUser): string {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, isAdmin: user.isAdmin, isBlocked: user.isBlocked },
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      isAdmin: user.isAdmin,
+      isSuperAdmin: user.isSuperAdmin,
+      adminPermissions: user.adminPermissions,
+      isBlocked: user.isBlocked,
+    },
     JWT_SECRET,
     { expiresIn: "30d" }
   );
@@ -48,7 +58,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     const payload = jwt.verify(token, JWT_SECRET) as AuthUser;
 
-    // Re-fetch from DB to ensure user isn't blocked
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.id));
     if (!user) {
       res.status(401).json({ error: "User not found" });
@@ -64,6 +73,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       email: user.email,
       name: user.name,
       isAdmin: user.isAdmin,
+      isSuperAdmin: user.isSuperAdmin ?? false,
+      adminPermissions: (user.adminPermissions as string[]) ?? [],
       isBlocked: user.isBlocked,
     };
     next();
@@ -80,6 +91,33 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     }
     next();
   });
+}
+
+export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  await requireAuth(req, res, async () => {
+    if (!req.user?.isSuperAdmin) {
+      res.status(403).json({ error: "Super admin access required" });
+      return;
+    }
+    next();
+  });
+}
+
+// requirePermission checks: super admin always passes, sub-admin needs the specific permission
+export function requirePermission(permission: string) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    await requireAuth(req, res, async () => {
+      if (!req.user?.isAdmin) {
+        res.status(403).json({ error: "Admin access required" });
+        return;
+      }
+      if (req.user.isSuperAdmin || req.user.adminPermissions.includes(permission)) {
+        next();
+        return;
+      }
+      res.status(403).json({ error: `You don't have permission to manage ${permission}` });
+    });
+  };
 }
 
 export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {

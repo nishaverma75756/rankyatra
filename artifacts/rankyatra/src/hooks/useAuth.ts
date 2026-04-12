@@ -24,6 +24,8 @@ export function useAuth() {
     isLoading: hasToken ? isLoading : false,
     isAuthenticated: !!user,
     isAdmin: !!(user as any)?.isAdmin,
+    isSuperAdmin: !!(user as any)?.isSuperAdmin,
+    adminPermissions: (user as any)?.adminPermissions ?? [] as string[],
     logout,
   };
 }

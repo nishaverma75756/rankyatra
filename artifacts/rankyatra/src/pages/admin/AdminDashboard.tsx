@@ -1,16 +1,20 @@
 import { Link } from "wouter";
-import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag } from "lucide-react";
+import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag, Crown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/utils";
 import { getAuthToken } from "@/lib/auth";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminGetStats } from "@workspace/api-client-react";
 import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useAdminGetStats();
+  const { isSuperAdmin, adminPermissions } = useAuth();
+  const hasPerm = (perm: string) => isSuperAdmin || adminPermissions.includes(perm);
   const token = getAuthToken();
   const { data: deposits = [] } = useQuery<any[]>({
     queryKey: ["admin-deposits-count"],
@@ -66,72 +70,103 @@ export default function AdminDashboard() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Shield className="h-6 w-6 text-primary-foreground" />
+          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${isSuperAdmin ? "bg-amber-500" : "bg-primary"}`}>
+            {isSuperAdmin ? <Crown className="h-6 w-6 text-white" /> : <Shield className="h-6 w-6 text-primary-foreground" />}
           </div>
           <div>
-            <h1 className="text-2xl font-black text-foreground">Admin Panel</h1>
-            <p className="text-muted-foreground text-sm">Manage users, exams, and platform data</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black text-foreground">Admin Panel</h1>
+              {isSuperAdmin && (
+                <Badge className="bg-amber-500 text-white text-xs flex items-center gap-1">
+                  <Crown className="h-3 w-3" /> Super Admin
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {isSuperAdmin ? "Full access — manage all platform settings and admins" : "Manage your assigned sections"}
+            </p>
           </div>
         </div>
 
         {/* Quick nav */}
         <div className="flex flex-wrap gap-3 mb-8">
-          <Button asChild variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
-            <Link href="/admin/users">Manage Users</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
-            <Link href="/admin/exams">Manage Exams</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50 relative">
-            <Link href="/admin/deposits">
-              Deposit Requests
-              {pendingCount > 0 && (
-                <span className="ml-2 bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingCount}</span>
-              )}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="border-blue-400 text-blue-700 hover:bg-blue-50 relative">
-            <Link href="/admin/withdrawals">
-              Withdrawal Requests
-              {pendingWithdrawals > 0 && (
-                <span className="ml-2 bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingWithdrawals}</span>
-              )}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="border-green-400 text-green-700 hover:bg-green-50 relative">
-            <Link href="/admin/verifications">
-              KYC Verifications
-              {pendingVerifications > 0 && (
-                <span className="ml-2 bg-green-600 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingVerifications}</span>
-              )}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="border-orange-400 text-orange-700 hover:bg-orange-50">
-            <Link href="/admin/banners">🖼️ Banner Slider</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-indigo-400 text-indigo-700 hover:bg-indigo-50">
-            <Link href="/admin/categories">🏷️ Exam Categories</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50">
-            <Link href="/admin/completed-exams">🏆 Completed Exams</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-blue-500 text-blue-700 hover:bg-blue-50">
-            <Link href="/admin/upcoming-exams">📅 Upcoming Exams</Link>
-          </Button>
-          <Button asChild variant="outline" className="border-red-400 text-red-700 hover:bg-red-50 relative">
-            <Link href="/admin/reports" className="flex items-center gap-2">
-              <Flag className="h-4 w-4" /> User Reports
-              {pendingReports > 0 && (
-                <span className="ml-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingReports}</span>
-              )}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="border-purple-500 text-purple-700 hover:bg-purple-50">
-            <Link href="/admin/roles" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" /> Roles &amp; Groups
-            </Link>
-          </Button>
+          {hasPerm("users") && (
+            <Button asChild variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
+              <Link href="/admin/users">Manage Users</Link>
+            </Button>
+          )}
+          {hasPerm("exams") && (
+            <Button asChild variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
+              <Link href="/admin/exams">Manage Exams</Link>
+            </Button>
+          )}
+          {hasPerm("deposits") && (
+            <Button asChild variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50 relative">
+              <Link href="/admin/deposits">
+                Deposit Requests
+                {pendingCount > 0 && (
+                  <span className="ml-2 bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingCount}</span>
+                )}
+              </Link>
+            </Button>
+          )}
+          {hasPerm("withdrawals") && (
+            <Button asChild variant="outline" className="border-blue-400 text-blue-700 hover:bg-blue-50 relative">
+              <Link href="/admin/withdrawals">
+                Withdrawal Requests
+                {pendingWithdrawals > 0 && (
+                  <span className="ml-2 bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingWithdrawals}</span>
+                )}
+              </Link>
+            </Button>
+          )}
+          {hasPerm("kyc") && (
+            <Button asChild variant="outline" className="border-green-400 text-green-700 hover:bg-green-50 relative">
+              <Link href="/admin/verifications">
+                KYC Verifications
+                {pendingVerifications > 0 && (
+                  <span className="ml-2 bg-green-600 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{pendingVerifications}</span>
+                )}
+              </Link>
+            </Button>
+          )}
+          {hasPerm("banners") && (
+            <Button asChild variant="outline" className="border-orange-400 text-orange-700 hover:bg-orange-50">
+              <Link href="/admin/banners">🖼️ Banner Slider</Link>
+            </Button>
+          )}
+          {hasPerm("categories") && (
+            <Button asChild variant="outline" className="border-indigo-400 text-indigo-700 hover:bg-indigo-50">
+              <Link href="/admin/categories">🏷️ Exam Categories</Link>
+            </Button>
+          )}
+          {hasPerm("exams") && (
+            <>
+              <Button asChild variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50">
+                <Link href="/admin/completed-exams">🏆 Completed Exams</Link>
+              </Button>
+              <Button asChild variant="outline" className="border-blue-500 text-blue-700 hover:bg-blue-50">
+                <Link href="/admin/upcoming-exams">📅 Upcoming Exams</Link>
+              </Button>
+            </>
+          )}
+          {hasPerm("reports") && (
+            <Button asChild variant="outline" className="border-red-400 text-red-700 hover:bg-red-50 relative">
+              <Link href="/admin/reports" className="flex items-center gap-2">
+                <Flag className="h-4 w-4" /> User Reports
+                {pendingReports > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{pendingReports}</span>
+                )}
+              </Link>
+            </Button>
+          )}
+          {hasPerm("roles") && (
+            <Button asChild variant="outline" className="border-purple-500 text-purple-700 hover:bg-purple-50">
+              <Link href="/admin/roles" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" /> Roles &amp; Groups
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Stats */}

@@ -2,6 +2,19 @@ import { pgTable, text, serial, timestamp, decimal, boolean } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+export const ADMIN_PERMISSIONS = [
+  "users",
+  "exams",
+  "deposits",
+  "withdrawals",
+  "kyc",
+  "reports",
+  "banners",
+  "categories",
+  "roles",
+] as const;
+export type AdminPermission = typeof ADMIN_PERMISSIONS[number];
+
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -13,6 +26,8 @@ export const usersTable = pgTable("users", {
   winningBalance: decimal("winning_balance", { precision: 10, scale: 2 }).notNull().default("0.00"),
   avatarUrl: text("avatar_url"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
+  adminPermissions: text("admin_permissions").array().notNull().default([]),
   isBlocked: boolean("is_blocked").notNull().default(false),
   phone: text("phone"),
   govtId: text("govt_id"),

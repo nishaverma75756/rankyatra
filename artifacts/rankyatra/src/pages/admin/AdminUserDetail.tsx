@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck, TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff, GraduationCap, Star, Megaphone, Handshake, Crown, X } from "lucide-react";
+import { ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck, TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff, GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
@@ -19,6 +19,8 @@ import {
 import { useAdminGetUser, useAdminUpdateUser, useAdminBlockUser, useAdminAdjustWallet } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatUID } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { getAuthToken } from "@/lib/auth";
 
 const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff" },
@@ -28,10 +30,25 @@ const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: s
   premium:    { label: "Premium",    icon: Crown,         color: "#f97316", bg: "#fff7ed" },
 };
 
+const ALL_PERMISSIONS = [
+  { key: "users",       label: "Users",       desc: "Manage users, block/unblock, view profiles" },
+  { key: "exams",       label: "Exams",       desc: "Create/edit exams, distribute prizes" },
+  { key: "deposits",    label: "Deposits",    desc: "Approve/reject deposit requests" },
+  { key: "withdrawals", label: "Withdrawals", desc: "Approve/reject withdrawal requests" },
+  { key: "kyc",         label: "KYC",         desc: "Review and approve identity verification" },
+  { key: "reports",     label: "Reports",     desc: "View and action user reports" },
+  { key: "banners",     label: "Banners",     desc: "Manage promotional banners" },
+  { key: "categories",  label: "Categories",  desc: "Manage exam categories" },
+  { key: "roles",       label: "Roles",       desc: "Assign special roles to users" },
+];
+
 export default function AdminUserDetail() {
   const { id } = useParams();
   const userId = parseInt(id ?? "0");
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const currentUserAny = currentUser as any;
+  const isSuperAdmin = currentUserAny?.isSuperAdmin ?? false;
 
   const { data: user, refetch, isLoading } = useAdminGetUser(userId);
   const u = user as any;
@@ -45,12 +62,14 @@ export default function AdminUserDetail() {
   const [walletNote, setWalletNote] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
 
   const fetchRoles = async () => {
     if (!userId) return;
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       const data = await res.json();
       setUserRoles(data.map((r: any) => r.role));
@@ -61,8 +80,9 @@ export default function AdminUserDetail() {
     if (u) {
       setName(u.name ?? "");
       setEmail(u.email ?? "");
+      setSelectedPerms(u.adminPermissions ?? []);
     }
-  }, [u?.id]);
+  }, [u?.id, u?.adminPermissions?.join(",")]);
 
   useEffect(() => { fetchRoles(); }, [userId]);
 
@@ -71,7 +91,7 @@ export default function AdminUserDetail() {
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ role }),
       });
       if (!res.ok) { const e = await res.json(); throw e; }
@@ -87,7 +107,7 @@ export default function AdminUserDetail() {
     try {
       const res = await fetch(`/api/admin/users/${userId}/roles/${role}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("rankyatra_token")}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       if (!res.ok) { const e = await res.json(); throw e; }
       toast({ title: `${ROLE_META[role]?.label} role revoked.` });
@@ -97,17 +117,38 @@ export default function AdminUserDetail() {
     } finally { setRolesLoading(false); }
   };
 
+  const handleSavePermissions = async () => {
+    setSavingPerms(true);
+    try {
+      const isAdminVal = u?.isAdmin;
+      const res = await fetch(`/api/admin/users/${userId}/admin-permissions`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: selectedPerms, isAdmin: selectedPerms.length > 0 ? true : isAdminVal }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      toast({ title: "Permissions updated!" });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+    } finally { setSavingPerms(false); }
+  };
+
+  const handleToggleAdmin = () => {
+    updateUser({ userId, data: { isAdmin: !u?.isAdmin } });
+  };
+
   const { mutate: updateUser, isPending: updating } = useAdminUpdateUser({
     mutation: {
       onSuccess: () => { toast({ title: "Profile updated!" }); refetch(); },
-      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.message ?? "Update failed", variant: "destructive" }),
+      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.error ?? "Update failed", variant: "destructive" }),
     },
   });
 
   const { mutate: blockUser, isPending: blocking } = useAdminBlockUser({
     mutation: {
       onSuccess: () => { toast({ title: u?.isBlocked ? "User unblocked." : "User blocked." }); refetch(); },
-      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.message, variant: "destructive" }),
+      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.error, variant: "destructive" }),
     },
   });
 
@@ -119,7 +160,7 @@ export default function AdminUserDetail() {
         setWalletNote("");
         refetch();
       },
-      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.message, variant: "destructive" }),
+      onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.error, variant: "destructive" }),
     },
   });
 
@@ -133,10 +174,6 @@ export default function AdminUserDetail() {
       return;
     }
     updateUser({ userId, data });
-  };
-
-  const handleToggleAdmin = () => {
-    updateUser({ userId, data: { isAdmin: !u?.isAdmin } });
   };
 
   const handleWalletAdjust = () => {
@@ -164,6 +201,9 @@ export default function AdminUserDetail() {
   );
 
   const initials = (u?.name ?? "U").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+  const isTargetSuperAdmin = u?.isSuperAdmin ?? false;
+  const isTargetAdmin = u?.isAdmin ?? false;
+  const targetPermissions: string[] = u?.adminPermissions ?? [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -187,7 +227,16 @@ export default function AdminUserDetail() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <h2 className="text-xl font-black">{u?.name}</h2>
-                  {u?.isAdmin && <Badge className="bg-primary text-primary-foreground text-xs">Admin</Badge>}
+                  {isTargetSuperAdmin && (
+                    <Badge className="bg-amber-500 text-white text-xs flex items-center gap-1">
+                      <Crown className="h-3 w-3" /> Super Admin
+                    </Badge>
+                  )}
+                  {isTargetAdmin && !isTargetSuperAdmin && (
+                    <Badge className="bg-primary text-primary-foreground text-xs flex items-center gap-1">
+                      <Shield className="h-3 w-3" /> Admin
+                    </Badge>
+                  )}
                   {u?.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground">{u?.email}</p>
@@ -214,7 +263,7 @@ export default function AdminUserDetail() {
             </div>
 
             <div className="flex gap-2 mt-4 flex-wrap">
-              {!u?.isAdmin && (
+              {!isTargetAdmin && !isTargetSuperAdmin && (
                 <Button
                   size="sm"
                   variant={u?.isBlocked ? "outline" : "destructive"}
@@ -224,15 +273,71 @@ export default function AdminUserDetail() {
                   {u?.isBlocked ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Unblock</> : <><UserX className="h-3.5 w-3.5 mr-1" />Block User</>}
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updating}
-                onClick={handleToggleAdmin}
-              >
-                {u?.isAdmin ? <><ShieldOff className="h-3.5 w-3.5 mr-1" />Revoke Admin</> : <><Shield className="h-3.5 w-3.5 mr-1" />Grant Admin</>}
-              </Button>
+              {/* Grant/Revoke Admin — only super admin can do this, and cannot revoke super admin */}
+              {isSuperAdmin && !isTargetSuperAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={updating}
+                  onClick={handleToggleAdmin}
+                >
+                  {isTargetAdmin ? <><ShieldOff className="h-3.5 w-3.5 mr-1" />Revoke Admin</> : <><Shield className="h-3.5 w-3.5 mr-1" />Grant Admin</>}
+                </Button>
+              )}
+              {!isSuperAdmin && isTargetAdmin && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-full px-3 py-1.5">
+                  <Lock className="h-3 w-3" /> Admin status managed by Super Admin
+                </div>
+              )}
             </div>
+
+            {/* ── Sub-admin Permissions (super admin only) ── */}
+            {isSuperAdmin && isTargetAdmin && !isTargetSuperAdmin && (
+              <div className="mt-5 pt-4 border-t border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Admin Permissions</p>
+                  <Button size="sm" variant="default" disabled={savingPerms} onClick={handleSavePermissions} className="h-7 text-xs">
+                    {savingPerms ? "Saving..." : "Save Permissions"}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {ALL_PERMISSIONS.map((perm) => (
+                    <label key={perm.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                      <Checkbox
+                        checked={selectedPerms.includes(perm.key)}
+                        onCheckedChange={(checked) => {
+                          setSelectedPerms(prev =>
+                            checked ? [...prev, perm.key] : prev.filter(p => p !== perm.key)
+                          );
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold">{perm.label}</p>
+                        <p className="text-xs text-muted-foreground">{perm.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {targetPermissions.length === 0 && selectedPerms.length === 0 && (
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2 border border-amber-200">
+                    No permissions assigned — this admin cannot access any section yet.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Show current permissions if target is sub-admin and current user is not super admin */}
+            {isTargetAdmin && !isTargetSuperAdmin && !isSuperAdmin && targetPermissions.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Admin Permissions</p>
+                <div className="flex flex-wrap gap-2">
+                  {targetPermissions.map(p => (
+                    <Badge key={p} variant="secondary" className="text-xs capitalize">{p}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Role Management ── */}
             <div className="mt-5 pt-4 border-t border-border">
@@ -271,7 +376,6 @@ export default function AdminUserDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Status + Govt ID row */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -283,38 +387,31 @@ export default function AdminUserDetail() {
                 <span className="text-sm text-muted-foreground">Govt ID:</span>
                 <span className="text-sm font-semibold font-mono">{u?.govtId ?? "Not submitted"}</span>
               </div>
-              {/* Verification Status Badge */}
               {u?.verificationStatus === "verified" ? (
                 <Badge className="bg-green-100 text-green-700 border-green-200 flex items-center gap-1.5 px-3 py-1">
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Verified
+                  <CheckCircle className="h-3.5 w-3.5" /> Verified
                 </Badge>
               ) : u?.verificationStatus === "under_review" ? (
                 <Badge className="bg-amber-100 text-amber-700 border-amber-200 flex items-center gap-1.5 px-3 py-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  Under Review
+                  <Clock className="h-3.5 w-3.5" /> Under Review
                 </Badge>
               ) : u?.verificationStatus === "rejected" ? (
                 <Badge className="bg-red-100 text-red-700 border-red-200 flex items-center gap-1.5 px-3 py-1">
-                  <XCircle className="h-3.5 w-3.5" />
-                  Rejected
+                  <XCircle className="h-3.5 w-3.5" /> Rejected
                 </Badge>
               ) : (
                 <Badge className="bg-gray-100 text-gray-600 border-gray-200 flex items-center gap-1.5 px-3 py-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  Not Verified
+                  <AlertCircle className="h-3.5 w-3.5" /> Not Verified
                 </Badge>
               )}
             </div>
 
-            {/* KYC note if any */}
             {u?.kycNote && (
               <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
                 <strong>Admin Note:</strong> {u.kycNote}
               </p>
             )}
 
-            {/* ID Card Image */}
             {u?.panCardUrl ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -330,11 +427,7 @@ export default function AdminUserDetail() {
                 </div>
                 {showIdCard && (
                   <div className="rounded-xl overflow-hidden border border-border bg-muted/30">
-                    <img
-                      src={u.panCardUrl}
-                      alt="Submitted ID Card"
-                      className="w-full max-h-72 object-contain"
-                    />
+                    <img src={u.panCardUrl} alt="Submitted ID Card" className="w-full max-h-72 object-contain" />
                   </div>
                 )}
               </div>
