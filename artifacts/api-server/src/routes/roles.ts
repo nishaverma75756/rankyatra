@@ -274,7 +274,6 @@ router.get("/groups/members/:memberId/detail", requireAuth, async (req: any, res
     const regs = await db.select({
       examId: registrationsTable.examId,
       amountPaid: registrationsTable.amountPaid,
-      status: registrationsTable.status,
       registeredAt: registrationsTable.registeredAt,
       examTitle: examsTable.title,
       examCategory: examsTable.category,

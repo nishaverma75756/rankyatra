@@ -482,7 +482,7 @@ export default function GroupDashboardScreen() {
                             />
                           ) : (
                             <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "#f97316", alignItems: "center", justifyContent: "center" }}>
-                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{(m.name ?? "?")[0].toUpperCase()}</Text>
+                              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>{((m.name ?? "?")?.[0] ?? "?").toUpperCase()}</Text>
                             </View>
                           )}
                           <View style={{ flex: 1, marginLeft: 10 }}>
