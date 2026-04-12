@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Image,
   ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -222,7 +223,7 @@ export default function ExamResultScreen() {
           <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
             <Text style={styles.heroEmoji}>{medal ?? "🏅"}</Text>
             <Text style={[styles.heroValue, { color: result.rank && result.rank <= 3 ? "#f59e0b" : colors.foreground }]}>
-              {rankLabel}
+              {result.rank ? `#${result.rank}` : "—"}
             </Text>
             <Text style={[styles.heroLabel, { color: colors.mutedForeground }]}>Your Rank</Text>
           </View>
@@ -305,7 +306,7 @@ export default function ExamResultScreen() {
   );
 }
 
-function ResultShareCard({ result, pct, pctColor, rankLabel, medal, perfMsg, perfEmoji, userName }: {
+function ResultShareCard({ result, pct, pctColor, medal, perfMsg, perfEmoji, userName }: {
   result: ExamResult;
   pct: number;
   pctColor: string;
@@ -316,23 +317,24 @@ function ResultShareCard({ result, pct, pctColor, rankLabel, medal, perfMsg, per
   userName?: string;
 }) {
   const isTop3 = result.rank !== null && result.rank <= 3;
-  const bgGradient = isTop3 ? "#1a0a00" : "#0f172a";
   const accentColor = "#f97316";
+  const rankNumLabel = result.rank ? `#${result.rank}` : "—";
 
   return (
-    <View style={[shareStyles.card, { backgroundColor: bgGradient }]}>
-      {/* Header */}
+    <View style={shareStyles.card}>
+      {/* Header — logo image + EXAM RESULT label */}
       <View style={shareStyles.cardHeader}>
-        <View style={shareStyles.brandRow}>
-          <View style={[shareStyles.brandDot, { backgroundColor: accentColor }]} />
-          <Text style={[shareStyles.brandName, { color: accentColor }]}>RankYatra</Text>
-        </View>
+        <Image
+          source={require("@/assets/images/rankyatra-brand-logo.png")}
+          style={shareStyles.logoImg}
+          resizeMode="contain"
+        />
         <Text style={shareStyles.cardLabel}>EXAM RESULT</Text>
       </View>
 
       {/* Exam title */}
-      <View style={[shareStyles.examBlock, { borderColor: "#ffffff15" }]}>
-        <View style={[shareStyles.catBadge, { backgroundColor: accentColor + "30" }]}>
+      <View style={[shareStyles.examBlock, { borderColor: "#e2e8f0" }]}>
+        <View style={[shareStyles.catBadge, { backgroundColor: accentColor + "20" }]}>
           <Text style={[shareStyles.catBadgeText, { color: accentColor }]}>{result.examCategory}</Text>
         </View>
         <Text style={shareStyles.examTitleText} numberOfLines={2}>{result.examTitle}</Text>
@@ -340,54 +342,54 @@ function ResultShareCard({ result, pct, pctColor, rankLabel, medal, perfMsg, per
 
       {/* Rank + Score row */}
       <View style={shareStyles.heroRow}>
-        <View style={[shareStyles.heroBox, { backgroundColor: "#ffffff08", borderColor: "#ffffff15" }]}>
+        <View style={[shareStyles.heroBox, { backgroundColor: "#f8fafc", borderColor: "#e2e8f0" }]}>
           <Text style={shareStyles.heroEmoji}>{medal ?? "🏅"}</Text>
-          <Text style={[shareStyles.heroVal, { color: isTop3 ? "#fbbf24" : "#fff" }]}>{rankLabel}</Text>
+          <Text style={[shareStyles.heroVal, { color: isTop3 ? "#d97706" : "#0f172a" }]}>{rankNumLabel}</Text>
           <Text style={shareStyles.heroLbl}>Your Rank</Text>
         </View>
-        <View style={[shareStyles.heroDivider, { backgroundColor: "#ffffff20" }]} />
-        <View style={[shareStyles.heroBox, { backgroundColor: "#ffffff08", borderColor: "#ffffff15" }]}>
+        <View style={[shareStyles.heroDivider, { backgroundColor: "#e2e8f0" }]} />
+        <View style={[shareStyles.heroBox, { backgroundColor: "#f8fafc", borderColor: "#e2e8f0" }]}>
           <View style={[shareStyles.pctCircle, { borderColor: pctColor }]}>
             <Text style={[shareStyles.pctText, { color: pctColor }]}>{pct}%</Text>
           </View>
-          <Text style={[shareStyles.heroVal, { color: "#fff" }]}>{result.score} pts</Text>
+          <Text style={[shareStyles.heroVal, { color: "#0f172a" }]}>{result.score} pts</Text>
           <Text style={shareStyles.heroLbl}>Score</Text>
         </View>
       </View>
 
       {/* Stats */}
       <View style={shareStyles.statsRow}>
-        <View style={[shareStyles.statPill, { backgroundColor: "#22c55e18" }]}>
+        <View style={[shareStyles.statPill, { backgroundColor: "#dcfce7" }]}>
           <Text style={shareStyles.statPillIcon}>✅</Text>
-          <Text style={[shareStyles.statPillVal, { color: "#22c55e" }]}>{result.correctAnswers}</Text>
-          <Text style={shareStyles.statPillLbl}>Correct</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#16a34a" }]}>{result.correctAnswers}</Text>
+          <Text style={[shareStyles.statPillLbl, { color: "#6b7280" }]}>Correct</Text>
         </View>
-        <View style={[shareStyles.statPill, { backgroundColor: "#ef444418" }]}>
+        <View style={[shareStyles.statPill, { backgroundColor: "#fee2e2" }]}>
           <Text style={shareStyles.statPillIcon}>❌</Text>
-          <Text style={[shareStyles.statPillVal, { color: "#ef4444" }]}>{result.wrongAnswers}</Text>
-          <Text style={shareStyles.statPillLbl}>Wrong</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#dc2626" }]}>{result.wrongAnswers}</Text>
+          <Text style={[shareStyles.statPillLbl, { color: "#6b7280" }]}>Wrong</Text>
         </View>
-        <View style={[shareStyles.statPill, { backgroundColor: "#ffffff10" }]}>
+        <View style={[shareStyles.statPill, { backgroundColor: "#f1f5f9" }]}>
           <Text style={shareStyles.statPillIcon}>⏭</Text>
-          <Text style={[shareStyles.statPillVal, { color: "#94a3b8" }]}>{result.skippedAnswers}</Text>
-          <Text style={shareStyles.statPillLbl}>Skipped</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#475569" }]}>{result.skippedAnswers}</Text>
+          <Text style={[shareStyles.statPillLbl, { color: "#6b7280" }]}>Skipped</Text>
         </View>
-        <View style={[shareStyles.statPill, { backgroundColor: "#6b728018" }]}>
+        <View style={[shareStyles.statPill, { backgroundColor: "#f5f3ff" }]}>
           <Text style={shareStyles.statPillIcon}>⏱</Text>
-          <Text style={[shareStyles.statPillVal, { color: "#a78bfa" }]}>{result.timeTakenSeconds > 0 ? `${Math.floor(result.timeTakenSeconds / 60)}m` : "—"}</Text>
-          <Text style={shareStyles.statPillLbl}>Time</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#7c3aed" }]}>{result.timeTakenSeconds > 0 ? `${Math.floor(result.timeTakenSeconds / 60)}m` : "—"}</Text>
+          <Text style={[shareStyles.statPillLbl, { color: "#6b7280" }]}>Time</Text>
         </View>
       </View>
 
       {/* Performance message */}
-      <View style={[shareStyles.perfRow, { backgroundColor: pctColor + "20", borderColor: pctColor + "40" }]}>
+      <View style={[shareStyles.perfRow, { backgroundColor: pctColor + "15", borderColor: pctColor + "40" }]}>
         <Text style={shareStyles.perfEmoji}>{perfEmoji}</Text>
         <Text style={[shareStyles.perfMsg, { color: pctColor }]} numberOfLines={2}>{perfMsg}</Text>
       </View>
 
       {/* Footer */}
       <View style={shareStyles.footer}>
-        <Text style={[shareStyles.footerTag, { color: "#ffffff40" }]}>
+        <Text style={shareStyles.footerTag}>
           {userName ? `${userName} on ` : ""}
           <Text style={{ color: accentColor, fontWeight: "800" }}>rankyatra.in</Text>
           {" • Compete. Rank. Win."}
@@ -562,16 +564,15 @@ const shareStyles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     gap: 16,
+    backgroundColor: "#ffffff",
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  brandDot: { width: 8, height: 8, borderRadius: 4 },
-  brandName: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
-  cardLabel: { fontSize: 10, fontWeight: "700", color: "#ffffff40", letterSpacing: 2, textTransform: "uppercase" },
+  logoImg: { width: 140, height: 44 },
+  cardLabel: { fontSize: 10, fontWeight: "700", color: "#94a3b8", letterSpacing: 2, textTransform: "uppercase" },
 
   examBlock: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -582,7 +583,7 @@ const shareStyles = StyleSheet.create({
   },
   catBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 },
   catBadgeText: { fontSize: 11, fontWeight: "700" },
-  examTitleText: { fontSize: 17, fontWeight: "800", color: "#fff", textAlign: "center", lineHeight: 22 },
+  examTitleText: { fontSize: 17, fontWeight: "800", color: "#0f172a", textAlign: "center", lineHeight: 22 },
 
   heroRow: { flexDirection: "row", alignItems: "stretch" },
   heroDivider: { width: 1, marginHorizontal: 12 },
@@ -596,7 +597,7 @@ const shareStyles = StyleSheet.create({
   },
   heroEmoji: { fontSize: 28 },
   heroVal: { fontSize: 20, fontWeight: "900" },
-  heroLbl: { fontSize: 11, color: "#ffffff50", fontWeight: "600" },
+  heroLbl: { fontSize: 11, color: "#64748b", fontWeight: "600" },
   pctCircle: {
     width: 48,
     height: 48,
@@ -612,7 +613,7 @@ const shareStyles = StyleSheet.create({
   statPill: { flex: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 3 },
   statPillIcon: { fontSize: 14 },
   statPillVal: { fontSize: 16, fontWeight: "800" },
-  statPillLbl: { fontSize: 9, color: "#ffffff50", fontWeight: "600" },
+  statPillLbl: { fontSize: 9, fontWeight: "600" },
 
   perfRow: {
     flexDirection: "row",
@@ -626,5 +627,5 @@ const shareStyles = StyleSheet.create({
   perfMsg: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
 
   footer: { alignItems: "center" },
-  footerTag: { fontSize: 12 },
+  footerTag: { fontSize: 12, color: "#94a3b8" },
 });
