@@ -756,8 +756,7 @@ export default function ChatScreen() {
       {/* KAV wraps only messages + input — header stays fixed above */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
-        enabled={Platform.OS === "ios"}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       {/* Messages */}
       {loading ? (
