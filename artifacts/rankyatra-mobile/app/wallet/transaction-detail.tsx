@@ -18,6 +18,7 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
 import * as IntentLauncher from "expo-intent-launcher";
+import * as FileSystem from "expo-file-system/legacy";
 import { showError, showSuccess } from "@/utils/alert";
 
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
@@ -160,28 +161,18 @@ export default function TransactionDetailScreen() {
       const shareText = buildShareText();
 
       if (Platform.OS === "android") {
-        // Android: save to gallery to get a content:// URI, then use
-        // ACTION_SEND intent that sends BOTH image + text caption together
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status === "granted") {
-          const asset = await MediaLibrary.createAssetAsync(uri);
-          // asset.uri on Android is a content:// Media Store URI
-          await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
-            type: "image/png",
-            extra: {
-              "android.intent.extra.STREAM": asset.uri,
-              "android.intent.extra.TEXT": shareText,
-              "android.intent.extra.SUBJECT": `Receipt ${invoiceNo}`,
-            },
-            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-          });
-        } else {
-          // No gallery permission — share image only
-          await Sharing.shareAsync(uri, {
-            mimeType: "image/png",
-            dialogTitle: `Share Receipt ${invoiceNo}`,
-          });
-        }
+        // Android: convert file:// URI → content:// FileProvider URI so apps
+        // like WhatsApp can read the image, then ACTION_SEND with image + text
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
+          type: "image/png",
+          extra: {
+            "android.intent.extra.STREAM": contentUri,
+            "android.intent.extra.TEXT": shareText,
+            "android.intent.extra.SUBJECT": `Receipt ${invoiceNo}`,
+          },
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        });
       } else {
         // iOS: Share.share natively supports url (image) + message (text) together
         await Share.share({
