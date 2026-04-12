@@ -72,7 +72,7 @@ router.post("/exams/:examId/register", requireAuth, async (req, res): Promise<vo
     .returning();
 
   try {
-    await sendContestJoinEmail(user.email, user.name, exam.title, exam.entryFee, exam.startTime, newBalance);
+    await sendContestJoinEmail(user.email, user.name, exam.title, exam.entryFee, exam.startTime, newBalance, examId, registration.id);
   } catch (err) { console.error("Contest join email failed:", err); }
 
   res.status(201).json({

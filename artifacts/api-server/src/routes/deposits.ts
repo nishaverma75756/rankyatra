@@ -47,7 +47,7 @@ async function creditDepositAndWallet(depositId: number, paymentId: string): Pro
   });
 
   try {
-    await sendDepositConfirmedEmail(user.email, user.name, String(amount), String(newBalance), paymentId);
+    await sendDepositConfirmedEmail(user.email, user.name, String(amount), String(newBalance), paymentId, depositId);
   } catch (_) {}
 
   return true;
@@ -538,6 +538,30 @@ router.get("/wallet/deposits/my", requireAuth, async (req, res): Promise<void> =
   );
 });
 
+router.get("/wallet/deposits/:id", requireAuth, async (req, res): Promise<void> => {
+  const depositId = parseInt(req.params.id);
+  if (isNaN(depositId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [d] = await db
+    .select()
+    .from(walletDepositsTable)
+    .where(and(eq(walletDepositsTable.id, depositId), eq(walletDepositsTable.userId, req.user!.id)));
+
+  if (!d) { res.status(404).json({ error: "Deposit not found" }); return; }
+
+  res.json({
+    id: d.id,
+    amount: d.amount,
+    utrNumber: d.utrNumber,
+    paymentMethod: d.paymentMethod,
+    paymentRequestId: d.paymentRequestId,
+    status: d.status,
+    adminNote: d.adminNote,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+  });
+});
+
 router.get("/admin/deposits", requireAdmin, async (_req, res): Promise<void> => {
   const deposits = await db
     .select()
@@ -616,7 +640,7 @@ router.patch("/admin/deposits/:id", requireAdmin, async (req, res): Promise<void
       });
 
       try {
-        await sendDepositConfirmedEmail(user.email, user.name, String(amount), String(newBalance), ref);
+        await sendDepositConfirmedEmail(user.email, user.name, String(amount), String(newBalance), ref, depositId);
       } catch (err) { console.error("Deposit confirmed email failed:", err); }
     }
   }

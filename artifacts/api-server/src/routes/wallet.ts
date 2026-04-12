@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, walletTransactionsTable, usersTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -23,6 +23,29 @@ router.get("/wallet/transactions", requireAuth, async (req, res): Promise<void> 
       createdAt: t.createdAt.toISOString(),
     }))
   );
+});
+
+router.get("/wallet/transactions/:id", requireAuth, async (req, res): Promise<void> => {
+  const txId = parseInt(req.params.id);
+  const [tx] = await db
+    .select()
+    .from(walletTransactionsTable)
+    .where(and(eq(walletTransactionsTable.id, txId), eq(walletTransactionsTable.userId, req.user!.id)));
+
+  if (!tx) {
+    res.status(404).json({ error: "Transaction not found" });
+    return;
+  }
+
+  res.json({
+    id: tx.id,
+    userId: tx.userId,
+    amount: tx.amount,
+    type: tx.type,
+    description: tx.description,
+    balanceAfter: tx.balanceAfter,
+    createdAt: tx.createdAt.toISOString(),
+  });
 });
 
 router.get("/wallet/balance", requireAuth, async (req, res): Promise<void> => {

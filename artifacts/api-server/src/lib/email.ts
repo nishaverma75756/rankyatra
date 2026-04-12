@@ -39,7 +39,9 @@ export async function sendVerificationOtpEmail(toEmail: string, otp: string, nam
   });
 }
 
-export async function sendDepositConfirmedEmail(toEmail: string, name: string, amount: string, newBalance: string, utrNumber: string) {
+export async function sendDepositConfirmedEmail(toEmail: string, name: string, amount: string, newBalance: string, utrNumber: string, depositId?: number) {
+  const invoiceNo = depositId ? `RY-DEP-${String(depositId).padStart(6, "0")}` : `RY-DEP-XXXXXX`;
+  const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
   await transporter.sendMail({
     from: `"RankYatra" <${process.env.SMTP_USER}>`,
     to: toEmail,
@@ -47,15 +49,53 @@ export async function sendDepositConfirmedEmail(toEmail: string, name: string, a
     html: `
       <div style="${baseStyle}">
         ${header}
-        <h2 style="font-size:20px;">Hello, ${name}!</h2>
-        <p style="color:#d4d6e0;">Your wallet deposit has been approved successfully.</p>
-        <div style="background:#1a1929;border-radius:12px;padding:20px;margin:20px 0;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="color:#a7a9be;padding:8px 0;font-size:14px;">Amount Added</td><td style="color:#4ade80;font-weight:800;font-size:18px;text-align:right;">+ ₹${amount}</td></tr>
-            <tr><td style="color:#a7a9be;padding:8px 0;font-size:14px;">UTR Number</td><td style="color:#fffffe;font-size:14px;text-align:right;">${utrNumber}</td></tr>
-            <tr style="border-top:1px solid #2e2d3d;"><td style="color:#a7a9be;padding:12px 0 4px;font-size:14px;">New Wallet Balance</td><td style="color:#f5a623;font-weight:800;font-size:20px;text-align:right;">₹${newBalance}</td></tr>
+        <h2 style="font-size:20px;text-align:center;">Wallet Credited Successfully! 🎉</h2>
+        <p style="color:#d4d6e0;text-align:center;">Hello <strong>${name}</strong>, your deposit has been approved.</p>
+
+        <!-- Invoice Block -->
+        <div style="background:#1a1929;border-radius:14px;padding:0;margin:20px 0;overflow:hidden;border:1px solid #2e2d3d;">
+          <!-- Invoice Header -->
+          <div style="background:#f5a62315;border-bottom:1px solid #2e2d3d;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="color:#f5a623;font-size:16px;font-weight:900;letter-spacing:1px;">RANKYATRA</div>
+              <div style="color:#a7a9be;font-size:11px;margin-top:2px;">rankyatra.in</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:#a7a9be;font-size:10px;text-transform:uppercase;letter-spacing:2px;">RECEIPT</div>
+              <div style="color:#fffffe;font-size:13px;font-weight:700;margin-top:2px;">${invoiceNo}</div>
+            </div>
+          </div>
+          <!-- Amount -->
+          <div style="text-align:center;padding:20px;">
+            <div style="color:#a7a9be;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Amount Deposited</div>
+            <div style="color:#4ade80;font-size:36px;font-weight:900;">+₹${amount}</div>
+            <div style="display:inline-block;background:#4ade8020;color:#4ade80;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;margin-top:8px;">✓ CREDITED</div>
+          </div>
+          <!-- Details Table -->
+          <table style="width:100%;border-collapse:collapse;padding:0 20px;">
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Date & Time</td>
+              <td style="color:#fffffe;font-size:13px;text-align:right;padding:10px 20px;">${now} IST</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">UTR / Reference</td>
+              <td style="color:#fffffe;font-size:13px;font-weight:700;text-align:right;padding:10px 20px;">${utrNumber}</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Credited To</td>
+              <td style="color:#fffffe;font-size:13px;text-align:right;padding:10px 20px;">${name}</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;background:#f5a62310;">
+              <td style="color:#a7a9be;padding:12px 20px;font-size:13px;">New Wallet Balance</td>
+              <td style="color:#f5a623;font-size:18px;font-weight:900;text-align:right;padding:12px 20px;">₹${newBalance}</td>
+            </tr>
           </table>
+          <!-- Footer Note -->
+          <div style="border-top:1px solid #2e2d3d;padding:12px 20px;text-align:center;">
+            <span style="color:#a7a9be;font-size:11px;">Invoice No: ${invoiceNo} — Keep this for your records</span>
+          </div>
         </div>
+
         ${btn("Browse Exams →", `${APP_URL}/exams`)}
         ${footer}
       </div>`,
@@ -85,8 +125,10 @@ export async function sendDepositRejectedEmail(toEmail: string, name: string, am
   });
 }
 
-export async function sendContestJoinEmail(toEmail: string, name: string, examTitle: string, entryFee: string, startTime: Date, newBalance: string) {
+export async function sendContestJoinEmail(toEmail: string, name: string, examTitle: string, entryFee: string, startTime: Date, newBalance: string, examId?: number, registrationId?: number) {
   const startStr = startTime.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+  const invoiceNo = registrationId ? `RY-REG-${String(registrationId).padStart(6, "0")}` : `RY-REG-XXXXXX`;
+  const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
   await transporter.sendMail({
     from: `"RankYatra" <${process.env.SMTP_USER}>`,
     to: toEmail,
@@ -94,17 +136,61 @@ export async function sendContestJoinEmail(toEmail: string, name: string, examTi
     html: `
       <div style="${baseStyle}">
         ${header}
-        <h2 style="font-size:20px;">Get ready, ${name}!</h2>
-        <p style="color:#d4d6e0;">You have successfully registered for the following contest.</p>
-        <div style="background:#1a1929;border-radius:12px;padding:20px;margin:20px 0;">
+        <h2 style="font-size:20px;text-align:center;">Registration Confirmed! 🏆</h2>
+        <p style="color:#d4d6e0;text-align:center;">Get ready, <strong>${name}</strong>! You are all set.</p>
+
+        <!-- Invoice Block -->
+        <div style="background:#1a1929;border-radius:14px;padding:0;margin:20px 0;overflow:hidden;border:1px solid #2e2d3d;">
+          <!-- Invoice Header -->
+          <div style="background:#f5a62315;border-bottom:1px solid #2e2d3d;padding:16px 20px;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td>
+                  <div style="color:#f5a623;font-size:16px;font-weight:900;letter-spacing:1px;">RANKYATRA</div>
+                  <div style="color:#a7a9be;font-size:11px;margin-top:2px;">rankyatra.in</div>
+                </td>
+                <td style="text-align:right;">
+                  <div style="color:#a7a9be;font-size:10px;text-transform:uppercase;letter-spacing:2px;">CONTEST RECEIPT</div>
+                  <div style="color:#fffffe;font-size:13px;font-weight:700;margin-top:2px;">${invoiceNo}</div>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <!-- Contest Name -->
+          <div style="text-align:center;padding:20px 20px 12px;">
+            <div style="color:#a7a9be;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Contest Joined</div>
+            <div style="color:#fffffe;font-size:18px;font-weight:800;">${examTitle}</div>
+          </div>
+          <!-- Details Table -->
           <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="color:#a7a9be;padding:8px 0;font-size:14px;">Contest</td><td style="color:#fffffe;font-weight:700;font-size:15px;text-align:right;">${examTitle}</td></tr>
-            <tr><td style="color:#a7a9be;padding:8px 0;font-size:14px;">Entry Fee</td><td style="color:#f87171;font-weight:800;font-size:16px;text-align:right;">- ₹${entryFee}</td></tr>
-            <tr><td style="color:#a7a9be;padding:8px 0;font-size:14px;">Starts At</td><td style="color:#fbbf24;font-weight:700;font-size:14px;text-align:right;">${startStr} IST</td></tr>
-            <tr style="border-top:1px solid #2e2d3d;"><td style="color:#a7a9be;padding:12px 0 4px;font-size:14px;">Wallet Balance</td><td style="color:#f5a623;font-weight:800;font-size:18px;text-align:right;">₹${newBalance}</td></tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Registration Date</td>
+              <td style="color:#fffffe;font-size:13px;text-align:right;padding:10px 20px;">${now} IST</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Contest Starts</td>
+              <td style="color:#fbbf24;font-size:13px;font-weight:700;text-align:right;padding:10px 20px;">${startStr} IST</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Registered By</td>
+              <td style="color:#fffffe;font-size:13px;text-align:right;padding:10px 20px;">${name}</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;">
+              <td style="color:#a7a9be;padding:10px 20px;font-size:13px;">Entry Fee Paid</td>
+              <td style="color:#f87171;font-size:16px;font-weight:800;text-align:right;padding:10px 20px;">- ₹${entryFee}</td>
+            </tr>
+            <tr style="border-top:1px solid #2e2d3d;background:#f5a62310;">
+              <td style="color:#a7a9be;padding:12px 20px;font-size:13px;">Wallet Balance</td>
+              <td style="color:#f5a623;font-size:18px;font-weight:900;text-align:right;padding:12px 20px;">₹${newBalance}</td>
+            </tr>
           </table>
+          <!-- Footer Note -->
+          <div style="border-top:1px solid #2e2d3d;padding:12px 20px;text-align:center;">
+            <span style="color:#a7a9be;font-size:11px;">Invoice No: ${invoiceNo} — Keep this for your records</span>
+          </div>
         </div>
-        <p style="color:#d4d6e0;font-size:14px;">Please be on your dashboard when the contest begins. Good luck! 💪</p>
+
+        <p style="color:#d4d6e0;font-size:14px;text-align:center;">Please be on your dashboard when the contest begins. Good luck! 💪</p>
         ${btn("Go to Dashboard →", `${APP_URL}/dashboard`)}
         ${footer}
       </div>`,

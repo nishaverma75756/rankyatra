@@ -323,7 +323,23 @@ export default function WalletScreen() {
               const isCredit = tx.type === "credit";
               const txIcon = getTxIcon(tx.description, tx.type);
               return (
-                <View key={tx.id} style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  key={tx.id}
+                  style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  activeOpacity={0.75}
+                  onPress={() => router.push({
+                    pathname: "/wallet/transaction-detail",
+                    params: {
+                      type: "tx",
+                      id: String(tx.id),
+                      amount: String(tx.amount),
+                      txType: tx.type,
+                      description: tx.description,
+                      balanceAfter: String(tx.balanceAfter),
+                      createdAt: tx.createdAt,
+                    },
+                  } as any)}
+                >
                   <View style={[styles.txIcon, { backgroundColor: txIcon.bg }]}>
                     <Feather name={txIcon.name as any} size={18} color={txIcon.color} />
                   </View>
@@ -343,7 +359,8 @@ export default function WalletScreen() {
                       Bal: ₹{Number(tx.balanceAfter).toLocaleString("en-IN")}
                     </Text>
                   </View>
-                </View>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
               );
             })
           )
@@ -359,7 +376,25 @@ export default function WalletScreen() {
               const utr = d.utrNumber ?? d.utr_number;
               const ts  = d.createdAt ?? d.created_at;
               return (
-                <View key={d.id} style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  key={d.id}
+                  style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  activeOpacity={0.75}
+                  onPress={() => router.push({
+                    pathname: "/wallet/transaction-detail",
+                    params: {
+                      type: "deposit",
+                      id: String(d.id),
+                      amount: String(d.amount),
+                      txType: "credit",
+                      utrNumber: utr ?? "",
+                      status: d.status,
+                      paymentMethod: (d as any).paymentMethod ?? "manual",
+                      adminNote: (d as any).adminNote ?? "",
+                      createdAt: ts ?? "",
+                    },
+                  } as any)}
+                >
                   <View style={[styles.txIcon, { backgroundColor: "#10b98120" }]}>
                     <Feather name="arrow-down-circle" size={18} color="#059669" />
                   </View>
@@ -379,7 +414,8 @@ export default function WalletScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
               );
             })
           )
@@ -397,7 +433,26 @@ export default function WalletScreen() {
               const utr     = w.utrNumber ?? w.utr_number;
               const ts      = w.createdAt ?? w.created_at;
               return (
-                <View key={w.id} style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  key={w.id}
+                  style={[styles.txRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  activeOpacity={0.75}
+                  onPress={() => router.push({
+                    pathname: "/wallet/transaction-detail",
+                    params: {
+                      type: "withdrawal",
+                      id: String(w.id),
+                      amount: String(w.amount),
+                      txType: "debit",
+                      bankName: bank ?? "",
+                      accountNumber: acct ?? "",
+                      utrNumber: utr ?? "",
+                      status: w.status,
+                      adminNote: (w as any).adminNote ?? "",
+                      createdAt: ts ?? "",
+                    },
+                  } as any)}
+                >
                   <View style={[styles.txIcon, { backgroundColor: "#ef444420" }]}>
                     <Feather name="arrow-up-circle" size={18} color="#dc2626" />
                   </View>
@@ -419,7 +474,8 @@ export default function WalletScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
               );
             })
           )
