@@ -145,7 +145,7 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
             </View>
           </View>
           <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
-            UID-{formatUID(user?.id ?? 0)}
+            UID-{formatUID(user?.id ?? 0, user?.customUid)}
           </Text>
           <Text style={[styles.postTime, { color: colors.mutedForeground, marginTop: 1 }]}>{timeAgo(post.createdAt)}</Text>
         </View>
@@ -458,7 +458,7 @@ export default function UserPublicProfile() {
   const initials = (u?.name ?? "?").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
   const skillColor = SKILL_COLORS[u?.skillLevel] ?? "#6b7280";
   const isKyc = u?.verificationStatus === "verified";
-  const uid = u?.id ? `UID-RY${String(u.id).padStart(10, "0")}` : "";
+  const uid = u?.id ? `UID-${formatUID(u.id, u.customUid)}` : "";
   const isFollowing: boolean = u?.isFollowing ?? false;
   const followsYou: boolean = u?.followsYou ?? false;
   const isMutating = followMutation.isPending || unfollowMutation.isPending;

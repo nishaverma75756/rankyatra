@@ -105,7 +105,8 @@ export default function ProfileScreen() {
   const [loadingSettings, setLoadingSettings] = useState(false);
 
   const copyUID = useCallback(async () => {
-    const uid = `UID-RY${String(user?.id ?? "").padStart(10, "0")}`;
+    const uidNum = user?.customUid ?? user?.id ?? "";
+    const uid = `UID-RY${String(uidNum).padStart(10, "0")}`;
     await Clipboard.setStringAsync(uid);
     setUidCopied(true);
     if (Platform.OS === "android") {
@@ -547,7 +548,7 @@ export default function ProfileScreen() {
               style={styles.uidChip}
             >
               <Text style={styles.uidChipText}>
-                UID-RY{String(user.id).padStart(10, "0")}
+                UID-RY{String(user.customUid ?? user.id).padStart(10, "0")}
               </Text>
               <Feather
                 name={uidCopied ? "check" : "copy"}

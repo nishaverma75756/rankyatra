@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { Platform, AppState, type AppStateStatus } from "react-native";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface AuthUser {
@@ -14,6 +14,7 @@ interface AuthUser {
   govtId?: string | null;
   verificationStatus?: string;
   canPostReels?: boolean;
+  customUid?: number | null;
   preferences?: string[];
   is_admin?: boolean;
   wallet_balance?: string;
@@ -44,6 +45,7 @@ function normalizeUser(raw: any): AuthUser {
     govtId: raw.govtId ?? null,
     verificationStatus: raw.verificationStatus ?? "not_submitted",
     canPostReels: raw.canPostReels ?? false,
+    customUid: raw.customUid ?? null,
     preferences: Array.isArray(raw.preferences) ? raw.preferences : [],
   };
 }
@@ -56,6 +58,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const tokenRef = useRef<string | null>(null);
+
+  // Keep tokenRef in sync so AppState handler can read current token
+  useEffect(() => { tokenRef.current = token; }, [token]);
+
+  // Refresh user from server (called on startup + whenever app comes to foreground)
+  const refreshUserFromServer = useCallback(async (currentToken: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      }).catch(() => null);
+      if (res && res.ok) {
+        const freshUser = await res.json().catch(() => null);
+        if (freshUser) {
+          const normalized = normalizeUser(freshUser);
+          await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized)).catch(() => {});
+          setUser(normalized);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // AppState listener: re-fetch user from server when app comes to foreground
+  // so UID / profile changes made by admin are instantly visible
+  useEffect(() => {
+    const handler = (nextState: AppStateStatus) => {
+      if (nextState === "active" && tokenRef.current) {
+        refreshUserFromServer(tokenRef.current);
+      }
+    };
+    const sub = AppState.addEventListener("change", handler);
+    return () => sub.remove();
+  }, [refreshUserFromServer]);
 
   // Startup: load stored session and verify with server
   useEffect(() => {
