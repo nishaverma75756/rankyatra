@@ -6,9 +6,26 @@ import {
   registrationsTable,
   submissionsTable,
   walletTransactionsTable,
+  walletDepositsTable,
+  walletWithdrawalsTable,
   verificationsTable,
+  followsTable,
+  notificationsTable,
+  postsTable,
+  postLikesTable,
+  postCommentsTable,
+  userRolesTable,
+  groupMembersTable,
+  reportsTable,
+  userBlocksTable,
+  userAnswersTable,
+  reels,
+  reelLikes,
+  reelCommentsTable,
+  reelCommentLikesTable,
+  pushTokensTable,
 } from "@workspace/db";
-import { eq, count, sum, desc, asc, like, sql } from "drizzle-orm";
+import { eq, count, sum, desc, asc, like, sql, or } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewares/auth";
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
@@ -193,6 +210,75 @@ router.patch("/admin/users/:userId/custom-uid", requireSuperAdmin, async (req: a
 
   if (!updated) { res.status(404).json({ error: "User not found" }); return; }
   res.json({ id: updated.id, customUid: updated.customUid ?? null });
+});
+
+// ── Super admin only: full data reset for a user ──────────────────────────────
+router.post("/admin/users/:userId/reset-data", requireSuperAdmin, async (req: any, res): Promise<void> => {
+  const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
+
+  // Protect super admin from being reset
+  const [target] = await db.select({ id: usersTable.id, isSuperAdmin: usersTable.isSuperAdmin }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  if (target.isSuperAdmin) { res.status(403).json({ error: "Super admin ka data reset nahi ho sakta" }); return; }
+
+  try {
+    // 1. Social data — likes & comments by user
+    await db.delete(postLikesTable).where(eq(postLikesTable.userId, userId));
+    await db.delete(postCommentsTable).where(eq(postCommentsTable.userId, userId));
+
+    // 2. User's own posts (cascade deletes post_likes + post_comments on those posts)
+    await db.delete(postsTable).where(eq(postsTable.userId, userId));
+
+    // 3. Reels
+    await db.delete(reelCommentLikesTable).where(eq(reelCommentLikesTable.userId, userId));
+    await db.delete(reelCommentsTable).where(eq(reelCommentsTable.userId, userId));
+    await db.delete(reelLikes).where(eq(reelLikes.userId, userId));
+    await db.delete(reels).where(eq(reels.userId, userId));
+
+    // 4. Exam data
+    await db.delete(userAnswersTable).where(eq(userAnswersTable.userId, userId));
+    await db.delete(submissionsTable).where(eq(submissionsTable.userId, userId));
+    await db.delete(registrationsTable).where(eq(registrationsTable.userId, userId));
+
+    // 5. Social relationships
+    await db.delete(followsTable).where(
+      or(eq(followsTable.followerId, userId), eq(followsTable.followingId, userId))
+    );
+    await db.delete(userBlocksTable).where(
+      or(eq(userBlocksTable.blockerId, userId), eq(userBlocksTable.blockedId, userId))
+    );
+
+    // 6. Notifications
+    await db.delete(notificationsTable).where(eq(notificationsTable.userId, userId));
+
+    // 7. KYC / verification
+    await db.delete(verificationsTable).where(eq(verificationsTable.userId, userId));
+
+    // 8. Wallet history
+    await db.delete(walletTransactionsTable).where(eq(walletTransactionsTable.userId, userId));
+    await db.delete(walletDepositsTable).where(eq(walletDepositsTable.userId, userId));
+    await db.delete(walletWithdrawalsTable).where(eq(walletWithdrawalsTable.userId, userId));
+
+    // 9. Roles & groups
+    await db.delete(userRolesTable).where(eq(userRolesTable.userId, userId));
+    await db.delete(groupMembersTable).where(eq(groupMembersTable.userId, userId));
+
+    // 10. Reports by this user
+    await db.delete(reportsTable).where(eq(reportsTable.reporterId, userId));
+
+    // 11. Push tokens
+    await db.delete(pushTokensTable).where(eq(pushTokensTable.userId, userId));
+
+    // 12. Reset wallet balance to 0
+    await db.update(usersTable)
+      .set({ walletBalance: "0.00", verificationStatus: "none" })
+      .where(eq(usersTable.id, userId));
+
+    res.json({ success: true, message: "User ka saara data reset ho gaya" });
+  } catch (e: any) {
+    console.error("[reset-data]", e);
+    res.status(500).json({ error: "Reset failed: " + (e?.message ?? "Unknown error") });
+  }
 });
 
 // ── Super admin only: update another admin's permissions ─────────────────────

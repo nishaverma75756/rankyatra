@@ -81,6 +81,11 @@ export default function AdminUserDetail() {
   const [uidInput, setUidInput] = useState("");
   const [savingUid, setSavingUid] = useState(false);
 
+  // Full data reset
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   const fetchRoles = async () => {
     if (!userId) return;
     try {
@@ -410,6 +415,26 @@ export default function AdminUserDetail() {
                 </div>
               )}
             </div>
+
+            {/* Super admin: Danger Zone — Full Data Reset */}
+            {isSuperAdmin && !isTargetSuperAdmin && (
+              <div className="mt-4 pt-4 border-t border-destructive/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-destructive uppercase tracking-widest">Danger Zone</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">User ka saara data permanently delete ho jayega</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/50 text-destructive hover:bg-destructive hover:text-white transition-colors"
+                    onClick={() => setShowResetModal(true)}
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" /> Full Data Reset
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Current permissions display (for existing admins) */}
             {isTargetAdmin && !isTargetSuperAdmin && targetPermissions.length > 0 && (
@@ -783,6 +808,62 @@ export default function AdminUserDetail() {
             )}
             <Button onClick={handleSaveCustomUid} disabled={savingUid}>
               {savingUid ? "Saving..." : "Save UID"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Full Data Reset Modal */}
+      <Dialog open={showResetModal} onOpenChange={(o) => { if (!o) { setShowResetModal(false); setResetConfirmText(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <X className="h-5 w-5" /> Full Data Reset
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{u?.name}</strong> ka <strong>saara data permanently delete</strong> ho jayega:<br />
+              Posts, reels, exam history, wallet balance, follows, KYC, roles — sab kuch.
+              <br /><br />
+              Account (naam, email, password) aur custom UID intact rahega.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-xs text-destructive font-medium">
+              Yeh action undo nahi hoga. Confirm karne ke liye neeche <strong>RESET</strong> type karo.
+            </div>
+            <Input
+              placeholder='Type "RESET" to confirm'
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              className="font-mono border-destructive/40 focus-visible:ring-destructive/30"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowResetModal(false); setResetConfirmText(""); }} disabled={resetting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={resetConfirmText !== "RESET" || resetting}
+              onClick={async () => {
+                setResetting(true);
+                try {
+                  const res = await fetch(`/api/admin/users/${userId}/reset-data`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+                  });
+                  if (!res.ok) { const e = await res.json(); throw e; }
+                  toast({ title: "Data reset ho gaya!", description: `${u?.name} ka saara data clean kar diya gaya.` });
+                  setShowResetModal(false);
+                  setResetConfirmText("");
+                  refetch();
+                } catch (e: any) {
+                  toast({ title: "Error", description: e?.error ?? "Reset failed", variant: "destructive" });
+                } finally { setResetting(false); }
+              }}
+            >
+              {resetting ? "Resetting..." : "Permanently Reset"}
             </Button>
           </DialogFooter>
         </DialogContent>
