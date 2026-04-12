@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  Share,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -143,17 +144,43 @@ export default function ExamResultScreen() {
         quality: 1,
         result: "tmpfile",
       });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: "image/png",
-          dialogTitle: "Share My Exam Result",
-        });
-      } else {
-        showError("Sharing not available on this device.");
+
+      const rankStr = result.rank ? `#${result.rank}` : "—";
+      const pctVal = result.totalQuestions > 0
+        ? Math.round((result.correctAnswers / result.totalQuestions) * 100)
+        : 0;
+      const shareEmoji = pctVal >= 80 ? "🎯" : pctVal >= 60 ? "👍" : pctVal >= 40 ? "📚" : "💪";
+      const motivationalLine = pctVal >= 80
+        ? "Excellent performance! Kept it up and nailed it! 🎯"
+        : pctVal >= 60
+        ? "Good job! A little more practice and you'll ace it! 👍"
+        : pctVal >= 40
+        ? "Keep going — every attempt makes you stronger! 📚"
+        : "Don't give up! Review the topics and try again. 💪";
+
+      const shareText = [
+        `${shareEmoji} Just completed an exam on RankYatra!`,
+        ``,
+        `📋 ${result.examTitle}`,
+        `🏷️ Category: ${result.examCategory}`,
+        ``,
+        `🏆 Rank: ${rankStr}`,
+        `📊 Score: ${result.score} pts  |  Accuracy: ${pctVal}%`,
+        `✅ Correct: ${result.correctAnswers}  ❌ Wrong: ${result.wrongAnswers}  ⏭️ Skipped: ${result.skippedAnswers}`,
+        ``,
+        `${motivationalLine}`,
+        ``,
+        `🌐 rankyatra.in — Compete. Rank. Win.`,
+      ].join("\n");
+
+      await Share.share(
+        { message: shareText, title: `My Exam Result — ${result.examTitle}` },
+        { dialogTitle: "Share My Result" }
+      );
+    } catch (e: any) {
+      if (e?.message !== "User did not share") {
+        showError("Could not share result. Please try again.");
       }
-    } catch {
-      showError("Could not generate result image. Please try again.");
     } finally {
       setSharing(false);
     }
