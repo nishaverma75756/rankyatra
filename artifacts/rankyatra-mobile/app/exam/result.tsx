@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  Platform,
   Share,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,6 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import * as MediaLibrary from "expo-media-library";
+import * as IntentLauncher from "expo-intent-launcher";
 import { showError } from "@/utils/alert";
 
 interface ExamResult {
@@ -173,12 +176,38 @@ export default function ExamResultScreen() {
         `🌐 rankyatra.in — Compete. Rank. Win.`,
       ].join("\n");
 
-      await Share.share(
-        { message: shareText, title: `My Exam Result — ${result.examTitle}` },
-        { dialogTitle: "Share My Result" }
-      );
+      if (Platform.OS === "android") {
+        // Android: save to gallery to get content:// URI, then share image + text together
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === "granted") {
+          const asset = await MediaLibrary.createAssetAsync(uri);
+          await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
+            type: "image/png",
+            extra: {
+              "android.intent.extra.STREAM": asset.uri,
+              "android.intent.extra.TEXT": shareText,
+              "android.intent.extra.SUBJECT": `My Result — ${result.examTitle}`,
+            },
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          });
+        } else {
+          // No gallery permission — share image only
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: "Share My Result",
+          });
+        }
+      } else {
+        // iOS: Share.share natively supports url (image) + message (text) together
+        await Share.share({
+          url: uri,
+          message: shareText,
+          title: `My Result — ${result.examTitle}`,
+        });
+      }
     } catch (e: any) {
-      if (e?.message !== "User did not share") {
+      const msg = e?.message ?? "";
+      if (!msg.includes("cancelled") && !msg.includes("User did not share") && !msg.includes("dismissed")) {
         showError("Could not share result. Please try again.");
       }
     } finally {
