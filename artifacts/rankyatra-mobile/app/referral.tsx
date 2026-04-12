@@ -266,33 +266,57 @@ export default function ReferralScreen() {
 
         {/* Referral List */}
         {referrals.length > 0 && (
-          <View style={[styles.card, styles.listCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <Text style={[styles.cardTitle, { color: c.foreground }]}>Referred Users ({referrals.length})</Text>
-            {referrals.map((r) => (
-              <View key={r.id} style={[styles.referralRow, { borderTopColor: c.border }]}>
-                <View style={styles.referralInfo}>
-                  <Text style={[styles.referralName, { color: c.foreground }]}>{r.name}</Text>
-                  <Text style={[styles.referralDate, { color: c.mutedForeground }]}>
-                    {new Date(r.joinedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.statusBadge,
-                  r.status === "completed" && { backgroundColor: "#dcfce7" },
-                  r.status === "pending" && { backgroundColor: "#fef9c3" },
-                  r.status === "blocked" && { backgroundColor: "#fee2e2" },
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    r.status === "completed" && { color: "#16a34a" },
-                    r.status === "pending" && { color: "#ca8a04" },
-                    r.status === "blocked" && { color: "#dc2626" },
-                  ]}>
-                    {r.status === "completed" ? "✅ ₹20 Credited" : r.status === "pending" ? "⏳ Pending" : "❌ Blocked"}
-                  </Text>
-                </View>
+          <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+            {/* Section header */}
+            <View style={styles.referralListHeader}>
+              <View style={[styles.referralListIconBox, { backgroundColor: "#f9731618" }]}>
+                <Feather name="users" size={16} color="#f97316" />
               </View>
-            ))}
+              <Text style={[styles.cardTitle, { color: c.foreground, marginBottom: 0, flex: 1 }]}>
+                Referred Users
+              </Text>
+              <View style={[styles.referralCountBadge, { backgroundColor: c.primary + "18" }]}>
+                <Text style={[styles.referralCountText, { color: c.primary }]}>{referrals.length}</Text>
+              </View>
+            </View>
+
+            <View style={[styles.referralDivider, { backgroundColor: c.border }]} />
+
+            {referrals.map((r, idx) => {
+              const initials = r.name.trim().split(" ").slice(0, 2).map((w: string) => w[0] ?? "").join("").toUpperCase() || "?";
+              const avatarColor = r.status === "completed" ? "#059669" : r.status === "pending" ? "#d97706" : "#dc2626";
+              const statusCfg = r.status === "completed"
+                ? { bg: "#dcfce7", text: "#16a34a", icon: "check-circle" as const, label: "₹20 Credited" }
+                : r.status === "pending"
+                ? { bg: "#fef9c3", text: "#ca8a04", icon: "clock" as const, label: "Pending" }
+                : { bg: "#fee2e2", text: "#dc2626", icon: "x-circle" as const, label: "Blocked" };
+
+              return (
+                <View key={r.id} style={[styles.referralCard, idx > 0 && { marginTop: 10 }]}>
+                  {/* Avatar with initials */}
+                  <View style={[styles.referralAvatar, { backgroundColor: avatarColor + "18" }]}>
+                    <Text style={[styles.referralAvatarText, { color: avatarColor }]}>{initials}</Text>
+                  </View>
+
+                  {/* Name + date */}
+                  <View style={styles.referralInfo}>
+                    <Text style={[styles.referralName, { color: c.foreground }]} numberOfLines={1}>{r.name}</Text>
+                    <View style={styles.referralMetaRow}>
+                      <Feather name="calendar" size={10} color={c.mutedForeground} />
+                      <Text style={[styles.referralDate, { color: c.mutedForeground }]}>
+                        {new Date(r.joinedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Status pill */}
+                  <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+                    <Feather name={statusCfg.icon} size={11} color={statusCfg.text} />
+                    <Text style={[styles.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -330,7 +354,6 @@ const styles = StyleSheet.create({
   heroBadge: { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   heroBadgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   card: { borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1 },
-  listCard: { padding: 0, paddingTop: 16 },
   cardTitle: { fontSize: 15, fontWeight: "800", marginBottom: 12 },
   linkBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, padding: 12, marginBottom: 10 },
   linkText: { flex: 1, fontSize: 12, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
@@ -349,11 +372,19 @@ const styles = StyleSheet.create({
   stepNum: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", shrink: 0 } as any,
   stepNumText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   stepText: { flex: 1, fontSize: 13, lineHeight: 19 },
-  referralRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
+  referralListHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  referralListIconBox: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  referralCountBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, minWidth: 28, alignItems: "center" },
+  referralCountText: { fontSize: 13, fontWeight: "800" },
+  referralDivider: { height: 1, marginBottom: 14 },
+  referralCard: { flexDirection: "row", alignItems: "center", gap: 12 },
+  referralAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  referralAvatarText: { fontSize: 16, fontWeight: "900" },
   referralInfo: { flex: 1 },
-  referralName: { fontSize: 14, fontWeight: "700" },
-  referralDate: { fontSize: 11, marginTop: 1 },
-  statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  referralName: { fontSize: 14, fontWeight: "700", marginBottom: 3 },
+  referralMetaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  referralDate: { fontSize: 11 },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, flexShrink: 0 },
   statusText: { fontSize: 11, fontWeight: "700" },
   emptyBox: { alignItems: "center", paddingVertical: 30, gap: 10 },
   emptyText: { fontSize: 13, textAlign: "center" },
