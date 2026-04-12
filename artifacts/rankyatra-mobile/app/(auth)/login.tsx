@@ -52,7 +52,7 @@ export default function LoginScreen() {
       router.replace("/(tabs)/");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showError("Login Failed", e?.response?.data?.message || e?.message || "Invalid credentials.");
+      showError("Login Failed", e?.data?.error || e?.data?.message || "Invalid credentials.");
     } finally {
       setLoading(false);
     }

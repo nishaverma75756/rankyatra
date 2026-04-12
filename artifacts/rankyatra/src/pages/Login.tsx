@@ -44,6 +44,9 @@ export default function Login() {
   function getErrorMessage(error: any): { message: string; notFound?: boolean } {
     if (error?.status === 403) return { message: "Account is blocked. Contact admin." };
     const msg = error?.data?.error || error?.data?.message || (error?.message && !error.message.startsWith("HTTP") ? error.message : null);
+    if (msg && msg.toLowerCase().includes("google")) {
+      return { message: msg };
+    }
     if (msg === "Invalid email or password" || error?.status === 401) {
       return { message: "Email ya password sahi nahi hai. Agar account nahi hai to pehle signup karo.", notFound: true };
     }
