@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  Share,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,8 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
-import * as Print from "expo-print";
-import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { showError, showSuccess } from "@/utils/alert";
 
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
@@ -43,91 +43,6 @@ function fmtTime(iso: string) {
 
 function fmtAmt(amt: string | number) {
   return Number(amt).toLocaleString("en-IN", { minimumFractionDigits: 2 });
-}
-
-function buildReceiptHtml(params: Record<string, string>, invoiceNo: string, isCredit: boolean, isDeposit: boolean, isWithdrawal: boolean, isTx: boolean) {
-  const amountColor = isCredit ? "#059669" : "#dc2626";
-  const amountPrefix = isCredit ? "+" : "-";
-  const amountLabel = isDeposit ? "Amount Deposited" : isWithdrawal ? "Amount Withdrawn" : isCredit ? "Amount Credited" : "Amount Debited";
-  const statusLabel = (params.status === "success" || params.status === "approved") ? "Credited" : params.status === "rejected" ? "Rejected" : "Pending Review";
-
-  const rows: { label: string; value: string; highlight?: boolean; valueColor?: string }[] = [];
-  rows.push({ label: "Date", value: fmtDate(params.createdAt ?? "") });
-  rows.push({ label: "Time", value: fmtTime(params.createdAt ?? "") });
-
-  if (isDeposit) {
-    rows.push({ label: "Payment Method", value: params.paymentMethod === "instamojo" ? "Instamojo (Online)" : params.paymentMethod === "referral_bonus" ? "Referral Bonus" : "Manual UPI" });
-    if (params.utrNumber) rows.push({ label: "UTR / Reference", value: params.utrNumber, highlight: true });
-    if (params.adminNote) rows.push({ label: "Admin Note", value: params.adminNote });
-  }
-  if (isWithdrawal) {
-    if (params.bankName) rows.push({ label: "Bank", value: params.bankName });
-    if (params.accountNumber) rows.push({ label: "Account", value: `••••${params.accountNumber.slice(-4)}` });
-    if (params.ifsc) rows.push({ label: "IFSC", value: params.ifsc });
-    if (params.utrNumber) rows.push({ label: "UTR / Reference", value: params.utrNumber, highlight: true });
-    if (params.adminNote) rows.push({ label: "Remark", value: params.adminNote });
-  }
-  if (isTx) {
-    rows.push({ label: "Description", value: params.description ?? "" });
-    rows.push({ label: "Type", value: params.txType === "credit" ? "Credit (Received)" : "Debit (Spent)", valueColor: params.txType === "credit" ? "#059669" : "#dc2626" });
-    if (params.balanceAfter) rows.push({ label: "Balance After", value: `₹${fmtAmt(params.balanceAfter)}`, highlight: true });
-  }
-  rows.push({ label: "Invoice No.", value: invoiceNo });
-  rows.push({ label: "Transaction ID", value: `#${params.id}` });
-
-  const rowsHtml = rows.map(r => `
-    <tr>
-      <td style="padding:10px 16px;color:#6b7280;font-size:13px;border-bottom:1px solid #f1f5f9;">${r.label}</td>
-      <td style="padding:10px 16px;text-align:right;font-weight:${r.highlight ? "700" : "600"};font-size:13px;color:${r.valueColor ?? "#0f172a"};border-bottom:1px solid #f1f5f9;">${r.value}</td>
-    </tr>`).join("");
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, Arial, sans-serif; background:#f8fafc; padding:24px; }
-  .card { background:#fff; border-radius:20px; border:1px solid #e2e8f0; max-width:480px; margin:0 auto; overflow:hidden; }
-  .header { text-align:center; padding:28px 24px 20px; border-bottom:1px solid #f1f5f9; }
-  .logo-text { font-size:28px; font-weight:900; color:#f97316; letter-spacing:-0.5px; }
-  .logo-sub { font-size:11px; color:#94a3b8; letter-spacing:3px; text-transform:uppercase; margin-top:2px; }
-  .receipt-label { font-size:11px; font-weight:700; letter-spacing:3px; color:#94a3b8; text-transform:uppercase; margin-top:12px; }
-  .invoice-no { font-size:15px; font-weight:800; color:#0f172a; margin-top:4px; }
-  .amount-block { margin:20px; padding:20px; border-radius:14px; text-align:center; background:${isCredit ? "#f0fdf4" : "#fef2f2"}; border:1px solid ${isCredit ? "#bbf7d0" : "#fecaca"}; }
-  .amount-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:#6b7280; }
-  .amount-big { font-size:40px; font-weight:900; color:${amountColor}; margin-top:4px; }
-  .status-pill { display:inline-block; margin-top:10px; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700; background:${statusLabel === "Credited" ? "#d1fae5" : statusLabel === "Rejected" ? "#fee2e2" : "#fef3c7"}; color:${statusLabel === "Credited" ? "#059669" : statusLabel === "Rejected" ? "#dc2626" : "#d97706"}; }
-  table { width:100%; border-collapse:collapse; }
-  .footer { text-align:center; padding:20px 24px; border-top:1px solid #f1f5f9; margin-top:4px; }
-  .footer-brand { font-size:16px; font-weight:900; color:#f97316; }
-  .footer-tagline { font-size:11px; color:#94a3b8; margin-top:2px; }
-  .footer-note { font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.5; }
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="header">
-    <div class="logo-text">RankYatra</div>
-    <div class="logo-sub">Compete · Rank · Win</div>
-    <div class="receipt-label">Receipt</div>
-    <div class="invoice-no">${invoiceNo}</div>
-  </div>
-  <div class="amount-block">
-    <div class="amount-label">${amountLabel}</div>
-    <div class="amount-big">${amountPrefix}₹${fmtAmt(params.amount)}</div>
-    ${(isDeposit || isWithdrawal) ? `<div class="status-pill">${statusLabel}</div>` : ""}
-  </div>
-  <table>${rowsHtml}</table>
-  <div class="footer">
-    <div class="footer-brand">RankYatra</div>
-    <div class="footer-tagline">rankyatra.in</div>
-    <div class="footer-note">This is a digital receipt. For any issues, contact support@rankyatra.in</div>
-  </div>
-</div>
-</body>
-</html>`;
 }
 
 export default function TransactionDetailScreen() {
@@ -172,60 +87,117 @@ export default function TransactionDetailScreen() {
 
   const st = isDeposit || isWithdrawal ? statusStyle(params.status ?? "") : null;
 
+  function buildShareText() {
+    const amountLabel = isDeposit
+      ? "Amount Deposited"
+      : isWithdrawal
+      ? "Amount Withdrawn"
+      : isCredit
+      ? "Amount Credited"
+      : "Amount Debited";
+
+    const lines: string[] = [
+      `RankYatra Receipt`,
+      `Invoice: ${invoiceNo}`,
+      ``,
+      `${isCredit ? "+" : "-"}₹${fmtAmt(params.amount)} — ${amountLabel}`,
+      ``,
+      `Date: ${fmtDate(params.createdAt ?? "")}`,
+      `Time: ${fmtTime(params.createdAt ?? "")}`,
+    ];
+
+    if (isTx) {
+      if (params.description) lines.push(`Description: ${params.description}`);
+      lines.push(`Type: ${params.txType === "credit" ? "Credit (Received)" : "Debit (Spent)"}`);
+      if (params.balanceAfter) lines.push(`Balance After: ₹${fmtAmt(params.balanceAfter)}`);
+    }
+    if (isDeposit) {
+      lines.push(
+        `Method: ${
+          params.paymentMethod === "instamojo"
+            ? "Instamojo (Online)"
+            : params.paymentMethod === "referral_bonus"
+            ? "Referral Bonus"
+            : "Manual UPI"
+        }`
+      );
+      if (params.utrNumber) lines.push(`UTR/Ref: ${params.utrNumber}`);
+      const statusLabel =
+        params.status === "success" || params.status === "approved"
+          ? "Credited"
+          : params.status === "rejected"
+          ? "Rejected"
+          : "Pending";
+      lines.push(`Status: ${statusLabel}`);
+    }
+    if (isWithdrawal) {
+      if (params.bankName) lines.push(`Bank: ${params.bankName}`);
+      if (params.accountNumber) lines.push(`Account: ••••${params.accountNumber.slice(-4)}`);
+      if (params.utrNumber) lines.push(`UTR/Ref: ${params.utrNumber}`);
+    }
+
+    lines.push(``, `Transaction ID: #${params.id}`);
+    lines.push(``, `RankYatra — Compete. Rank. Win.`, `rankyatra.in`);
+    return lines.join("\n");
+  }
+
+  async function captureReceiptImage() {
+    return captureRef(receiptRef, { format: "png", quality: 1, result: "tmpfile" });
+  }
+
+  async function saveImageToGallery(uri: string): Promise<MediaLibrary.Asset> {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== "granted") throw new Error("Gallery permission denied");
+    return MediaLibrary.createAssetAsync(uri);
+  }
+
   const handleShareImage = async () => {
     if (sharing) return;
     setSharing(true);
     try {
-      const uri = await captureRef(receiptRef, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: "image/png",
-          dialogTitle: `Receipt ${invoiceNo}`,
-        });
-      } else {
-        showError("Sharing not available on this device.");
+      const uri = await captureReceiptImage();
+
+      await saveImageToGallery(uri);
+
+      const shareText = buildShareText();
+      await Share.share(
+        { message: shareText, title: `Receipt ${invoiceNo}` },
+        { dialogTitle: `Share Receipt ${invoiceNo}` }
+      );
+    } catch (e: any) {
+      if (e?.message !== "User did not share") {
+        showError("Could not share receipt. Please try again.");
       }
-    } catch (e) {
-      showError("Could not generate receipt image. Please try again.");
     } finally {
       setSharing(false);
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownload = async () => {
     if (downloading) return;
     setDownloading(true);
     try {
-      const html = buildReceiptHtml(
-        params as Record<string, string>,
-        invoiceNo,
-        isCredit,
-        isDeposit,
-        isWithdrawal,
-        isTx
-      );
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const fileName = `${invoiceNo}.pdf`;
-      const destUri = `${FileSystem.documentDirectory}${fileName}`;
-      await FileSystem.copyAsync({ from: uri, to: destUri });
+      const uri = await captureReceiptImage();
+
+      const asset = await saveImageToGallery(uri);
+      showSuccess("Saved!", "Receipt image saved to your gallery.");
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(destUri, {
-          mimeType: "application/pdf",
-          dialogTitle: `Download ${fileName}`,
-          UTI: "com.adobe.pdf",
+        const fileUri = asset.uri.startsWith("content://")
+          ? uri
+          : asset.uri;
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "image/png",
+          dialogTitle: `Share Receipt ${invoiceNo}`,
         });
-      } else {
-        showSuccess("PDF Saved", `Receipt saved as ${fileName}`);
       }
-    } catch (e) {
-      showError("Could not generate PDF. Please try again.");
+    } catch (e: any) {
+      if (e?.message?.includes("permission")) {
+        showError("Gallery permission is required to save the receipt.");
+      } else {
+        showError("Could not save receipt. Please try again.");
+      }
     } finally {
       setDownloading(false);
     }
@@ -242,7 +214,7 @@ export default function TransactionDetailScreen() {
           {isDeposit ? "Deposit Details" : isWithdrawal ? "Withdrawal Details" : "Transaction Details"}
         </Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleDownloadPdf} style={styles.iconBtn} disabled={downloading}>
+          <TouchableOpacity onPress={handleDownload} style={styles.iconBtn} disabled={downloading}>
             {downloading
               ? <ActivityIndicator size="small" color={colors.primary} />
               : <Feather name="download" size={20} color={colors.primary} />}
@@ -354,14 +326,14 @@ export default function TransactionDetailScreen() {
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnOutline, { borderColor: colors.primary }]}
-            onPress={handleDownloadPdf}
+            onPress={handleDownload}
             disabled={downloading}
             activeOpacity={0.8}
           >
             {downloading
               ? <ActivityIndicator size="small" color={colors.primary} />
               : <Feather name="download" size={17} color={colors.primary} />}
-            <Text style={[styles.actionBtnOutlineText, { color: colors.primary }]}>Download PDF</Text>
+            <Text style={[styles.actionBtnOutlineText, { color: colors.primary }]}>Save to Gallery</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

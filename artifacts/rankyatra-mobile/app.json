@@ -58,7 +58,15 @@
         }
       ],
       "expo-video",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "RankYatra needs access to your gallery to save receipt images.",
+          "savePhotosPermission": "RankYatra needs permission to save receipt images to your gallery.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
