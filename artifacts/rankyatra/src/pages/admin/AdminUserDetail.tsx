@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck, TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff, GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock } from "lucide-react";
+import {
+  ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck,
+  TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff,
+  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2
+} from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAdminGetUser, useAdminUpdateUser, useAdminBlockUser, useAdminAdjustWallet } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -31,15 +34,15 @@ const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: s
 };
 
 const ALL_PERMISSIONS = [
-  { key: "users",       label: "Users",       desc: "Manage users, block/unblock, view profiles" },
-  { key: "exams",       label: "Exams",       desc: "Create/edit exams, distribute prizes" },
-  { key: "deposits",    label: "Deposits",    desc: "Approve/reject deposit requests" },
-  { key: "withdrawals", label: "Withdrawals", desc: "Approve/reject withdrawal requests" },
-  { key: "kyc",         label: "KYC",         desc: "Review and approve identity verification" },
-  { key: "reports",     label: "Reports",     desc: "View and action user reports" },
-  { key: "banners",     label: "Banners",     desc: "Manage promotional banners" },
-  { key: "categories",  label: "Categories",  desc: "Manage exam categories" },
-  { key: "roles",       label: "Roles",       desc: "Assign special roles to users" },
+  { key: "users",       label: "Manage Users",        desc: "Users dekhe, block/unblock kare, profiles manage kare" },
+  { key: "exams",       label: "Manage Exams",         desc: "Exams create/edit kare, prizes distribute kare" },
+  { key: "deposits",    label: "Deposit Requests",     desc: "Deposit requests approve/reject kare" },
+  { key: "withdrawals", label: "Withdrawal Requests",  desc: "Withdrawal requests approve/reject kare" },
+  { key: "kyc",         label: "KYC Verifications",    desc: "Identity verification approve/reject kare" },
+  { key: "reports",     label: "User Reports",         desc: "User reports dekhe aur action le" },
+  { key: "banners",     label: "Banner Slider",        desc: "Promotional banners manage kare" },
+  { key: "categories",  label: "Exam Categories",      desc: "Exam categories manage kare" },
+  { key: "roles",       label: "Roles & Groups",       desc: "Users ko special roles assign kare" },
 ];
 
 export default function AdminUserDetail() {
@@ -62,8 +65,16 @@ export default function AdminUserDetail() {
   const [walletNote, setWalletNote] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
-  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
-  const [savingPerms, setSavingPerms] = useState(false);
+
+  // Grant admin modal state
+  const [showGrantModal, setShowGrantModal] = useState(false);
+  const [grantPerms, setGrantPerms] = useState<string[]>([]);
+  const [savingGrant, setSavingGrant] = useState(false);
+
+  // Edit permissions modal (for existing admins)
+  const [showEditPermsModal, setShowEditPermsModal] = useState(false);
+  const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [savingEditPerms, setSavingEditPerms] = useState(false);
 
   const fetchRoles = async () => {
     if (!userId) return;
@@ -80,9 +91,8 @@ export default function AdminUserDetail() {
     if (u) {
       setName(u.name ?? "");
       setEmail(u.email ?? "");
-      setSelectedPerms(u.adminPermissions ?? []);
     }
-  }, [u?.id, u?.adminPermissions?.join(",")]);
+  }, [u?.id]);
 
   useEffect(() => { fetchRoles(); }, [userId]);
 
@@ -117,25 +127,73 @@ export default function AdminUserDetail() {
     } finally { setRolesLoading(false); }
   };
 
-  const handleSavePermissions = async () => {
-    setSavingPerms(true);
+  // Confirm grant admin with selected permissions
+  const handleConfirmGrant = async () => {
+    setSavingGrant(true);
     try {
-      const isAdminVal = u?.isAdmin;
-      const res = await fetch(`/api/admin/users/${userId}/admin-permissions`, {
+      // First make them admin
+      const r1 = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: selectedPerms, isAdmin: selectedPerms.length > 0 ? true : isAdminVal }),
+        body: JSON.stringify({ isAdmin: true }),
       });
-      if (!res.ok) { const e = await res.json(); throw e; }
-      toast({ title: "Permissions updated!" });
+      if (!r1.ok) { const e = await r1.json(); throw e; }
+
+      // Then assign permissions
+      const r2 = await fetch(`/api/admin/users/${userId}/admin-permissions`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: grantPerms, isAdmin: true }),
+      });
+      if (!r2.ok) { const e = await r2.json(); throw e; }
+
+      toast({ title: "Admin access granted!", description: grantPerms.length > 0 ? `${grantPerms.length} permissions assigned.` : "No permissions assigned yet." });
+      setShowGrantModal(false);
+      setGrantPerms([]);
       refetch();
     } catch (e: any) {
       toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
-    } finally { setSavingPerms(false); }
+    } finally { setSavingGrant(false); }
   };
 
-  const handleToggleAdmin = () => {
-    updateUser({ userId, data: { isAdmin: !u?.isAdmin } });
+  // Revoke admin
+  const handleRevokeAdmin = async () => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ isAdmin: false }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      // Also clear permissions
+      await fetch(`/api/admin/users/${userId}/admin-permissions`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: [], isAdmin: false }),
+      });
+      toast({ title: "Admin access revoked." });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+    }
+  };
+
+  // Save edited permissions for existing admin
+  const handleSaveEditPerms = async () => {
+    setSavingEditPerms(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/admin-permissions`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: editPerms, isAdmin: true }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      toast({ title: "Permissions updated!", description: `${editPerms.length} permissions saved.` });
+      setShowEditPermsModal(false);
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+    } finally { setSavingEditPerms(false); }
   };
 
   const { mutate: updateUser, isPending: updating } = useAdminUpdateUser({
@@ -156,9 +214,7 @@ export default function AdminUserDetail() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Wallet updated!", description: `${walletType === "credit" ? "Added" : "Deducted"} ₹${walletAmount}` });
-        setWalletAmount("");
-        setWalletNote("");
-        refetch();
+        setWalletAmount(""); setWalletNote(""); refetch();
       },
       onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.error, variant: "destructive" }),
     },
@@ -178,16 +234,12 @@ export default function AdminUserDetail() {
 
   const handleWalletAdjust = () => {
     if (!walletAmount || Number(walletAmount) <= 0) {
-      toast({ title: "Invalid amount", description: "Enter a positive amount.", variant: "destructive" });
+      toast({ title: "Invalid amount", variant: "destructive" });
       return;
     }
     adjustWallet({
       userId,
-      data: {
-        amount: String(Number(walletAmount)),
-        type: walletType,
-        description: walletNote || `Admin ${walletType}`,
-      },
+      data: { amount: String(Number(walletAmount)), type: walletType, description: walletNote || `Admin ${walletType}` },
     });
   };
 
@@ -240,10 +292,10 @@ export default function AdminUserDetail() {
                   {u?.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground">{u?.email}</p>
-                {u?.id && (
-                  <p className="text-xs font-mono font-bold text-primary/70 mt-0.5 tracking-widest">UID-{formatUID(u.id)}</p>
-                )}
-                <p className="text-sm text-muted-foreground mt-0.5">Joined {u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                {u?.id && <p className="text-xs font-mono font-bold text-primary/70 mt-0.5 tracking-widest">UID-{formatUID(u.id)}</p>}
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Joined {u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                </p>
               </div>
             </div>
 
@@ -262,6 +314,7 @@ export default function AdminUserDetail() {
               </div>
             </div>
 
+            {/* Action buttons */}
             <div className="flex gap-2 mt-4 flex-wrap">
               {!isTargetAdmin && !isTargetSuperAdmin && (
                 <Button
@@ -270,76 +323,87 @@ export default function AdminUserDetail() {
                   disabled={blocking}
                   onClick={() => blockUser({ userId, data: { isBlocked: !u?.isBlocked } })}
                 >
-                  {u?.isBlocked ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Unblock</> : <><UserX className="h-3.5 w-3.5 mr-1" />Block User</>}
+                  {u?.isBlocked
+                    ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Unblock</>
+                    : <><UserX className="h-3.5 w-3.5 mr-1" />Block User</>}
                 </Button>
               )}
-              {/* Grant/Revoke Admin — only super admin can do this, and cannot revoke super admin */}
+
+              {/* Super admin only: Grant/Revoke admin */}
               {isSuperAdmin && !isTargetSuperAdmin && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={updating}
-                  onClick={handleToggleAdmin}
-                >
-                  {isTargetAdmin ? <><ShieldOff className="h-3.5 w-3.5 mr-1" />Revoke Admin</> : <><Shield className="h-3.5 w-3.5 mr-1" />Grant Admin</>}
-                </Button>
+                <>
+                  {!isTargetAdmin ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-primary text-primary hover:bg-primary/10"
+                      onClick={() => { setGrantPerms([]); setShowGrantModal(true); }}
+                    >
+                      <Shield className="h-3.5 w-3.5 mr-1" /> Grant Admin Access
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-blue-500 text-blue-700 hover:bg-blue-50"
+                        onClick={() => { setEditPerms([...targetPermissions]); setShowEditPermsModal(true); }}
+                      >
+                        <Settings2 className="h-3.5 w-3.5 mr-1" /> Edit Permissions
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={handleRevokeAdmin}
+                      >
+                        <ShieldOff className="h-3.5 w-3.5 mr-1" /> Revoke Admin
+                      </Button>
+                    </>
+                  )}
+                </>
               )}
+
               {!isSuperAdmin && isTargetAdmin && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-full px-3 py-1.5">
-                  <Lock className="h-3 w-3" /> Admin status managed by Super Admin
+                  <Lock className="h-3 w-3" /> Admin access managed by Super Admin
                 </div>
               )}
             </div>
 
-            {/* ── Sub-admin Permissions (super admin only) ── */}
-            {isSuperAdmin && isTargetAdmin && !isTargetSuperAdmin && (
-              <div className="mt-5 pt-4 border-t border-border">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Admin Permissions</p>
-                  <Button size="sm" variant="default" disabled={savingPerms} onClick={handleSavePermissions} className="h-7 text-xs">
-                    {savingPerms ? "Saving..." : "Save Permissions"}
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  {ALL_PERMISSIONS.map((perm) => (
-                    <label key={perm.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
-                      <Checkbox
-                        checked={selectedPerms.includes(perm.key)}
-                        onCheckedChange={(checked) => {
-                          setSelectedPerms(prev =>
-                            checked ? [...prev, perm.key] : prev.filter(p => p !== perm.key)
-                          );
-                        }}
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold">{perm.label}</p>
-                        <p className="text-xs text-muted-foreground">{perm.desc}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                {targetPermissions.length === 0 && selectedPerms.length === 0 && (
-                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2 border border-amber-200">
-                    No permissions assigned — this admin cannot access any section yet.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Show current permissions if target is sub-admin and current user is not super admin */}
-            {isTargetAdmin && !isTargetSuperAdmin && !isSuperAdmin && targetPermissions.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-border">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Admin Permissions</p>
+            {/* Current permissions display (for existing admins) */}
+            {isTargetAdmin && !isTargetSuperAdmin && targetPermissions.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Assigned Permissions ({targetPermissions.length}/{ALL_PERMISSIONS.length})
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {targetPermissions.map(p => (
-                    <Badge key={p} variant="secondary" className="text-xs capitalize">{p}</Badge>
+                  {ALL_PERMISSIONS.map(p => (
+                    <span
+                      key={p.key}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        targetPermissions.includes(p.key)
+                          ? "bg-primary/10 text-primary border-primary/30"
+                          : "bg-muted text-muted-foreground border-border opacity-40"
+                      }`}
+                    >
+                      {p.label}
+                    </span>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* ── Role Management ── */}
+            {isTargetAdmin && !isTargetSuperAdmin && targetPermissions.length === 0 && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200 flex items-center gap-2">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  No permissions assigned — click "Edit Permissions" to assign sections.
+                </p>
+              </div>
+            )}
+
+            {/* Role Management */}
             <div className="mt-5 pt-4 border-t border-border">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assign Roles</p>
               <div className="flex flex-wrap gap-2">
@@ -361,9 +425,6 @@ export default function AdminUserDetail() {
                   );
                 })}
               </div>
-              {userRoles.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-2">Click a role to revoke it. Group dashboard auto-created.</p>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -405,23 +466,16 @@ export default function AdminUserDetail() {
                 </Badge>
               )}
             </div>
-
             {u?.kycNote && (
               <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
                 <strong>Admin Note:</strong> {u.kycNote}
               </p>
             )}
-
             {u?.panCardUrl ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-muted-foreground">Submitted ID Card</p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowIdCard(!showIdCard)}
-                    className="h-7 text-xs gap-1.5"
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setShowIdCard(!showIdCard)} className="h-7 text-xs gap-1.5">
                     {showIdCard ? <><EyeOff className="h-3.5 w-3.5" /> Hide</> : <><Eye className="h-3.5 w-3.5" /> View ID Card</>}
                   </Button>
                 </div>
@@ -433,8 +487,7 @@ export default function AdminUserDetail() {
               </div>
             ) : (
               <div className="flex items-center gap-2 text-muted-foreground text-sm bg-muted/30 rounded-lg px-4 py-3">
-                <AlertCircle className="h-4 w-4" />
-                No ID card submitted yet
+                <AlertCircle className="h-4 w-4" /> No ID card submitted yet
               </div>
             )}
           </CardContent>
@@ -459,7 +512,10 @@ export default function AdminUserDetail() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="flex items-center gap-1"><KeyRound className="h-3.5 w-3.5" /> New Password <span className="text-muted-foreground font-normal">(leave blank to keep current)</span></Label>
+              <Label className="flex items-center gap-1">
+                <KeyRound className="h-3.5 w-3.5" /> New Password
+                <span className="text-muted-foreground font-normal">(leave blank to keep current)</span>
+              </Label>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
             </div>
             <Button size="sm" onClick={handleSaveProfile} disabled={updating}>
@@ -485,36 +541,20 @@ export default function AdminUserDetail() {
               <div className="space-y-1.5">
                 <Label>Type</Label>
                 <Select value={walletType} onValueChange={(v) => setWalletType(v as "credit" | "debit")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="credit">
-                      <span className="text-green-600 font-semibold">Credit (Add ₹)</span>
-                    </SelectItem>
-                    <SelectItem value="debit">
-                      <span className="text-red-600 font-semibold">Debit (Deduct ₹)</span>
-                    </SelectItem>
+                    <SelectItem value="credit"><span className="text-green-600 font-semibold">Credit (Add ₹)</span></SelectItem>
+                    <SelectItem value="debit"><span className="text-red-600 font-semibold">Debit (Deduct ₹)</span></SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Amount (₹)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 500"
-                  value={walletAmount}
-                  onChange={(e) => setWalletAmount(e.target.value)}
-                />
+                <Input type="number" min="1" placeholder="e.g. 500" value={walletAmount} onChange={(e) => setWalletAmount(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Reason / Note</Label>
-                <Input
-                  placeholder="e.g. Bonus, Refund..."
-                  value={walletNote}
-                  onChange={(e) => setWalletNote(e.target.value)}
-                />
+                <Input placeholder="e.g. Bonus, Refund..." value={walletNote} onChange={(e) => setWalletNote(e.target.value)} />
               </div>
             </div>
             <Button
@@ -527,6 +567,122 @@ export default function AdminUserDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Grant Admin Modal ── */}
+      <Dialog open={showGrantModal} onOpenChange={(o) => { if (!o) { setShowGrantModal(false); setGrantPerms([]); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Shield className="h-5 w-5" /> Grant Admin Access
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{u?.name}</strong> ko admin banane ke baad kaunse sections access milenge — select karo:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {/* Select All */}
+            <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors mb-1">
+              <Checkbox
+                checked={grantPerms.length === ALL_PERMISSIONS.length}
+                onCheckedChange={(checked) => {
+                  setGrantPerms(checked ? ALL_PERMISSIONS.map(p => p.key) : []);
+                }}
+              />
+              <div>
+                <p className="text-sm font-bold text-primary">Sabhi Permissions (Full Access)</p>
+                <p className="text-xs text-muted-foreground">Sab sections ka access de do</p>
+              </div>
+            </label>
+
+            {ALL_PERMISSIONS.map((perm) => (
+              <label key={perm.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                <Checkbox
+                  checked={grantPerms.includes(perm.key)}
+                  onCheckedChange={(checked) => {
+                    setGrantPerms(prev =>
+                      checked ? [...prev, perm.key] : prev.filter(p => p !== perm.key)
+                    );
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">{perm.label}</p>
+                  <p className="text-xs text-muted-foreground">{perm.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {grantPerms.length === 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Koi permission select nahi ki — admin ban jayega lekin kuch access nahi hoga.
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGrantModal(false)} disabled={savingGrant}>Cancel</Button>
+            <Button onClick={handleConfirmGrant} disabled={savingGrant} className="bg-primary">
+              <Shield className="h-4 w-4 mr-1.5" />
+              {savingGrant ? "Granting..." : `Grant Admin${grantPerms.length > 0 ? ` (${grantPerms.length} permissions)` : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Permissions Modal ── */}
+      <Dialog open={showEditPermsModal} onOpenChange={(o) => { if (!o) setShowEditPermsModal(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" /> Edit Admin Permissions
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{u?.name}</strong> ke liye permissions update karo:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors mb-1">
+              <Checkbox
+                checked={editPerms.length === ALL_PERMISSIONS.length}
+                onCheckedChange={(checked) => {
+                  setEditPerms(checked ? ALL_PERMISSIONS.map(p => p.key) : []);
+                }}
+              />
+              <div>
+                <p className="text-sm font-bold text-primary">Sabhi Permissions (Full Access)</p>
+                <p className="text-xs text-muted-foreground">Sab sections ka access de do</p>
+              </div>
+            </label>
+
+            {ALL_PERMISSIONS.map((perm) => (
+              <label key={perm.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                <Checkbox
+                  checked={editPerms.includes(perm.key)}
+                  onCheckedChange={(checked) => {
+                    setEditPerms(prev =>
+                      checked ? [...prev, perm.key] : prev.filter(p => p !== perm.key)
+                    );
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">{perm.label}</p>
+                  <p className="text-xs text-muted-foreground">{perm.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditPermsModal(false)} disabled={savingEditPerms}>Cancel</Button>
+            <Button onClick={handleSaveEditPerms} disabled={savingEditPerms}>
+              {savingEditPerms ? "Saving..." : `Save (${editPerms.length} permissions)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
