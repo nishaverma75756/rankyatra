@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable, emailVerificationsTable, referralsTable, walletTransactionsTable } from "@workspace/db";
+import { db, usersTable, emailVerificationsTable, referralsTable, walletTransactionsTable, walletDepositsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { SignupBody, LoginBody } from "@workspace/api-zod";
 import { generateToken, requireAuth } from "../middlewares/auth";
@@ -113,6 +113,13 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
         description: `Referral bonus — ${user.name} joined using your code!`,
         balanceAfter: updatedReferrer?.walletBalance ?? "0.00",
       });
+      await db.insert(walletDepositsTable).values({
+        userId: referrer.id,
+        amount: "20.00",
+        paymentMethod: "referral_bonus",
+        status: "approved",
+        adminNote: `Referral bonus — ${user.name} joined using your code!`,
+      });
 
       // Credit ₹20 to new user
       const [updatedUser] = await db
@@ -127,6 +134,13 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
         type: "credit",
         description: "Welcome bonus — joined via a referral code!",
         balanceAfter: updatedUser?.walletBalance ?? "0.00",
+      });
+      await db.insert(walletDepositsTable).values({
+        userId: user.id,
+        amount: "20.00",
+        paymentMethod: "referral_bonus",
+        status: "approved",
+        adminNote: "Welcome bonus — joined via a referral code!",
       });
     }
   }

@@ -400,7 +400,7 @@ export default function WalletScreen() {
                   </View>
                   <View style={styles.txMeta}>
                     <Text style={[styles.txDesc, { color: colors.foreground }]} numberOfLines={1}>
-                      Deposit{utr ? ` • UTR: ${utr}` : ""}
+                      {(d as any).paymentMethod === "referral_bonus" ? "Referral Bonus" : `Deposit${utr ? ` • UTR: ${utr}` : ""}`}
                     </Text>
                     <Text style={[styles.txDate, { color: colors.mutedForeground }]}>{fmtDateTime(ts)}</Text>
                   </View>

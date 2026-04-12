@@ -300,7 +300,7 @@ export default function WalletPage() {
                       <ArrowDownCircle className="h-5 w-5 text-green-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">Deposit{utr ? ` • UTR: ${utr}` : ""}</p>
+                      <p className="text-sm font-semibold text-foreground truncate">{(d as any).paymentMethod === "referral_bonus" ? "Referral Bonus" : `Deposit${utr ? ` • UTR: ${utr}` : ""}`}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{fmtDateTime(ts)}</p>
                     </div>
                     <div className="text-right shrink-0">

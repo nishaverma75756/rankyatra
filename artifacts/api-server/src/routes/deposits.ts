@@ -85,7 +85,8 @@ async function getDepositTotal(userId: number, since: Date): Promise<number> {
       and(
         eq(walletDepositsTable.userId, userId),
         gte(walletDepositsTable.createdAt, since),
-        sql`${walletDepositsTable.status} != 'rejected'`
+        sql`${walletDepositsTable.status} != 'rejected'`,
+        sql`${walletDepositsTable.paymentMethod} != 'referral_bonus'`
       )
     );
   return rows.reduce((sum, r) => sum + parseFloat(String(r.amount)), 0);
@@ -566,6 +567,7 @@ router.get("/admin/deposits", requireAdmin, async (_req, res): Promise<void> => 
   const deposits = await db
     .select()
     .from(walletDepositsTable)
+    .where(sql`${walletDepositsTable.paymentMethod} != 'referral_bonus'`)
     .orderBy(desc(walletDepositsTable.createdAt));
 
   const results = await Promise.all(

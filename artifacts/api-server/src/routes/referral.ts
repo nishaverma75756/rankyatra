@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, referralsTable, referralClicksTable, walletTransactionsTable } from "@workspace/db";
+import { db, usersTable, referralsTable, referralClicksTable, walletTransactionsTable, walletDepositsTable } from "@workspace/db";
 import { eq, and, count, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -179,6 +179,13 @@ router.post("/referral/apply", requireAuth, async (req, res): Promise<void> => {
       description: `Referral bonus — ${me?.name ?? "A friend"} joined using your code!`,
       balanceAfter: updatedReferrer?.walletBalance ?? "0.00",
     });
+    await db.insert(walletDepositsTable).values({
+      userId: referrer.id,
+      amount: "20.00",
+      paymentMethod: "referral_bonus",
+      status: "approved",
+      adminNote: `Referral bonus — ${me?.name ?? "A friend"} joined using your code!`,
+    });
 
     // Credit ₹20 to current user
     const [updatedMe] = await db
@@ -193,6 +200,13 @@ router.post("/referral/apply", requireAuth, async (req, res): Promise<void> => {
       type: "credit",
       description: `Welcome bonus — joined via ${referrer.name}'s referral code!`,
       balanceAfter: updatedMe?.walletBalance ?? "0.00",
+    });
+    await db.insert(walletDepositsTable).values({
+      userId,
+      amount: "20.00",
+      paymentMethod: "referral_bonus",
+      status: "approved",
+      adminNote: `Welcome bonus — joined via ${referrer.name}'s referral code!`,
     });
 
     res.json({ success: true, bonusCredited: true, message: "Referral code applied! ₹20 has been added to both wallets." });
