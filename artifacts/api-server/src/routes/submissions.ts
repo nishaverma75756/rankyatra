@@ -160,13 +160,13 @@ router.get("/exams/:examId/my-result", requireAuth, async (req, res): Promise<vo
     return;
   }
 
-  // Get individual answers to compute proper wrong/skipped counts
-  const userAnswers = await db
-    .select()
-    .from(userAnswersTable)
-    .where(and(eq(userAnswersTable.userId, req.user!.id), eq(userAnswersTable.examId, examId)));
+  // Get exam details + individual answers for wrong/skipped counts
+  const [exam, userAnswers, questions] = await Promise.all([
+    db.select().from(examsTable).where(eq(examsTable.id, examId)).then((r) => r[0] ?? null),
+    db.select().from(userAnswersTable).where(and(eq(userAnswersTable.userId, req.user!.id), eq(userAnswersTable.examId, examId))),
+    db.select().from(questionsTable).where(eq(questionsTable.examId, examId)),
+  ]);
 
-  const questions = await db.select().from(questionsTable).where(eq(questionsTable.examId, examId));
   const totalQuestions = sub.totalQuestions ?? questions.length;
   const correctAnswers = sub.correctAnswers ?? 0;
   const answeredCount = userAnswers.length;
@@ -177,6 +177,9 @@ router.get("/exams/:examId/my-result", requireAuth, async (req, res): Promise<vo
     id: sub.id,
     userId: sub.userId,
     examId: sub.examId,
+    examTitle: exam?.title ?? "Unknown Exam",
+    examCategory: exam?.category ?? "Other",
+    entryFee: exam?.entryFee ?? "0",
     score: sub.score,
     totalQuestions,
     correctAnswers,

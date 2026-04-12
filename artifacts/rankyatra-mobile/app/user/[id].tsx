@@ -663,7 +663,27 @@ export default function UserPublicProfile() {
             const pctColor = pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : pct >= 40 ? "#f97316" : "#ef4444";
             const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank ? `#${r.rank}` : "—";
             return (
-              <View key={r.examId + r.submittedAt} style={[styles.examRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <TouchableOpacity
+                key={r.examId + r.submittedAt}
+                style={[styles.examRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                activeOpacity={0.75}
+                onPress={() => router.push({
+                  pathname: "/exam/result",
+                  params: {
+                    examId: String(r.examId),
+                    examTitle: r.examTitle,
+                    examCategory: r.category,
+                    entryFee: String(r.entryFee ?? "0"),
+                    score: String(r.score ?? 0),
+                    totalQuestions: String(r.totalQuestions ?? 0),
+                    correctAnswers: String(r.correctAnswers ?? 0),
+                    timeTakenSeconds: String(r.timeTakenSeconds ?? 0),
+                    rank: r.rank ? String(r.rank) : "",
+                    submittedAt: r.submittedAt,
+                    isSelf: isSelf ? "true" : "false",
+                  },
+                } as any)}
+              >
                 <Text style={styles.examMedal}>{medal}</Text>
                 <View style={styles.examInfo}>
                   <Text style={[styles.examTitle, { color: colors.foreground }]} numberOfLines={1}>{r.examTitle}</Text>
@@ -673,7 +693,8 @@ export default function UserPublicProfile() {
                   <Text style={[styles.examPct, { color: pctColor }]}>{pct}%</Text>
                   <Text style={[styles.examScore, { color: colors.mutedForeground }]}>{r.correctAnswers}/{r.totalQuestions}</Text>
                 </View>
-              </View>
+                <Feather name="chevron-right" size={14} color={colors.mutedForeground} style={{ marginLeft: 2 }} />
+              </TouchableOpacity>
             );
           })}
         </View>

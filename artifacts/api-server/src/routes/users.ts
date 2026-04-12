@@ -196,12 +196,15 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     recentSubmissions.map(async (sub) => {
       const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, sub.examId));
       return {
+        submissionId: sub.id,
         examId: sub.examId,
         examTitle: exam?.title ?? "Unknown Exam",
         category: exam?.category ?? "Other",
+        entryFee: exam?.entryFee ?? "0",
         score: sub.score,
         totalQuestions: sub.totalQuestions,
         correctAnswers: sub.correctAnswers,
+        timeTakenSeconds: sub.timeTakenSeconds ?? 0,
         rank: sub.rank,
         submittedAt: sub.submittedAt.toISOString(),
       };
