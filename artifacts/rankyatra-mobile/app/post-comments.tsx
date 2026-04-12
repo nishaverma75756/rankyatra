@@ -285,7 +285,9 @@ export default function PostCommentsScreen() {
           </View>
           <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{post.content}</Text>
           {post.imageUrl && (
-            <Image source={{ uri: post.imageUrl }} style={{ width: "100%", height: 200, borderRadius: 12, marginTop: 10 }} resizeMode="cover" />
+            <View style={{ width: "100%", aspectRatio: 3 / 4, borderRadius: 12, marginTop: 10, overflow: "hidden", backgroundColor: "#00000008" }}>
+              <Image source={{ uri: post.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
+            </View>
           )}
           <View style={{ flexDirection: "row", gap: 16, marginTop: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>

@@ -482,11 +482,16 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
         </View>
       )}
 
-      {/* Post image */}
+      {/* Post image — 3:4 portrait ratio, tap to open full post */}
       {post.imageUrl && (
-        <View style={styles.postImageWrap}>
-          <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
+        >
+          <View style={styles.postImageWrap}>
+            <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* Top comment preview */}
@@ -1157,8 +1162,8 @@ const styles = StyleSheet.create({
   postTime: { fontSize: 11 },
   followPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1 },
   postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 6 },
-  postImageWrap: { marginHorizontal: 0, marginTop: 6, marginBottom: 8 },
-  postImage: { width: "100%", height: 260 },
+  postImageWrap: { marginHorizontal: 0, marginTop: 6, marginBottom: 8, overflow: "hidden" },
+  postImage: { width: "100%", aspectRatio: 3 / 4 },
   topCommentRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
   postActions: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },

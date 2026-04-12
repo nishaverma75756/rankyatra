@@ -139,7 +139,12 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
         <Text style={[styles.postContent, { color: colors.foreground }]}>{post.content}</Text>
       )}
       {resolveImage(post.imageUrl) && (
-        <Image source={{ uri: resolveImage(post.imageUrl)! }} style={styles.postImage} resizeMode="cover" />
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
+        >
+          <Image source={{ uri: resolveImage(post.imageUrl)! }} style={styles.postImage} resizeMode="cover" />
+        </TouchableOpacity>
       )}
 
       {/* Top comment preview */}
@@ -895,7 +900,7 @@ const styles = StyleSheet.create({
   postName: { fontSize: 14, fontWeight: "600" },
   postTime: { fontSize: 11 },
   postContent: { fontSize: 14, lineHeight: 20, paddingHorizontal: 12, paddingBottom: 10 },
-  postImage: { width: "100%", height: 200, marginBottom: 8 },
+  postImage: { width: "100%", aspectRatio: 3 / 4, marginBottom: 8 },
   topCommentRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
   commentAvatar: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   postActions: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1 },
