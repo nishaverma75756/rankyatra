@@ -910,67 +910,73 @@ export default function MomentsScreen() {
 
       {/* ─── Search Modal ─── */}
       <Modal visible={showSearch} animationType="slide" onRequestClose={closeSearch}>
-        <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-          {/* Header row */}
-          <View style={[styles.searchHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={closeSearch}>
-              <Feather name="x" size={22} color={colors.foreground} />
-            </TouchableOpacity>
-            <View style={[styles.searchInputWrap, { backgroundColor: colors.muted }]}>
-              <Feather name="search" size={15} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.foreground }]}
-                placeholder="Search by name or UID..."
-                placeholderTextColor={colors.mutedForeground}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Feather name="x-circle" size={16} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+        <View style={[styles.flex, { backgroundColor: colors.background }]}>
 
-          {/* Category tabs — only shown when not searching */}
-          {!searchQuery.trim() && categoriesList.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}
-              contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
-            >
-              {/* All tab */}
-              <TouchableOpacity
-                onPress={() => setActiveCategory(null)}
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
-                  backgroundColor: activeCategory === null ? colors.primary : colors.muted,
-                  borderColor: activeCategory === null ? colors.primary : colors.border,
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: "700", color: activeCategory === null ? "#fff" : colors.foreground }}>All</Text>
+          {/* ── Fixed header block — never moves with keyboard ── */}
+          <View style={{ backgroundColor: colors.background, paddingTop: insets.top }}>
+            {/* Search bar row */}
+            <View style={[styles.searchHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={closeSearch}>
+                <Feather name="x" size={22} color={colors.foreground} />
               </TouchableOpacity>
-              {categoriesList.map((cat) => {
-                const active = activeCategory === cat;
-                return (
+              <View style={[styles.searchInputWrap, { backgroundColor: colors.muted }]}>
+                <Feather name="search" size={15} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.foreground }]}
+                  placeholder="Search by name or UID..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Category tabs — fixed height so they never collapse */}
+            {!searchQuery.trim() && categoriesList.length > 0 && (
+              <View style={{ height: 50, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 9, gap: 8, alignItems: "center" }}
+                >
                   <TouchableOpacity
-                    key={cat}
-                    onPress={() => setActiveCategory(cat)}
+                    onPress={() => setActiveCategory(null)}
                     style={{
-                      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
-                      backgroundColor: active ? colors.primary : colors.muted,
-                      borderColor: active ? colors.primary : colors.border,
+                      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                      backgroundColor: activeCategory === null ? colors.primary : colors.muted,
+                      borderColor: activeCategory === null ? colors.primary : colors.border,
                     }}
                   >
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: active ? "#fff" : colors.foreground }}>{cat}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: activeCategory === null ? "#fff" : colors.foreground }}>All</Text>
                   </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
+                  {categoriesList.map((cat) => {
+                    const active = activeCategory === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        onPress={() => setActiveCategory(cat)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                          backgroundColor: active ? colors.primary : colors.muted,
+                          borderColor: active ? colors.primary : colors.border,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: active ? "#fff" : colors.foreground }}>{cat}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+          {/* ── End fixed header block ── */}
 
           {/* Searching state */}
           {searching && <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />}
