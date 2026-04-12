@@ -97,6 +97,7 @@ export default function PostCommentsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const flatListRef = useRef<import("react-native").FlatList>(null);
 
   // For reel mode — keep a live comment count
   const [reelCommentCount, setReelCommentCount] = useState(0);
@@ -129,6 +130,13 @@ export default function PostCommentsScreen() {
   }, [postId, reelId, isReel]);
 
   useEffect(() => { loadComments(); }, [loadComments]);
+
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidHide", () => {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Submit comment ────────────────────────────────────────────────────────
   const submit = async () => {
@@ -337,13 +345,14 @@ export default function PostCommentsScreen() {
       </View>
 
       {/* Comments list */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         {loading ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color={colors.primary} size="large" />
           </View>
         ) : (
           <FlatList
+            ref={flatListRef}
             data={comments}
             keyExtractor={(c) => String(c.id)}
             renderItem={renderComment}

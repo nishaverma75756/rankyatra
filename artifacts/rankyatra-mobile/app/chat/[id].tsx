@@ -13,6 +13,7 @@ import {
   Modal,
   Share,
   Animated,
+  Keyboard,
 } from "react-native";
 import { showAlert, showSuccess, showError } from "@/utils/alert";
 import { useLocalSearchParams, router } from "expo-router";
@@ -259,6 +260,13 @@ export default function ChatScreen() {
   }, [convId]);
 
   useEffect(() => { if (!loading) markRead(); }, [loading, markRead]);
+
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidHide", () => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    });
+    return () => sub.remove();
+  }, []);
 
   // WebSocket handler
   const handleWsMessage = useCallback((msg: any) => {
