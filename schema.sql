@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict T915oBKwqUMlaO5pvcnsM4Thr3l2Hw56wajfjTC30g6WQodEcs845Ghld4JwULS
+\restrict IUq3jAyy43VspzOJJU41lsc38voYl0tBOt4zlw5mJ32wgo3gGRoo1UPfa9LcWWU
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -361,6 +361,38 @@ ALTER SEQUENCE public.messages_id_seq OWNED BY public.messages.id;
 
 
 --
+-- Name: muted_conversations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.muted_conversations (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    conversation_id integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: muted_conversations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.muted_conversations_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: muted_conversations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.muted_conversations_id_seq OWNED BY public.muted_conversations.id;
+
+
+--
 -- Name: notifications; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -590,7 +622,8 @@ CREATE TABLE public.push_tokens (
     user_id integer NOT NULL,
     token text NOT NULL,
     platform text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -925,7 +958,10 @@ CREATE TABLE public.reports (
     reported_reel_id integer,
     reason text NOT NULL,
     status text DEFAULT 'pending'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    conversation_id integer,
+    post_id integer,
+    details text
 );
 
 
@@ -1352,6 +1388,13 @@ ALTER TABLE ONLY public.messages ALTER COLUMN id SET DEFAULT nextval('public.mes
 
 
 --
+-- Name: muted_conversations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations ALTER COLUMN id SET DEFAULT nextval('public.muted_conversations_id_seq'::regclass);
+
+
+--
 -- Name: notifications id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1543,6 +1586,14 @@ ALTER TABLE ONLY public.categories
 
 
 --
+-- Name: categories categories_name_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.categories
+    ADD CONSTRAINT categories_name_unique UNIQUE (name);
+
+
+--
 -- Name: categories categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1612,6 +1663,22 @@ ALTER TABLE ONLY public.groups
 
 ALTER TABLE ONLY public.messages
     ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: muted_conversations muted_conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: muted_conversations muted_conversations_user_id_conversation_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_user_id_conversation_id_key UNIQUE (user_id, conversation_id);
 
 
 --
@@ -1999,6 +2066,22 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: muted_conversations muted_conversations_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: muted_conversations muted_conversations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notifications notifications_from_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2135,6 +2218,22 @@ ALTER TABLE ONLY public.registrations
 
 
 --
+-- Name: reports reports_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id);
+
+
+--
+-- Name: reports reports_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE SET NULL;
+
+
+--
 -- Name: reports reports_reporter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2250,5 +2349,5 @@ ALTER TABLE ONLY public.wallet_withdrawals
 -- PostgreSQL database dump complete
 --
 
-\unrestrict T915oBKwqUMlaO5pvcnsM4Thr3l2Hw56wajfjTC30g6WQodEcs845Ghld4JwULS
+\unrestrict IUq3jAyy43VspzOJJU41lsc38voYl0tBOt4zlw5mJ32wgo3gGRoo1UPfa9LcWWU
 

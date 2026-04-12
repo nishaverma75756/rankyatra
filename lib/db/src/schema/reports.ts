@@ -5,8 +5,10 @@ import { postsTable } from "./posts";
 
 export const reportsTable = pgTable("reports", {
   id: serial("id").primaryKey(),
-  reporterId: integer("reporter_id").notNull().references(() => usersTable.id),
-  reportedUserId: integer("reported_user_id").notNull().references(() => usersTable.id),
+  reporterId: integer("reporter_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  reportedUserId: integer("reported_user_id").references(() => usersTable.id),
+  reportedPostId: integer("reported_post_id"),
+  reportedReelId: integer("reported_reel_id"),
   conversationId: integer("conversation_id").references(() => conversationsTable.id),
   postId: integer("post_id").references(() => postsTable.id, { onDelete: "set null" }),
   reason: text("reason").notNull(),

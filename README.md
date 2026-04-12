@@ -380,9 +380,12 @@ Schema path: `lib/db/src/schema/`
 | `password_resets` | Password reset tokens |
 | `push_tokens` | Firebase FCM tokens per device |
 | `user_blocks` | Blocked users |
-| `reports` | User reports |
-| `referrals` | Referral relationships (referrer → referred user) |
-| `referral_clicks` | Link click tracking (device fingerprint) |
+| `reports` | User reports (reason, details, conversationId, postId) |
+| `referrals` | Referral relationships (referrer → referred user, ₹20 reward) |
+| `referral_clicks` | Link click tracking per device fingerprint (anti-abuse) |
+| `muted_conversations` | Muted DM conversations per user |
+| `post_comment_likes` | Likes on post comments |
+| `reel_comment_likes` | Likes on reel comments |
 
 ### Key Business Logic
 
@@ -498,12 +501,83 @@ pnpm run typecheck
 
 ---
 
-## Recent Changes (Latest Sessions)
+## Recent Changes (This Session — All Changes Made)
 
-1. **OnboardingPopup** — 10s delay, reads latest user data via `userRef`, timer cleanup on logout
-2. **Chat KAV** — Changed behavior from `"height"` to `"padding"` on Android — fixes blank space after keyboard close
-3. **Referred Users UI** — Redesigned with avatar initials, icon+count header, cleaner status pills
-4. **Reel Access Notifications** — Admin approve/reject sends FCM push + in-app notification
-5. **customUid** — Added to AuthUser interface, `AppState` listener refreshes user on foreground
-6. **Wallet + Result Share** — Image+text share: Android uses `IntentLauncher`, iOS uses `Share.share`
-7. **Commission Fix** — All 4 role commission endpoints filter `registeredAt >= joinedAt`
+### New Database Tables Added
+| Table | Purpose |
+|-------|---------|
+| `reel_applications` | Users apply for permission to post reels; admin approves/rejects |
+| `referrals` | Tracks referrer → referred user relationship; ₹20 credited to both |
+| `referral_clicks` | Tracks referral link clicks by device fingerprint (anti-abuse) |
+| `reel_comments` | Comments on reels |
+| `reel_comment_likes` | Likes on reel comments |
+| `post_comment_likes` | Likes on post comments |
+| `muted_conversations` | Muted DM conversations per user |
+
+### New Columns Added to Existing Tables
+| Table | New Column | Type | Notes |
+|-------|-----------|------|-------|
+| `users` | `can_post_reels` | boolean | Admin grants reel posting permission |
+| `users` | `custom_uid` | text | User-friendly display UID (e.g. RY12345) |
+| `users` | `referral_code` | text unique | Each user's unique referral code |
+| `users` | `preferences` | text[] | Exam preferences selected during onboarding |
+| `push_tokens` | `platform` | text | Device platform (ios/android) |
+| `push_tokens` | `updated_at` | timestamptz | Last token update time |
+| `reports` | `conversation_id` | integer | FK to conversations (report from chat) |
+| `reports` | `post_id` | integer | FK to posts (report a post) |
+| `reports` | `details` | text | Additional details text from reporter |
+
+### Code Changes
+
+#### Mobile App (`artifacts/rankyatra-mobile`)
+1. **OnboardingPopup** (`components/OnboardingPopup.tsx`)
+   - Delay increased from 2s → **10 seconds** after login
+   - Uses `userRef` to read **latest server-refreshed** user data before deciding to show
+   - `shownThisSession` set immediately to prevent multiple timers
+   - Timer cleaned up on logout / component unmount
+   - Checks in order: phone missing → preferences missing → KYC not submitted
+
+2. **Chat Screen** (`app/chat/[id].tsx`)
+   - `KeyboardAvoidingView` behavior changed from `"height"` → **`"padding"`** for both iOS and Android
+   - Fixes: large empty space at top of chat when keyboard closes on Android
+
+3. **Reel Access** (`app/apply-for-reels.tsx`)
+   - Application status auto-syncs `canPostReels` into `AuthContext` when status = `"approved"`
+   - No re-login needed after admin approves reel access
+
+4. **AuthContext** (`contexts/AuthContext.tsx`)
+   - `customUid` added to `AuthUser` interface
+   - `normalizeUser()` maps `custom_uid` from API response
+   - `AppState` listener added — refreshes user from `/api/auth/me` every time app comes to foreground
+
+5. **Wallet + Result Share** (`app/wallet/transaction-detail.tsx`, `app/exam/result.tsx`)
+   - Android: shares image+text using `IntentLauncher` (`ACTION_SEND` with `EXTRA_STREAM` + `EXTRA_TEXT`)
+   - iOS: uses `Share.share({ url, message })`
+   - Package: `expo-intent-launcher` installed
+
+6. **Profile Screen** (`app/(tabs)/profile.tsx`)
+   - Displays `customUid ?? id` everywhere UID is shown
+   - Copy UID copies the display UID correctly
+
+7. **Public User Profile** (`app/user/[id].tsx`)
+   - `formatUID(id, customUid)` used for all UID display
+
+8. **Referred Users UI** (`app/referral.tsx`)
+   - Each referred user gets avatar circle with initials (color-coded by status)
+   - Section header with orange users icon + count badge
+   - Status pill with Feather icon: ✓ ₹20 Credited / ⏳ Pending / ✗ Blocked
+   - Calendar icon + "Joined DD Mon YYYY" date format
+
+#### API Server (`artifacts/api-server`)
+9. **Reel Approval Notifications** (`routes/admin.ts`)
+   - Admin approve/reject sends FCM push notification to user's devices
+   - Also creates in-app notification in `notifications` table
+   - Message: "Your reel access request has been approved/rejected"
+
+10. **Commission Fix** (`routes/roles.ts`)
+    - All 4 role commission endpoints now filter `registeredAt >= joinedAt`
+    - Prevents counting registrations that happened before user joined the role
+
+#### DB Schema Files (`lib/db/src/schema/`)
+11. **`push_tokens.ts`** — Added `platform` (text) and `updatedAt` columns
+12. **`reports.ts`** — Added `reportedPostId`, `reportedReelId`, `conversationId`, `postId`, `details` columns; `reportedUserId` changed to nullable

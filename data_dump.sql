@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict izCb5wlwElLXwFLBknfzNwVhG4EnRF9mkBdQ0tdmamPZVBcPZBJbTXsh5rv04fM
+\restrict m3rvQGmmsNd8KzzqK5T3G6zo55SNJ5slaeNfcZ1MZUcfxs3rAJnNleazsB4Q4We
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -195,6 +195,18 @@ COPY public.messages (id, conversation_id, sender_id, content, is_read, delivere
 ALTER TABLE public.messages ENABLE TRIGGER ALL;
 
 --
+-- Data for Name: muted_conversations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+ALTER TABLE public.muted_conversations DISABLE TRIGGER ALL;
+
+COPY public.muted_conversations (id, user_id, conversation_id, created_at) FROM stdin;
+\.
+
+
+ALTER TABLE public.muted_conversations ENABLE TRIGGER ALL;
+
+--
 -- Data for Name: notifications; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -286,7 +298,7 @@ ALTER TABLE public.posts ENABLE TRIGGER ALL;
 
 ALTER TABLE public.push_tokens DISABLE TRIGGER ALL;
 
-COPY public.push_tokens (id, user_id, token, platform, created_at) FROM stdin;
+COPY public.push_tokens (id, user_id, token, platform, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -529,7 +541,7 @@ ALTER TABLE public.registrations ENABLE TRIGGER ALL;
 
 ALTER TABLE public.reports DISABLE TRIGGER ALL;
 
-COPY public.reports (id, reporter_id, reported_user_id, reported_post_id, reported_reel_id, reason, status, created_at) FROM stdin;
+COPY public.reports (id, reporter_id, reported_user_id, reported_post_id, reported_reel_id, reason, status, created_at, conversation_id, post_id, details) FROM stdin;
 \.
 
 
@@ -744,6 +756,13 @@ SELECT pg_catalog.setval('public.messages_id_seq', 1, false);
 
 
 --
+-- Name: muted_conversations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.muted_conversations_id_seq', 1, false);
+
+
+--
 -- Name: notifications_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
@@ -922,5 +941,5 @@ SELECT pg_catalog.setval('public.wallet_withdrawals_id_seq', 1, true);
 -- PostgreSQL database dump complete
 --
 
-\unrestrict izCb5wlwElLXwFLBknfzNwVhG4EnRF9mkBdQ0tdmamPZVBcPZBJbTXsh5rv04fM
+\unrestrict m3rvQGmmsNd8KzzqK5T3G6zo55SNJ5slaeNfcZ1MZUcfxs3rAJnNleazsB4Q4We
 
