@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Image, KeyboardAvoidingView, Keyboard,
+  ActivityIndicator, Image, KeyboardAvoidingView, Keyboard, Platform,
 } from "react-native";
 import { showError } from "@/utils/alert";
 import { router, useLocalSearchParams } from "expo-router";
@@ -299,7 +299,7 @@ export default function PostCommentsScreen() {
       </View>
 
       {/* Comments list */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         {isLoading ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color={colors.primary} size="large" />
