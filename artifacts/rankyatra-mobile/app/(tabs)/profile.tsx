@@ -755,6 +755,7 @@ export default function ProfileScreen() {
         colors={colors}
         onVerifyPress={() => router.push("/verify")}
         onChangeCredentials={() => router.push("/change-credentials")}
+        onPreferences={() => router.push("/exam-preferences")}
       />
 
       {/* App */}
@@ -850,8 +851,8 @@ const VERIFY_STATUS: Record<string, { label: string; icon: string; color: string
   rejected:      { label: "Rejected",      icon: "x-circle",     color: "#dc2626" },
 };
 
-function AccountSection({ user, colors, onVerifyPress, onChangeCredentials }: {
-  user: any; colors: any; onVerifyPress: () => void; onChangeCredentials: () => void;
+function AccountSection({ user, colors, onVerifyPress, onChangeCredentials, onPreferences }: {
+  user: any; colors: any; onVerifyPress: () => void; onChangeCredentials: () => void; onPreferences: () => void;
 }) {
   const vs = VERIFY_STATUS[user?.verificationStatus ?? "not_submitted"] ?? VERIFY_STATUS.not_submitted;
 
@@ -897,6 +898,23 @@ function AccountSection({ user, colors, onVerifyPress, onChangeCredentials }: {
           <Feather name="refresh-cw" size={15} color="#0284c7" />
         </View>
         <Text style={[styles.menuLabel, { color: colors.foreground }]}>Change Email & Mobile</Text>
+        <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+      </TouchableOpacity>
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {/* Exam Preferences */}
+      <TouchableOpacity style={styles.menuItem} onPress={onPreferences} activeOpacity={0.7}>
+        <View style={[styles.menuIconBox, { backgroundColor: "#7c3aed18" }]}>
+          <Feather name="sliders" size={15} color="#7c3aed" />
+        </View>
+        <Text style={[styles.menuLabel, { color: colors.foreground }]}>Exam Preferences</Text>
+        {user?.preferences?.length > 0 && (
+          <View style={[styles.verifyBadge, { backgroundColor: "#7c3aed18" }]}>
+            <Text style={{ color: "#7c3aed", fontSize: 12, fontWeight: "700" }}>
+              {user.preferences.length} selected
+            </Text>
+          </View>
+        )}
         <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
       </TouchableOpacity>
     </View>

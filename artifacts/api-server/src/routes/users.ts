@@ -44,6 +44,7 @@ router.get("/users/profile", requireAuth, async (req, res): Promise<void> => {
     bestRank: rankData?.bestRank ?? null,
     userRole: profileRolesData[0]?.role ?? null,
     groupBadge: profileGroupData[0]?.groupName ?? null,
+    preferences: user.preferences ?? [],
   });
 });
 
@@ -75,6 +76,24 @@ router.patch("/users/profile", requireAuth, async (req, res): Promise<void> => {
     verificationStatus: user.verificationStatus,
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+router.patch("/me/preferences", requireAuth, async (req, res): Promise<void> => {
+  const { preferences } = req.body;
+  if (!Array.isArray(preferences)) {
+    res.status(400).json({ error: "preferences must be an array" });
+    return;
+  }
+  if (preferences.length > 5) {
+    res.status(400).json({ error: "You can select at most 5 preferences" });
+    return;
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set({ preferences })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning();
+  res.json({ preferences: user.preferences });
 });
 
 router.post("/users/avatar", requireAuth, async (req, res): Promise<void> => {

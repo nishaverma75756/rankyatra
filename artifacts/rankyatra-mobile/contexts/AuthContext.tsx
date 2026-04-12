@@ -14,6 +14,7 @@ interface AuthUser {
   govtId?: string | null;
   verificationStatus?: string;
   canPostReels?: boolean;
+  preferences?: string[];
   is_admin?: boolean;
   wallet_balance?: string;
   avatar_url?: string | null;
@@ -43,6 +44,7 @@ function normalizeUser(raw: any): AuthUser {
     govtId: raw.govtId ?? null,
     verificationStatus: raw.verificationStatus ?? "not_submitted",
     canPostReels: raw.canPostReels ?? false,
+    preferences: Array.isArray(raw.preferences) ? raw.preferences : [],
   };
 }
 
