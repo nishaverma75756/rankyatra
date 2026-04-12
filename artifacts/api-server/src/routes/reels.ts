@@ -3,9 +3,9 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { db } from "@workspace/db";
-import { reels, reelLikes } from "@workspace/db/schema";
+import { reels, reelLikes, reelCommentsTable, reelCommentLikesTable, usersTable } from "@workspace/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, optionalAuth } from "../middlewares/auth";
 
 const router = Router();
 
@@ -351,6 +351,118 @@ router.post("/reels/:id/view", async (req, res) => {
     res.json({ ok: true });
   } catch {
     res.json({ ok: true });
+  }
+});
+
+// ─── GET /api/reels/:id/comments ─────────────────────────────────────────────
+router.get("/reels/:id/comments", optionalAuth, async (req: any, res: any) => {
+  const reelId = Number(req.params.id);
+  const userId = req.user?.id ?? null;
+  try {
+    const rows = await db
+      .select({
+        id: reelCommentsTable.id,
+        reelId: reelCommentsTable.reelId,
+        userId: reelCommentsTable.userId,
+        parentCommentId: reelCommentsTable.parentCommentId,
+        content: reelCommentsTable.content,
+        likeCount: reelCommentsTable.likeCount,
+        createdAt: reelCommentsTable.createdAt,
+        userName: usersTable.name,
+        userAvatar: usersTable.avatarUrl,
+      })
+      .from(reelCommentsTable)
+      .leftJoin(usersTable, eq(reelCommentsTable.userId, usersTable.id))
+      .where(eq(reelCommentsTable.reelId, reelId))
+      .orderBy(desc(reelCommentsTable.createdAt));
+
+    let likedIds = new Set<number>();
+    if (userId) {
+      const likes = await db
+        .select({ commentId: reelCommentLikesTable.commentId })
+        .from(reelCommentLikesTable)
+        .where(eq(reelCommentLikesTable.userId, userId));
+      likedIds = new Set(likes.map((l) => l.commentId));
+    }
+
+    res.json(rows.map((c) => ({
+      ...c,
+      createdAt: c.createdAt?.toISOString() ?? new Date().toISOString(),
+      isLiked: likedIds.has(c.id),
+    })));
+  } catch {
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+
+// ─── POST /api/reels/:id/comments ────────────────────────────────────────────
+router.post("/reels/:id/comments", requireAuth, async (req: any, res: any) => {
+  const reelId = Number(req.params.id);
+  const { content, parentCommentId } = req.body;
+  if (!content?.trim()) { res.status(400).json({ error: "Content required" }); return; }
+  try {
+    const [comment] = await db.insert(reelCommentsTable).values({
+      reelId,
+      userId: req.user!.id,
+      content: content.trim(),
+      parentCommentId: parentCommentId ?? null,
+    }).returning();
+    // Increment comment count on reel
+    await db.update(reels).set({ commentCount: sql`comment_count + 1` }).where(eq(reels.id, reelId));
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
+    res.json({
+      ...comment,
+      createdAt: comment.createdAt?.toISOString(),
+      userName: u?.name ?? "User",
+      userAvatar: u?.avatarUrl ?? null,
+      isLiked: false,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+
+// ─── DELETE /api/reels/:reelId/comments/:commentId ───────────────────────────
+router.delete("/reels/:reelId/comments/:commentId", requireAuth, async (req: any, res: any) => {
+  const commentId = Number(req.params.commentId);
+  const reelId = Number(req.params.reelId);
+  try {
+    const [c] = await db.select().from(reelCommentsTable).where(eq(reelCommentsTable.id, commentId));
+    if (!c) { res.status(404).json({ error: "Comment not found" }); return; }
+    if (c.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+    await db.delete(reelCommentsTable).where(eq(reelCommentsTable.id, commentId));
+    await db.update(reels).set({ commentCount: sql`GREATEST(comment_count - 1, 0)` }).where(eq(reels.id, reelId));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Failed to delete comment" });
+  }
+});
+
+// ─── POST /api/reels/:reelId/comments/:commentId/like ────────────────────────
+router.post("/reels/:reelId/comments/:commentId/like", requireAuth, async (req: any, res: any) => {
+  const commentId = Number(req.params.commentId);
+  try {
+    await db.insert(reelCommentLikesTable).values({ commentId, userId: req.user!.id }).onConflictDoNothing();
+    await db.update(reelCommentsTable).set({ likeCount: sql`like_count + 1` }).where(eq(reelCommentsTable.id, commentId));
+    const [c] = await db.select({ likeCount: reelCommentsTable.likeCount }).from(reelCommentsTable).where(eq(reelCommentsTable.id, commentId));
+    res.json({ likeCount: c?.likeCount ?? 0 });
+  } catch {
+    res.status(500).json({ error: "Failed to like comment" });
+  }
+});
+
+// ─── DELETE /api/reels/:reelId/comments/:commentId/like ──────────────────────
+router.delete("/reels/:reelId/comments/:commentId/like", requireAuth, async (req: any, res: any) => {
+  const commentId = Number(req.params.commentId);
+  try {
+    await db.delete(reelCommentLikesTable).where(
+      and(eq(reelCommentLikesTable.commentId, commentId), eq(reelCommentLikesTable.userId, req.user!.id))
+    );
+    await db.update(reelCommentsTable).set({ likeCount: sql`GREATEST(like_count - 1, 0)` }).where(eq(reelCommentsTable.id, commentId));
+    const [c] = await db.select({ likeCount: reelCommentsTable.likeCount }).from(reelCommentsTable).where(eq(reelCommentsTable.id, commentId));
+    res.json({ likeCount: c?.likeCount ?? 0 });
+  } catch {
+    res.status(500).json({ error: "Failed to unlike comment" });
   }
 });
 

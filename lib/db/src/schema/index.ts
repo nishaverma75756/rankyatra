@@ -22,6 +22,7 @@ export * from "./post_comments";
 export * from "./notifications";
 export * from "./push_tokens";
 export * from "./reels";
+export * from "./reel_comments";
 export * from "./user_roles";
 export * from "./groups";
 

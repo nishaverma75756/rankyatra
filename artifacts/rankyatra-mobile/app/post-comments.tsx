@@ -60,64 +60,66 @@ function Avatar({ name, url, size = 36, colors }: { name: string; url: string | 
 }
 
 export default function PostCommentsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const postId = Number(id);
+  const params = useLocalSearchParams<{ id: string; reelId: string; isReel: string }>();
+  const isReel = params.isReel === "1" || !!params.reelId;
+  const postId = isReel ? null : Number(params.id);
+  const reelId = isReel ? Number(params.reelId ?? params.id) : null;
+
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
 
   const [post, setPost] = useState<Post | null>(null);
-  const [postLoading, setPostLoading] = useState(true);
+  const [postLoading, setPostLoading] = useState(!isReel);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
+  // For reel mode — keep a live comment count
+  const [reelCommentCount, setReelCommentCount] = useState(0);
 
-  // Load post
+  // ── Load post (only in post mode) ────────────────────────────────────────
   useEffect(() => {
-    if (!postId) return;
+    if (isReel || !postId) { setPostLoading(false); return; }
     customFetch<Post>(`/api/posts/${postId}`)
       .then(setPost)
       .catch(() => {})
       .finally(() => setPostLoading(false));
-    // Record view
     customFetch(`/api/posts/${postId}/view`, { method: "POST" }).catch(() => {});
-  }, [postId]);
+  }, [postId, isReel]);
 
-  // Load comments
+  // ── Load comments ─────────────────────────────────────────────────────────
   const loadComments = useCallback(async () => {
+    const url = isReel ? `/api/reels/${reelId}/comments` : `/api/posts/${postId}/comments`;
     try {
-      const data = await customFetch<Comment[]>(`/api/posts/${postId}/comments`);
+      const data = await customFetch<Comment[]>(url);
       const topLevel = data.filter((c) => !c.parentCommentId);
       const replies = data.filter((c) => !!c.parentCommentId);
-      setComments(topLevel.map((c) => ({
+      const merged = topLevel.map((c) => ({
         ...c,
         replies: replies.filter((r) => r.parentCommentId === c.id),
-      })));
+      }));
+      setComments(merged);
+      if (isReel) setReelCommentCount(data.length);
     } catch {}
     setLoading(false);
-  }, [postId]);
+  }, [postId, reelId, isReel]);
 
   useEffect(() => { loadComments(); }, [loadComments]);
 
+  // ── Submit comment ────────────────────────────────────────────────────────
   const submit = async () => {
     const content = text.trim();
     if (!content || submitting || !token) return;
-    // Clear input immediately to prevent duplicate submissions
     setText("");
     setReplyTo(null);
     setSubmitting(true);
+    const url = isReel ? `/api/reels/${reelId}/comments` : `/api/posts/${postId}/comments`;
     try {
-      const c = await customFetch<Comment>(`/api/posts/${postId}/comments`, {
+      const c = await customFetch<Comment>(url, {
         method: "POST",
         body: JSON.stringify({ content, parentCommentId: replyTo?.id ?? null }),
         headers: { "Content-Type": "application/json" },
@@ -128,17 +130,21 @@ export default function PostCommentsScreen() {
         ));
       } else {
         setComments((prev) => [{ ...c, replies: [] }, ...prev]);
-        setPost((p) => p ? { ...p, commentCount: p.commentCount + 1 } : p);
+        if (!isReel) setPost((p) => p ? { ...p, commentCount: p.commentCount + 1 } : p);
+        else setReelCommentCount((n) => n + 1);
       }
     } catch {
-      // Server may have saved the comment despite network hiccup — reload to confirm
       loadComments();
     }
     setSubmitting(false);
   };
 
+  // ── Delete comment ────────────────────────────────────────────────────────
   const deleteComment = async (cid: number, parentId?: number | null) => {
-    await customFetch(`/api/posts/${postId}/comments/${cid}`, { method: "DELETE" }).catch(() => {});
+    const url = isReel
+      ? `/api/reels/${reelId}/comments/${cid}`
+      : `/api/posts/${postId}/comments/${cid}`;
+    await customFetch(url, { method: "DELETE" }).catch(() => {});
     if (parentId) {
       setComments((prev) => prev.map((t) =>
         t.id === parentId ? { ...t, replies: (t.replies ?? []).filter((r) => r.id !== cid) } : t
@@ -148,6 +154,7 @@ export default function PostCommentsScreen() {
     }
   };
 
+  // ── Toggle comment like ───────────────────────────────────────────────────
   const toggleLike = async (cid: number, isLiked: boolean, parentId?: number | null) => {
     const update = (c: Comment): Comment =>
       c.id === cid ? { ...c, isLiked: !isLiked, likeCount: isLiked ? c.likeCount - 1 : c.likeCount + 1 } : c;
@@ -156,10 +163,11 @@ export default function PostCommentsScreen() {
       parentId ? (top.id === parentId ? { ...top, replies: (top.replies ?? []).map(update) } : top) : update(top)
     ));
 
+    const url = isReel
+      ? `/api/reels/${reelId}/comments/${cid}/like`
+      : `/api/posts/${postId}/comments/${cid}/like`;
     try {
-      const res = await customFetch<{ likeCount: number }>(`/api/posts/${postId}/comments/${cid}/like`, {
-        method: isLiked ? "DELETE" : "POST",
-      });
+      const res = await customFetch<{ likeCount: number }>(url, { method: isLiked ? "DELETE" : "POST" });
       const sync = (c: Comment): Comment => c.id === cid ? { ...c, likeCount: res.likeCount } : c;
       setComments((prev) => prev.map((top) =>
         parentId ? (top.id === parentId ? { ...top, replies: (top.replies ?? []).map(sync) } : top) : sync(top)
@@ -173,9 +181,9 @@ export default function PostCommentsScreen() {
     inputRef.current?.focus();
   };
 
-  const renderComment = ({ item: c, extraData }: { item: Comment; extraData?: any }) => (
+  // ── Render comment ────────────────────────────────────────────────────────
+  const renderComment = ({ item: c }: { item: Comment }) => (
     <View>
-      {/* Top-level comment */}
       <View style={styles.commentRow}>
         <TouchableOpacity onPress={() => router.push(`/user/${c.userId}` as any)}>
           <Avatar name={c.userName} url={c.userAvatar} size={34} colors={colors} />
@@ -195,14 +203,13 @@ export default function PostCommentsScreen() {
             </View>
             <Text style={{ fontSize: 13, color: colors.foreground, marginTop: 3, lineHeight: 18 }}>{c.content}</Text>
           </View>
-          {/* Actions */}
           <View style={{ flexDirection: "row", gap: 16, marginTop: 4, paddingLeft: 4 }}>
             <TouchableOpacity
               onPress={() => token && toggleLike(c.id, c.isLiked)}
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              <Feather name="heart" size={13} color={c.isLiked ? "#ef4444" : colors.mutedForeground} />
-              {c.likeCount > 0 && <Text style={{ fontSize: 11, color: c.isLiked ? "#ef4444" : colors.mutedForeground }}>{c.likeCount}</Text>}
+              <Feather name="heart" size={13} color={c.isLiked ? colors.primary : colors.mutedForeground} />
+              {c.likeCount > 0 && <Text style={{ fontSize: 11, color: c.isLiked ? colors.primary : colors.mutedForeground }}>{c.likeCount}</Text>}
             </TouchableOpacity>
             {token && (
               <TouchableOpacity onPress={() => startReply(c)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -211,7 +218,6 @@ export default function PostCommentsScreen() {
               </TouchableOpacity>
             )}
           </View>
-          {/* Nested replies */}
           {(c.replies ?? []).map((r) => (
             <View key={r.id} style={[styles.commentRow, { marginTop: 8 }]}>
               <TouchableOpacity onPress={() => router.push(`/user/${r.userId}` as any)}>
@@ -236,8 +242,8 @@ export default function PostCommentsScreen() {
                   onPress={() => token && toggleLike(r.id, r.isLiked, c.id)}
                   style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3, paddingLeft: 4 }}
                 >
-                  <Feather name="heart" size={12} color={r.isLiked ? "#ef4444" : colors.mutedForeground} />
-                  {r.likeCount > 0 && <Text style={{ fontSize: 10, color: r.isLiked ? "#ef4444" : colors.mutedForeground }}>{r.likeCount}</Text>}
+                  <Feather name="heart" size={12} color={r.isLiked ? colors.primary : colors.mutedForeground} />
+                  {r.likeCount > 0 && <Text style={{ fontSize: 10, color: r.isLiked ? colors.primary : colors.mutedForeground }}>{r.likeCount}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -247,10 +253,22 @@ export default function PostCommentsScreen() {
     </View>
   );
 
+  // ── List header ───────────────────────────────────────────────────────────
   const ListHeader = () => (
     <View>
-      {/* Post preview */}
-      {postLoading ? (
+      {isReel ? (
+        <View style={[styles.postPreview, { borderBottomColor: colors.border }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={[styles.reelBadge, { backgroundColor: colors.primary + "20" }]}>
+              <Feather name="film" size={14} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 12 }}>Reel</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+              {reelCommentCount} comment{reelCommentCount !== 1 ? "s" : ""}
+            </Text>
+          </View>
+        </View>
+      ) : postLoading ? (
         <ActivityIndicator color={colors.primary} style={{ margin: 20 }} />
       ) : post ? (
         <View style={[styles.postPreview, { borderBottomColor: colors.border }]}>
@@ -262,7 +280,7 @@ export default function PostCommentsScreen() {
               <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)}>
                 <Text style={{ fontWeight: "700", fontSize: 14, color: colors.foreground }}>{post.userName}</Text>
               </TouchableOpacity>
-              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>UID: {post.userId} · {timeAgo(post.createdAt)}</Text>
+              <Text style={{ fontSize: 11, color: colors.mutedForeground }}>{timeAgo(post.createdAt)}</Text>
             </View>
           </View>
           <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{post.content}</Text>
@@ -271,7 +289,7 @@ export default function PostCommentsScreen() {
           )}
           <View style={{ flexDirection: "row", gap: 16, marginTop: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Feather name="heart" size={13} color={post.isLiked ? "#ef4444" : colors.mutedForeground} />
+              <Feather name="heart" size={13} color={post.isLiked ? colors.primary : colors.mutedForeground} />
               <Text style={{ fontSize: 12, color: colors.mutedForeground }}>{post.likeCount} likes</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -285,8 +303,6 @@ export default function PostCommentsScreen() {
     </View>
   );
 
-  const isLoading = postLoading || loading;
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
@@ -294,13 +310,15 @@ export default function PostCommentsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, flex: 1, textAlign: "center" }}>Comments</Text>
+        <Text style={{ fontSize: 17, fontWeight: "700", color: colors.foreground, flex: 1, textAlign: "center" }}>
+          {isReel ? "Reel Comments" : "Comments"}
+        </Text>
         <View style={{ width: 36 }} />
       </View>
 
       {/* Comments list */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        {isLoading ? (
+        {loading ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color={colors.primary} size="large" />
           </View>
@@ -337,7 +355,7 @@ export default function PostCommentsScreen() {
           )}
           {token ? (
             <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 8, gap: 10 }}>
-              <Avatar name={user?.name ?? "?"} url={user?.avatarUrl ?? null} size={32} colors={colors} />
+              <Avatar name={user?.name ?? "?"} url={(user as any)?.avatarUrl ?? null} size={32} colors={colors} />
               <TextInput
                 ref={inputRef}
                 style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, flex: 1 }]}
@@ -377,6 +395,14 @@ const styles = StyleSheet.create({
   postPreview: {
     padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  reelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   commentRow: {
     flexDirection: "row",

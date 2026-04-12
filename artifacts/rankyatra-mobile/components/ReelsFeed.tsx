@@ -52,11 +52,13 @@ function Avatar({ name, url, size = 38 }: { name: string; url: string | null; si
 
 // ─── Single Reel Item ─────────────────────────────────────────────────────────
 // KEY FIX: inactive items get null source → no native player created → no OOM crash
-function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
-  reel: Reel; isActive: boolean; currentUserId: number | null; tabBarHeight: number; onDelete: (id: number) => void;
+function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCommentCountChange }: {
+  reel: Reel; isActive: boolean; currentUserId: number | null; tabBarHeight: number;
+  onDelete: (id: number) => void; onCommentCountChange?: (id: number, count: number) => void;
 }) {
   const [liked, setLiked] = useState(reel.isLiked);
   const [likeCount, setLikeCount] = useState(reel.likeCount);
+  const [commentCount, setCommentCount] = useState(reel.commentCount);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const viewTracked = useRef(false);
 
@@ -151,31 +153,40 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete }: {
 
       {/* Right action buttons */}
       <View style={[s.rightActions, { bottom: tabBarHeight + 120 }]}>
+        {/* Like */}
         <TouchableOpacity style={s.actionBtn} onPress={toggleLike} activeOpacity={0.7}>
-          <Feather name="heart" size={28} color={liked ? "#ef4444" : "#fff"} />
-          <Text style={s.actionLabel}>{likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}k` : likeCount}</Text>
+          <Feather name="heart" size={28} color={liked ? "#f97316" : "#fff"} />
+          <Text style={[s.actionLabel, liked && { color: "#f97316" }]}>
+            {likeCount > 999 ? `${(likeCount / 1000).toFixed(1)}k` : likeCount}
+          </Text>
         </TouchableOpacity>
 
+        {/* Comment */}
         <TouchableOpacity
           style={s.actionBtn}
-          onPress={() => router.push({ pathname: "/post-comments", params: { reelId: reel.id, isReel: "1" } } as any)}
+          onPress={() => router.push({ pathname: "/post-comments", params: { reelId: String(reel.id), isReel: "1" } } as any)}
           activeOpacity={0.7}
         >
           <Feather name="message-circle" size={28} color="#fff" />
-          <Text style={s.actionLabel}>{reel.commentCount}</Text>
+          <Text style={s.actionLabel}>
+            {commentCount > 999 ? `${(commentCount / 1000).toFixed(1)}k` : commentCount}
+          </Text>
         </TouchableOpacity>
 
+        {/* Share */}
         <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={handleShare}>
           <Feather name="send" size={26} color="#fff" />
           <Text style={s.actionLabel}>Share</Text>
         </TouchableOpacity>
 
+        {/* Delete (own reels only) */}
         {isOwn && (
           <TouchableOpacity style={s.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
             <Feather name="trash-2" size={24} color="#fff" />
           </TouchableOpacity>
         )}
 
+        {/* View count */}
         <View style={[s.actionBtn, { marginTop: 8 }]}>
           <Feather name="eye" size={20} color="#ffffff99" />
           <Text style={[s.actionLabel, { color: "#ffffff99", fontSize: 11 }]}>{reel.viewCount}</Text>
