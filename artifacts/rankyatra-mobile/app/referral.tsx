@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Platform,
   ActivityIndicator,
   Share,
-  Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,12 +18,13 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
-import { showError } from "@/utils/alert";
+import { showError, showSuccess } from "@/utils/alert";
 import { customFetch } from "@workspace/api-client-react";
 
 interface ReferralStats {
   referralCode: string | null;
   referralLink: string | null;
+  isReferred: boolean;
   totalReferrals: number;
   successfulReferrals: number;
   pendingReferrals: number;
@@ -45,22 +47,39 @@ export default function ReferralScreen() {
   const [referrals, setReferrals] = useState<ReferralEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [applying, setApplying] = useState(false);
+  const deviceFp = useRef<string>("");
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0) + 16;
 
   useEffect(() => {
+    const initFp = async () => {
+      const FP_KEY = "ry_device_fp";
+      let fp = await AsyncStorage.getItem(FP_KEY);
+      if (!fp) {
+        fp = "mobile_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        await AsyncStorage.setItem(FP_KEY, fp);
+      }
+      deviceFp.current = fp;
+    };
+    initFp();
+  }, []);
+
+  const fetchData = async () => {
     if (!token) return;
-    Promise.all([
-      customFetch<ReferralStats>("/api/referral/stats"),
-      customFetch<ReferralEntry[]>("/api/referral/list"),
-    ])
-      .then(([s, l]) => {
-        setStats(s as any);
-        setReferrals(Array.isArray(l) ? l as any[] : []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [token]);
+    try {
+      const [s, l] = await Promise.all([
+        customFetch<ReferralStats>("/api/referral/stats"),
+        customFetch<ReferralEntry[]>("/api/referral/list"),
+      ]);
+      setStats(s as any);
+      setReferrals(Array.isArray(l) ? l as any[] : []);
+    } catch {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, [token]);
 
   const handleCopy = async () => {
     if (!stats?.referralLink) return;
@@ -74,10 +93,32 @@ export default function ReferralScreen() {
     if (!stats?.referralLink) return;
     try {
       await Share.share({
-        message: `🚀 RankYatra pe join karo aur ₹20 bonus pao!\n\nMera referral link: ${stats.referralLink}`,
+        message: `Join RankYatra and get ₹20 bonus!\n\nMy referral link: ${stats.referralLink}`,
         title: "RankYatra — Refer & Earn",
       });
     } catch {}
+  };
+
+  const handleApplyCode = async () => {
+    if (!manualCode.trim()) return;
+    setApplying(true);
+    try {
+      const data = await customFetch<any>("/api/referral/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referralCode: manualCode.trim().toUpperCase(), deviceFingerprint: deviceFp.current }),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showSuccess("Code Applied!", data?.message ?? (data?.bonusCredited ? "₹20 added to your wallet!" : "Referral code applied."));
+      setManualCode("");
+      setLoading(true);
+      fetchData();
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showError("Could Not Apply", e?.response?.data?.error ?? e?.message ?? "Please check the code and try again.");
+    } finally {
+      setApplying(false);
+    }
   };
 
   const c = colors;
@@ -144,6 +185,49 @@ export default function ReferralScreen() {
             </>
           )}
         </View>
+
+        {/* Enter Referral Code — shown only if user hasn't been referred yet */}
+        {!loading && stats?.isReferred === false && (
+          <View style={[styles.card, styles.applyCard, { backgroundColor: c.card, borderColor: "#f97316" }]}>
+            <View style={styles.applyHeader}>
+              <View style={[styles.applyIconBox, { backgroundColor: "#f9731620" }]}>
+                <Feather name="tag" size={18} color="#f97316" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cardTitle, { color: c.foreground, marginBottom: 2 }]}>Have a Referral Code?</Text>
+                <Text style={[styles.applySubtitle, { color: c.mutedForeground }]}>
+                  Signed up via Google or missed entering a code? Enter it here to claim your ₹20 bonus.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.applyRow}>
+              <TextInput
+                style={[styles.applyInput, { backgroundColor: c.muted, color: c.foreground, borderColor: c.border }]}
+                placeholder="Enter referral code"
+                placeholderTextColor={c.mutedForeground}
+                value={manualCode}
+                onChangeText={(t) => setManualCode(t.replace(/\s/g, "").toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={12}
+              />
+              <TouchableOpacity
+                style={[styles.applyBtn, { backgroundColor: "#f97316", opacity: applying || !manualCode.trim() ? 0.6 : 1 }]}
+                onPress={handleApplyCode}
+                disabled={applying || !manualCode.trim()}
+              >
+                {applying ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.applyBtnText}>Apply</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.applyHint, { color: c.mutedForeground }]}>
+              Each device can only use one referral code. Bonus credited instantly.
+            </Text>
+          </View>
+        )}
 
         {/* Stats */}
         <View style={styles.statsGrid}>
@@ -273,4 +357,17 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: "700" },
   emptyBox: { alignItems: "center", paddingVertical: 30, gap: 10 },
   emptyText: { fontSize: 13, textAlign: "center" },
+  applyCard: { borderWidth: 1.5 },
+  applyHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  applyIconBox: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  applySubtitle: { fontSize: 12, lineHeight: 17 },
+  applyRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
+  applyInput: {
+    flex: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 14, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    letterSpacing: 1, borderWidth: 1,
+  },
+  applyBtn: { borderRadius: 10, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", minWidth: 72 },
+  applyBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  applyHint: { fontSize: 11, lineHeight: 15 },
 });

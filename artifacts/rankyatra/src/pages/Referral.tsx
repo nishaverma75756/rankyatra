@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Copy, Share2, Users, IndianRupee, Gift, CheckCircle, Clock, XCircle, TrendingUp, Link2 } from "lucide-react";
+import { ArrowLeft, Copy, Share2, Users, IndianRupee, Gift, CheckCircle, Clock, XCircle, TrendingUp, Link2, Tag } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthToken } from "@/lib/auth";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 interface ReferralStats {
   referralCode: string | null;
   referralLink: string | null;
+  isReferred: boolean;
   totalReferrals: number;
   successfulReferrals: number;
   pendingReferrals: number;
@@ -41,6 +43,28 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
   );
 }
 
+function getDeviceFingerprint(): string {
+  const key = "ry_device_fp";
+  let fp = localStorage.getItem(key);
+  if (!fp) {
+    const raw = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width,
+      screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+    ].join("|");
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+      hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+    }
+    fp = Math.abs(hash).toString(36) + Date.now().toString(36);
+    localStorage.setItem(key, fp);
+  }
+  return fp;
+}
+
 export default function ReferralPage() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -48,8 +72,15 @@ export default function ReferralPage() {
   const [referrals, setReferrals] = useState<ReferralEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [applying, setApplying] = useState(false);
+  const deviceFp = useRef<string>("");
 
   useEffect(() => {
+    deviceFp.current = getDeviceFingerprint();
+  }, []);
+
+  const fetchData = () => {
     const token = getAuthToken();
     if (!token) return;
     Promise.all([
@@ -62,25 +93,54 @@ export default function ReferralPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const handleCopy = () => {
     if (!stats?.referralLink) return;
     navigator.clipboard.writeText(stats.referralLink).then(() => {
       setCopied(true);
-      toast({ title: "Link copied!", description: "Ab friends ke saath share karo." });
+      toast({ title: "Link copied!", description: "Share it with your friends." });
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
   const handleShare = () => {
     if (!stats?.referralLink) return;
-    const text = `🚀 RankYatra pe join karo aur ₹20 bonus pao!\n\nMera referral link: ${stats.referralLink}`;
+    const text = `Join RankYatra and get ₹20 bonus!\n\nMy referral link: ${stats.referralLink}`;
     if (navigator.share) {
       navigator.share({ title: "RankYatra — Refer & Earn", text, url: stats.referralLink });
     } else {
       navigator.clipboard.writeText(text);
-      toast({ title: "Text copied!", description: "Share karo apne friends ke saath." });
+      toast({ title: "Text copied!", description: "Share it with your friends." });
+    }
+  };
+
+  const handleApplyCode = async () => {
+    if (!manualCode.trim()) return;
+    const token = getAuthToken();
+    if (!token) return;
+    setApplying(true);
+    try {
+      const res = await fetch("/api/referral/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ referralCode: manualCode.trim().toUpperCase(), deviceFingerprint: deviceFp.current }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Could not apply code", description: data.error ?? "Something went wrong.", variant: "destructive" });
+        return;
+      }
+      toast({ title: data.bonusCredited ? "₹20 Credited!" : "Code Applied", description: data.message });
+      setManualCode("");
+      setLoading(true);
+      fetchData();
+    } catch {
+      toast({ title: "Error", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -89,7 +149,7 @@ export default function ReferralPage() {
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="container mx-auto px-4 py-16 text-center">
-          <p className="text-muted-foreground">Login karo referral program access karne ke liye.</p>
+          <p className="text-muted-foreground">Please log in to access the referral program.</p>
         </div>
       </div>
     );
@@ -114,16 +174,16 @@ export default function ReferralPage() {
               <Gift className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black">Dono ko milega ₹20!</h2>
-              <p className="text-sm text-white/80">Apne friend ko refer karo — dono ko ₹20 bonus milega</p>
+              <h2 className="text-xl font-black">Both get ₹20!</h2>
+              <p className="text-sm text-white/80">Refer a friend — both of you get a ₹20 bonus</p>
             </div>
           </div>
           <div className="flex gap-3 text-sm">
             <div className="flex items-center gap-1 bg-white/20 rounded-full px-3 py-1">
-              <span>✅ Aap ko ₹20</span>
+              <span>✅ You get ₹20</span>
             </div>
             <div className="flex items-center gap-1 bg-white/20 rounded-full px-3 py-1">
-              <span>✅ Friend ko ₹20</span>
+              <span>✅ Friend gets ₹20</span>
             </div>
           </div>
         </div>
@@ -132,7 +192,7 @@ export default function ReferralPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-primary" /> Aapka Referral Link
+              <Link2 className="h-4 w-4 text-primary" /> Your Referral Link
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -160,6 +220,37 @@ export default function ReferralPage() {
           </CardContent>
         </Card>
 
+        {/* Enter Referral Code (only shown if user hasn't been referred yet) */}
+        {!loading && stats?.isReferred === false && (
+          <Card className="border-dashed border-primary/40">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="h-4 w-4 text-primary" /> Have a Referral Code?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                If a friend gave you their referral code (or you signed up via Google and missed entering one), enter it here to claim your ₹20 bonus.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter referral code (e.g. ABC12345)"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value.replace(/\s/g, "").toUpperCase())}
+                  maxLength={12}
+                  className="font-mono uppercase tracking-wider"
+                />
+                <Button onClick={handleApplyCode} disabled={applying || !manualCode.trim()} className="gap-2 whitespace-nowrap">
+                  {applying ? "Applying..." : "Apply Code"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Each device can only use one referral code. Bonus is credited instantly to both wallets.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {loading ? (
@@ -177,14 +268,14 @@ export default function ReferralPage() {
         {/* How it works */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Kaise Kaam Karta Hai?</CardTitle>
+            <CardTitle className="text-base">How It Works</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {[
-                { step: "1", text: "Apna referral link copy karo ya share karo" },
-                { step: "2", text: "Friend us link se sign up kare" },
-                { step: "3", text: "Dono ke wallet mein ₹20-₹20 automatically credit ho jaega!" },
+                { step: "1", text: "Copy your referral link or share it directly" },
+                { step: "2", text: "Your friend signs up using your link" },
+                { step: "3", text: "Both wallets get ₹20 credited instantly!" },
               ].map(({ step, text }) => (
                 <div key={step} className="flex items-center gap-3">
                   <div className="h-7 w-7 rounded-full bg-primary text-white text-xs font-black flex items-center justify-center shrink-0">
@@ -238,7 +329,7 @@ export default function ReferralPage() {
         {!loading && referrals.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">Abhi koi referral nahi. Link share karo!</p>
+            <p className="text-sm">No referrals yet. Share your link to get started!</p>
           </div>
         )}
       </div>

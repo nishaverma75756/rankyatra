@@ -275,6 +275,8 @@ GRANT ALL PRIVILEGES ON TABLE referrals TO PUBLIC;
 GRANT ALL PRIVILEGES ON SEQUENCE referrals_id_seq TO PUBLIC;
 GRANT ALL PRIVILEGES ON TABLE referral_clicks TO PUBLIC;
 GRANT ALL PRIVILEGES ON SEQUENCE referral_clicks_id_seq TO PUBLIC;
+
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS device_fingerprint text;
 "
 
 echo "    Database schema synced."
