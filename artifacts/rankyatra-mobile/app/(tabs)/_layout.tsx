@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useActivityCount } from "@/contexts/ActivityCountContext";
+import OnboardingPopup from "@/components/OnboardingPopup";
 
 export default function TabLayout() {
   const colors = useColors();
@@ -18,6 +19,8 @@ export default function TabLayout() {
   const { totalUnread } = useActivityCount();
 
   return (
+    <>
+    <OnboardingPopup />
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
@@ -103,5 +106,6 @@ export default function TabLayout() {
       <Tabs.Screen name="chat" options={{ href: null }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
     </Tabs>
+    </>
   );
 }
