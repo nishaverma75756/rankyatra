@@ -1,17 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet,
-  Animated, Platform,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Animated,
 } from "react-native";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Priority order: phone → preferences → kyc
+// Storage key prefix — one key per popup type
+// "onboarding_dismissed_phone" / "onboarding_dismissed_preferences" / "onboarding_dismissed_kyc"
+const DISMISSED_KEY = (k: string) => `onboarding_dismissed_${k}`;
+
 interface PopupConfig {
-  key: "phone" | "preferences" | "kyc";
+  key: string;
   icon: string;
   iconColor: string;
   iconBg: string;
@@ -19,6 +22,7 @@ interface PopupConfig {
   subtitle: string;
   cta: string;
   route: string;
+  isMissing: (user: any) => boolean;
 }
 
 const POPUPS: PopupConfig[] = [
@@ -28,9 +32,11 @@ const POPUPS: PopupConfig[] = [
     iconColor: "#7c3aed",
     iconBg: "#7c3aed18",
     title: "Add Your Phone Number",
-    subtitle: "Your account is missing a phone number. Add it to secure your account and receive important updates.",
+    subtitle:
+      "Your account is missing a phone number. Add it to secure your account and receive important updates.",
     cta: "Add Phone Number",
     route: "/change-credentials",
+    isMissing: (u) => !u?.phone,
   },
   {
     key: "preferences",
@@ -38,9 +44,11 @@ const POPUPS: PopupConfig[] = [
     iconColor: "#f97316",
     iconBg: "#f9731618",
     title: "Set Exam Preferences",
-    subtitle: "Tell us which exams you are preparing for. We will personalise your feed with the right content.",
+    subtitle:
+      "Tell us which exams you are preparing for. We will personalise your feed with the right content.",
     cta: "Set Preferences",
     route: "/exam-preferences",
+    isMissing: (u) => !u?.preferences || u.preferences.length === 0,
   },
   {
     key: "kyc",
@@ -48,9 +56,12 @@ const POPUPS: PopupConfig[] = [
     iconColor: "#059669",
     iconBg: "#05966918",
     title: "Verify Your Profile",
-    subtitle: "Get a verified badge and build trust with other users. Complete your KYC to unlock full platform access.",
+    subtitle:
+      "Get a verified badge and build trust with other users. Complete your KYC to unlock full platform access.",
     cta: "Verify Now",
     route: "/verify",
+    isMissing: (u) =>
+      !u?.verificationStatus || u.verificationStatus === "not_submitted",
   },
 ];
 
@@ -59,62 +70,109 @@ export default function OnboardingPopup() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const [visible, setVisible] = useState(false);
   const [popup, setPopup] = useState<PopupConfig | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  // Prevent re-triggering within the same session after dismissal
   const shownThisSession = useRef(false);
 
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Only show once per app session
     if (shownThisSession.current || !user) return;
 
-    // Determine which popup to show (first missing item in priority order)
-    let toShow: PopupConfig | null = null;
-    for (const p of POPUPS) {
-      if (p.key === "phone" && !user.phone) { toShow = p; break; }
-      if (p.key === "preferences" && (!user.preferences || user.preferences.length === 0)) { toShow = p; break; }
-      if (p.key === "kyc" && (!user.verificationStatus || user.verificationStatus === "not_submitted")) { toShow = p; break; }
-    }
+    const checkAndShow = async () => {
+      for (const p of POPUPS) {
+        // Condition already met — skip
+        if (!p.isMissing(user)) continue;
 
-    if (!toShow) return;
+        // User permanently dismissed this popup before — skip
+        const dismissed = await AsyncStorage.getItem(DISMISSED_KEY(p.key));
+        if (dismissed === "1") continue;
 
-    // Delay 2 seconds after login to not overwhelm
-    const timer = setTimeout(() => {
-      shownThisSession.current = true;
-      setPopup(toShow);
-      setVisible(true);
-      // Animate in
-      Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 150 }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-    }, 2000);
+        // This is the popup to show
+        shownThisSession.current = true;
+        setPopup(p);
+        setVisible(true);
 
-    return () => clearTimeout(timer);
-  }, [user]);
+        // Animate in after a short delay
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.spring(slideAnim, {
+              toValue: 0,
+              useNativeDriver: true,
+              damping: 20,
+              stiffness: 150,
+            }),
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }, 2000);
 
-  const dismiss = () => {
+        return; // Show only one
+      }
+    };
+
+    checkAndShow();
+  }, [user?.id]); // re-evaluate only when the logged-in user changes
+
+  const animateOut = (cb?: () => void) => {
     Animated.parallel([
-      Animated.timing(slideAnim, { toValue: 300, duration: 250, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start(() => setVisible(false));
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setVisible(false);
+      cb?.();
+    });
   };
 
+  // "Remind me later" — permanently dismiss this popup via AsyncStorage
+  const handleDismiss = async () => {
+    if (popup) {
+      await AsyncStorage.setItem(DISMISSED_KEY(popup.key), "1");
+    }
+    animateOut();
+  };
+
+  // "Do it now" — navigate to the relevant screen; don't mark dismissed
+  // (if they complete the action the condition becomes false naturally)
   const handleCta = () => {
-    dismiss();
-    setTimeout(() => {
-      if (popup) router.push(popup.route as any);
-    }, 300);
+    if (!popup) return;
+    const route = popup.route;
+    animateOut(() => {
+      setTimeout(() => router.push(route as any), 100);
+    });
   };
 
   if (!popup || !visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={dismiss}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={handleDismiss}
+    >
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={dismiss} />
+        {/* Tap backdrop to dismiss permanently */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={handleDismiss}
+        />
+
         <Animated.View
           style={[
             styles.sheet,
@@ -125,17 +183,29 @@ export default function OnboardingPopup() {
             },
           ]}
         >
-          {/* Handle */}
+          {/* Handle bar */}
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
           {/* Icon */}
-          <View style={[styles.iconWrap, { backgroundColor: popup.iconBg }]}>
-            <Feather name={popup.icon as any} size={28} color={popup.iconColor} />
+          <View
+            style={[styles.iconWrap, { backgroundColor: popup.iconBg }]}
+          >
+            <Feather
+              name={popup.icon as any}
+              size={28}
+              color={popup.iconColor}
+            />
           </View>
 
-          {/* Text */}
-          <Text style={[styles.title, { color: colors.foreground }]}>{popup.title}</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{popup.subtitle}</Text>
+          {/* Texts */}
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            {popup.title}
+          </Text>
+          <Text
+            style={[styles.subtitle, { color: colors.mutedForeground }]}
+          >
+            {popup.subtitle}
+          </Text>
 
           {/* CTA button */}
           <TouchableOpacity
@@ -147,9 +217,17 @@ export default function OnboardingPopup() {
             <Text style={styles.ctaText}>{popup.cta}</Text>
           </TouchableOpacity>
 
-          {/* Later */}
-          <TouchableOpacity onPress={dismiss} style={styles.laterBtn} activeOpacity={0.7}>
-            <Text style={[styles.laterText, { color: colors.mutedForeground }]}>Remind me later</Text>
+          {/* Dismiss link */}
+          <TouchableOpacity
+            onPress={handleDismiss}
+            style={styles.laterBtn}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[styles.laterText, { color: colors.mutedForeground }]}
+            >
+              Remind me later
+            </Text>
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>
@@ -171,31 +249,54 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   handle: {
-    width: 36, height: 4, borderRadius: 2, marginBottom: 24,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 24,
   },
   iconWrap: {
-    width: 72, height: 72, borderRadius: 36,
-    alignItems: "center", justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
   },
   title: {
-    fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 10, lineHeight: 26,
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 10,
+    lineHeight: 26,
   },
   subtitle: {
-    fontSize: 14, textAlign: "center", lineHeight: 22, marginBottom: 28, paddingHorizontal: 8,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+    paddingHorizontal: 8,
   },
   ctaBtn: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    width: "100%", paddingVertical: 15, borderRadius: 16,
-    justifyContent: "center", marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    paddingVertical: 15,
+    borderRadius: 16,
+    justifyContent: "center",
+    marginBottom: 12,
   },
   ctaText: {
-    color: "#fff", fontSize: 16, fontWeight: "700",
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
   laterBtn: {
-    paddingVertical: 8, paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   laterText: {
-    fontSize: 14, fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
