@@ -63,10 +63,19 @@ router.get("/posts", optionalAuth, async (req: any, res: any) => {
         topReplyUserAvatar: sql<string | null>`(SELECT u.avatar_url FROM post_comments pc JOIN users u ON u.id = pc.user_id WHERE pc.post_id = ${postsTable.id} AND pc.parent_comment_id IS NOT NULL ORDER BY pc.created_at DESC LIMIT 1)`,
         userRole: sql<string | null>`(SELECT role FROM user_roles WHERE user_id = ${postsTable.userId} ORDER BY assigned_at ASC LIMIT 1)`,
         userGroupBadge: sql<string | null>`(SELECT g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ${postsTable.userId} AND gm.status = 'accepted' LIMIT 1)`,
+        category: postsTable.category,
       })
       .from(postsTable)
       .innerJoin(usersTable, eq(usersTable.id, postsTable.userId))
-      .where(cursor ? lt(postsTable.id, cursor) : undefined)
+      .where((() => {
+        const prefs: string[] = req.user?.preferences ?? [];
+        const cursorCond = cursor ? lt(postsTable.id, cursor) : undefined;
+        if (prefs.length > 0) {
+          const prefFilter = sql`(${postsTable.category} IS NULL OR ${postsTable.category} = ANY(ARRAY[${sql.join(prefs.map(p => sql`${p}`), sql`, `)}]::text[]))`;
+          return cursorCond ? and(cursorCond, prefFilter) : prefFilter;
+        }
+        return cursorCond;
+      })())
       .orderBy(desc(postsTable.id))
       .limit(limit + 1);
 
@@ -190,7 +199,7 @@ router.post("/posts/:id/share", optionalAuth, async (req: any, res: any) => {
 // Create post
 router.post("/posts", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
-  const { content, imageUrl } = req.body;
+  const { content, imageUrl, category } = req.body;
   const trimmedContent = content?.trim() ?? "";
   // At least one of content or imageUrl must be present
   if (!trimmedContent && !imageUrl) return res.status(400).json({ message: "Content or image required" });
@@ -199,6 +208,7 @@ router.post("/posts", requireAuth, async (req: any, res: any) => {
       userId,
       content: trimmedContent,
       imageUrl: imageUrl ?? null,
+      category: category?.trim() || null,
     }).returning();
     res.json(post);
 

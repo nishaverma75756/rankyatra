@@ -8,10 +8,13 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useQuery } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReelsUpload } from "@/contexts/ReelsUploadContext";
 import { showError } from "@/utils/alert";
+
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const FRAME_COUNT = 8;
@@ -96,7 +99,18 @@ export default function CreateReelScreen() {
   }, [user]);
 
   const [caption, setCaption] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
+
+  const { data: categories = [] } = useQuery<string[]>({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const r = await fetch(`${BASE_URL}/api/categories`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
   const [videoMime, setVideoMime] = useState("video/mp4");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
@@ -230,6 +244,7 @@ export default function CreateReelScreen() {
       videoUri,
       videoMime,
       caption: caption.trim(),
+      category: category || undefined,
       thumbnailUri: thumbUri ?? undefined,
       thumbnailMime: "image/jpeg",
       token: token!,
@@ -409,6 +424,40 @@ export default function CreateReelScreen() {
           />
           <Text style={[s.charCount, { color: colors.mutedForeground }]}>{300 - caption.length}</Text>
         </View>
+
+        {/* Category picker */}
+        {categories.length > 0 && (
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <Feather name="tag" size={13} color={colors.mutedForeground} />
+              <Text style={[s.cardLabel, { color: colors.mutedForeground, marginBottom: 0 }]}>
+                Category <Text style={{ textTransform: "none", fontWeight: "400" }}>(optional)</Text>
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {categories.map((cat) => {
+                const active = category === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setCategory(active ? null : cat)}
+                    activeOpacity={0.75}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 5,
+                      paddingHorizontal: 12, paddingVertical: 8,
+                      borderRadius: 20, borderWidth: 1.5,
+                      backgroundColor: active ? colors.primary : colors.background,
+                      borderColor: active ? colors.primary : colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: active ? "#fff" : colors.foreground }}>{cat}</Text>
+                    {active && <Feather name="x" size={12} color="#fff" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* How it works */}
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

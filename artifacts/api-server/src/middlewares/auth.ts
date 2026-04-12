@@ -14,6 +14,7 @@ export interface AuthUser {
   adminPermissions: string[];
   isBlocked: boolean;
   canPostReels: boolean;
+  preferences: string[];
 }
 
 declare global {
@@ -78,6 +79,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       adminPermissions: (user.adminPermissions as string[]) ?? [],
       isBlocked: user.isBlocked,
       canPostReels: user.canPostReels ?? false,
+      preferences: (user.preferences as string[]) ?? [],
     };
     next();
   } catch {
@@ -131,7 +133,20 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET) as AuthUser;
-    req.user = payload;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.id));
+    if (user && !user.isBlocked) {
+      req.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isAdmin: user.isAdmin,
+        isSuperAdmin: user.isSuperAdmin ?? false,
+        adminPermissions: (user.adminPermissions as string[]) ?? [],
+        isBlocked: user.isBlocked,
+        canPostReels: user.canPostReels ?? false,
+        preferences: (user.preferences as string[]) ?? [],
+      };
+    }
   } catch {
     // ignore
   }

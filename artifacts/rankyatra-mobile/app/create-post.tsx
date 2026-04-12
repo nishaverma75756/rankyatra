@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Platform, Image, FlatList, ActivityIndicator, KeyboardAvoidingView,
+  Platform, Image, FlatList, ActivityIndicator, KeyboardAvoidingView, ScrollView,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useQuery } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 import { showError } from "@/utils/alert";
+
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface MyPost {
@@ -121,6 +124,17 @@ export default function CreatePostScreen() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [category, setCategory] = useState<string | null>(null);
+
+  const { data: categories = [] } = useQuery<string[]>({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const r = await fetch(`${BASE_URL}/api/categories`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const canPost = (text.trim().length > 0 || !!selectedImage) && !posting;
 
@@ -167,7 +181,7 @@ export default function CreatePostScreen() {
     try {
       await customFetch("/api/posts", {
         method: "POST",
-        body: JSON.stringify({ content: text.trim(), imageUrl: selectedImage ?? undefined }),
+        body: JSON.stringify({ content: text.trim(), imageUrl: selectedImage ?? undefined, category: category || undefined }),
         headers: { "Content-Type": "application/json" },
       });
       router.back();
@@ -251,6 +265,40 @@ export default function CreatePostScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Category picker */}
+        {categories.length > 0 && (
+          <View style={[cStyles.categorySection, { borderTopColor: colors.border }]}>
+            <View style={cStyles.categoryHeader}>
+              <Feather name="tag" size={13} color={colors.mutedForeground} />
+              <Text style={[cStyles.categoryLabel, { color: colors.mutedForeground }]}>
+                Post category <Text style={{ color: colors.mutedForeground, fontWeight: "400" }}>(optional)</Text>
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+              {categories.map((cat) => {
+                const active = category === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setCategory(active ? null : cat)}
+                    activeOpacity={0.75}
+                    style={[
+                      cStyles.catChip,
+                      {
+                        backgroundColor: active ? colors.primary : colors.muted,
+                        borderColor: active ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[cStyles.catChipText, { color: active ? "#fff" : colors.foreground }]}>{cat}</Text>
+                    {active && <Feather name="x" size={12} color="#fff" style={{ marginLeft: 2 }} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* Thin divider */}
@@ -361,6 +409,15 @@ const cStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   photoBtnText: { fontSize: 14, fontWeight: "600" },
+  categorySection: { paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingBottom: 4 },
+  categoryHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  categoryLabel: { fontSize: 12, fontWeight: "600" },
+  catChip: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1,
+  },
+  catChipText: { fontSize: 13, fontWeight: "600" },
 });
 
 // ─── PostCard styles (matches moments.tsx) ────────────────────────────────────

@@ -180,7 +180,7 @@ router.post("/reels/upload-chunk", requireAuth, async (req: any, res) => {
 
 // ─── POST /api/reels/upload-finalize ─────────────────────────────────────────
 router.post("/reels/upload-finalize", requireAuth, async (req: any, res) => {
-  const { uploadId, caption, thumbnailBase64, thumbnailMime } = req.body;
+  const { uploadId, caption, category, thumbnailBase64, thumbnailMime } = req.body;
   if (!uploadId) { res.status(400).json({ error: "uploadId required" }); return; }
   const session = chunkSessions.get(uploadId);
   if (!session) { res.status(404).json({ error: "Upload session not found or expired" }); return; }
@@ -237,7 +237,7 @@ router.post("/reels/upload-finalize", requireAuth, async (req: any, res) => {
     // Save reel to database
     const [reel] = await db
       .insert(reels)
-      .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption: (caption ?? "").trim() })
+      .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption: (caption ?? "").trim(), category: category?.trim() || null })
       .returning();
 
     res.status(201).json({ reel });
@@ -249,23 +249,27 @@ router.post("/reels/upload-finalize", requireAuth, async (req: any, res) => {
 });
 
 // ─── GET /api/reels — paginated feed ────────────────────────────────────────
-router.get("/reels", async (req, res) => {
+router.get("/reels", optionalAuth, async (req, res) => {
   try {
     const limit = 10;
     const cursor = req.query.cursor ? Number(req.query.cursor) : undefined;
     const userId = (req as any).user?.id ?? null;
 
+    const userPrefs: string[] = (req as any).user?.preferences ?? [];
+    const prefFilterSql = userPrefs.length > 0
+      ? sql`AND (r.category IS NULL OR r.category = ANY(ARRAY[${sql.join(userPrefs.map((p: string) => sql`${p}`), sql`, `)}]::text[]))`
+      : sql``;
     const rows = await db.execute(sql`
       SELECT
         r.id, r.user_id AS "userId", r.video_url AS "videoUrl",
-        r.caption, r.like_count AS "likeCount", r.comment_count AS "commentCount",
+        r.caption, r.category, r.like_count AS "likeCount", r.comment_count AS "commentCount",
         r.view_count AS "viewCount", r.created_at AS "createdAt",
         u.name AS "userName", u.avatar_url AS "userAvatar",
         u.verification_status AS "verificationStatus",
         ${userId ? sql`(SELECT COUNT(*)::int > 0 FROM reel_likes rl WHERE rl.reel_id = r.id AND rl.user_id = ${userId})` : sql`false`} AS "isLiked"
       FROM reels r
       JOIN users u ON u.id = r.user_id
-      ${cursor ? sql`WHERE r.id < ${cursor}` : sql``}
+      ${cursor ? sql`WHERE r.id < ${cursor} ${prefFilterSql}` : sql`WHERE TRUE ${prefFilterSql}`}
       ORDER BY r.id DESC
       LIMIT ${limit + 1}
     `);
@@ -318,6 +322,7 @@ router.post(
       const videoFile = files?.["video"]?.[0];
       const thumbFile = files?.["thumbnail"]?.[0];
       const caption = (req.body?.caption ?? "").trim();
+      const category: string | null = req.body?.category?.trim() || null;
       const thumbnailBase64: string | undefined = req.body?.thumbnailBase64;
       const thumbnailMime: string = req.body?.thumbnailMime || "image/jpeg";
 
@@ -342,7 +347,7 @@ router.post(
 
       const [reel] = await db
         .insert(reels)
-        .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption })
+        .values({ userId: req.user.id, videoUrl, thumbnailUrl, caption, category: category ?? null })
         .returning();
 
       res.status(201).json({ reel });
@@ -356,12 +361,12 @@ router.post(
 // ─── POST /api/reels — create reel (legacy) ──────────────────────────────────
 router.post("/reels", requireAuth, async (req: any, res) => {
   try {
-    const { videoUrl, caption, thumbnailUrl } = req.body;
+    const { videoUrl, caption, category, thumbnailUrl } = req.body;
     if (!videoUrl) return res.status(400).json({ error: "videoUrl required" });
 
     const [reel] = await db
       .insert(reels)
-      .values({ userId: req.user.id, videoUrl, thumbnailUrl: thumbnailUrl ?? null, caption: caption?.trim() ?? "" })
+      .values({ userId: req.user.id, videoUrl, thumbnailUrl: thumbnailUrl ?? null, caption: caption?.trim() ?? "", category: category?.trim() || null })
       .returning();
 
     res.status(201).json({ reel });
