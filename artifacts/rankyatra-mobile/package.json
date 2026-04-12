@@ -67,11 +67,15 @@
     "expo-device": "~8.0.10",
     "expo-file-system": "^19.0.21",
     "expo-keep-awake": "~15.0.8",
+    "expo-media-library": "^18.2.1",
     "expo-notifications": "~0.32.16",
+    "expo-print": "^15.0.8",
     "expo-screen-capture": "~8.0.9",
     "expo-screen-orientation": "^9.0.8",
+    "expo-sharing": "^14.0.8",
     "expo-video": "^3.0.16",
     "expo-video-thumbnails": "^10.0.8",
-    "react-native-compressor": "^1.16.0"
+    "react-native-compressor": "^1.16.0",
+    "react-native-view-shot": "^4.0.3"
   }
 }
