@@ -157,13 +157,24 @@ export default function TransactionDetailScreen() {
     try {
       const uri = await captureReceiptImage();
 
-      await saveImageToGallery(uri);
-
-      const shareText = buildShareText();
-      await Share.share(
-        { message: shareText, title: `Receipt ${invoiceNo}` },
-        { dialogTitle: `Share Receipt ${invoiceNo}` }
-      );
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        // Share the actual image — opens native share sheet with image
+        // WhatsApp, Telegram, etc. will receive the receipt image directly
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: `Share Receipt ${invoiceNo}`,
+          UTI: "public.png",
+        });
+      } else {
+        // Fallback: save to gallery + text share if sharing unavailable
+        await saveImageToGallery(uri);
+        const shareText = buildShareText();
+        await Share.share(
+          { message: shareText, title: `Receipt ${invoiceNo}` },
+          { dialogTitle: `Share Receipt ${invoiceNo}` }
+        );
+      }
     } catch (e: any) {
       if (e?.message !== "User did not share") {
         showError("Could not share receipt. Please try again.");
