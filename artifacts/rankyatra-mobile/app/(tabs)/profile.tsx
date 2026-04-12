@@ -14,6 +14,8 @@ import {
   Switch,
   Alert,
   Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -65,6 +67,35 @@ export default function ProfileScreen() {
   const [blockedUsers, setBlockedUsers] = useState<{ id: number; name: string; avatarUrl: string | null }[]>([]);
   const [myRoles, setMyRoles] = useState<string[]>([]);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+
+  // Edit name
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
+  const openEditName = () => {
+    setEditNameValue(user?.name ?? "");
+    setEditNameVisible(true);
+  };
+
+  const saveEditName = async () => {
+    const trimmed = editNameValue.trim();
+    if (!trimmed) { showError("Invalid Name", "Name cannot be empty."); return; }
+    if (trimmed.length < 2) { showError("Invalid Name", "Name must be at least 2 characters."); return; }
+    setSavingName(true);
+    try {
+      const data = await customFetch<{ name: string }>("/api/users/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ name: trimmed }),
+        headers: { "Content-Type": "application/json" },
+      });
+      updateUser({ name: data.name });
+      setEditNameVisible(false);
+    } catch {
+      showError("Save Failed", "Could not update your name. Please try again.");
+    }
+    setSavingName(false);
+  };
 
 
   const ROLE_COLORS: Record<string, string> = {
@@ -297,6 +328,65 @@ export default function ProfileScreen() {
 
   return (
     <>
+      {/* ─── Edit Name Modal ─── */}
+      <Modal visible={editNameVisible} transparent animationType="fade" onRequestClose={() => setEditNameVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: "#00000066" }} activeOpacity={1} onPress={() => !savingName && setEditNameVisible(false)} />
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: insets.bottom + 24 }}>
+            {/* Handle */}
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 20 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="user" size={18} color={colors.primary} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Edit Name</Text>
+                <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 2 }}>This is how other users see you</Text>
+              </View>
+            </View>
+            <TextInput
+              style={{
+                backgroundColor: colors.muted,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 13,
+                fontSize: 16,
+                color: colors.foreground,
+                marginBottom: 16,
+              }}
+              value={editNameValue}
+              onChangeText={setEditNameValue}
+              placeholder="Enter your full name"
+              placeholderTextColor={colors.mutedForeground}
+              autoFocus
+              maxLength={60}
+              returnKeyType="done"
+              onSubmitEditing={saveEditName}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setEditNameVisible(false)}
+                disabled={savingName}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={saveEditName}
+                disabled={savingName || !editNameValue.trim()}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: editNameValue.trim() ? colors.primary : colors.muted, alignItems: "center" }}
+              >
+                {savingName
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ fontSize: 15, fontWeight: "700", color: editNameValue.trim() ? "#fff" : colors.mutedForeground }}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Settings Modal */}
       <Modal visible={settingsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSettingsVisible(false)}>
         <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -756,6 +846,7 @@ export default function ProfileScreen() {
         onVerifyPress={() => router.push("/verify")}
         onChangeCredentials={() => router.push("/change-credentials")}
         onPreferences={() => router.push("/exam-preferences")}
+        onEditName={openEditName}
       />
 
       {/* App */}
@@ -851,21 +942,31 @@ const VERIFY_STATUS: Record<string, { label: string; icon: string; color: string
   rejected:      { label: "Rejected",      icon: "x-circle",     color: "#dc2626" },
 };
 
-function AccountSection({ user, colors, onVerifyPress, onChangeCredentials, onPreferences }: {
-  user: any; colors: any; onVerifyPress: () => void; onChangeCredentials: () => void; onPreferences: () => void;
+function AccountSection({ user, colors, onVerifyPress, onChangeCredentials, onPreferences, onEditName }: {
+  user: any; colors: any; onVerifyPress: () => void; onChangeCredentials: () => void; onPreferences: () => void; onEditName: () => void;
 }) {
   const vs = VERIFY_STATUS[user?.verificationStatus ?? "not_submitted"] ?? VERIFY_STATUS.not_submitted;
 
-  const rows = [
-    { icon: "user",        iconBg: colors.primary + "18", iconColor: colors.primary,  label: "Name",          value: user?.name ?? "—" },
-    { icon: "phone",       iconBg: "#7c3aed18",           iconColor: "#7c3aed",        label: "Phone Number",  value: user?.phone ?? "Not added" },
-    { icon: "mail",        iconBg: "#0891b218",           iconColor: "#0891b2",        label: "Email ID",      value: user?.email ?? "—" },
-    { icon: "credit-card", iconBg: "#d9770618",           iconColor: "#d97706",        label: "Govt ID",       value: user?.govtId ?? "Not added" },
+  const staticRows = [
+    { icon: "phone",       iconBg: "#7c3aed18", iconColor: "#7c3aed", label: "Phone Number", value: user?.phone ?? "Not added" },
+    { icon: "mail",        iconBg: "#0891b218",  iconColor: "#0891b2", label: "Email ID",     value: user?.email ?? "—" },
+    { icon: "credit-card", iconBg: "#d9770618",  iconColor: "#d97706", label: "Govt ID",      value: user?.govtId ?? "Not added" },
   ];
 
   return (
     <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {rows.map((row, idx) => (
+      {/* Name row — tappable to edit */}
+      <TouchableOpacity style={styles.menuItem} onPress={onEditName} activeOpacity={0.7}>
+        <View style={[styles.menuIconBox, { backgroundColor: colors.primary + "18" }]}>
+          <Feather name="user" size={15} color={colors.primary} />
+        </View>
+        <Text style={[styles.menuLabel, { color: colors.foreground }]}>Name</Text>
+        <Text style={[styles.menuValue, { color: colors.mutedForeground, flex: 1 }]} numberOfLines={1}>{user?.name ?? "—"}</Text>
+        <Feather name="edit-2" size={14} color={colors.primary} />
+      </TouchableOpacity>
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {staticRows.map((row) => (
         <React.Fragment key={row.label}>
           <View style={styles.menuItem}>
             <View style={[styles.menuIconBox, { backgroundColor: row.iconBg }]}>
