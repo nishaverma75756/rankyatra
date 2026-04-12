@@ -25,6 +25,7 @@ function userPayload(user: typeof usersTable.$inferSelect) {
     isBlocked: user.isBlocked,
     emailVerified: user.emailVerified,
     verificationStatus: user.verificationStatus,
+    canPostReels: user.canPostReels ?? false,
     createdAt: user.createdAt.toISOString(),
   };
 }

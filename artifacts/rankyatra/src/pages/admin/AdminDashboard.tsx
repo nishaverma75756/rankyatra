@@ -167,6 +167,13 @@ export default function AdminDashboard() {
               </Link>
             </Button>
           )}
+          {isSuperAdmin && (
+            <Button asChild variant="outline" className="border-violet-500 text-violet-700 hover:bg-violet-50 relative">
+              <Link href="/admin/reel-applications" className="flex items-center gap-2">
+                🎬 Reel Applications
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Stats */}

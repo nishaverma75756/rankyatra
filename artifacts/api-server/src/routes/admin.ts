@@ -24,6 +24,7 @@ import {
   reelCommentsTable,
   reelCommentLikesTable,
   pushTokensTable,
+  reelApplications,
 } from "@workspace/db";
 import { eq, count, sum, desc, asc, like, sql, or } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewares/auth";
@@ -718,6 +719,116 @@ router.get("/admin/stats", requireAdmin, async (_req, res): Promise<void> => {
     totalRevenue: parseFloat(String(revenueRow?.total ?? "0")).toFixed(2),
     totalPrizesDistributed: parseFloat(String(prizesRow?.total ?? "0")).toFixed(2),
   });
+});
+
+// ─── GET /admin/reel-applications — list all applications ────────────────────
+router.get("/admin/reel-applications", requireSuperAdmin, async (_req, res): Promise<void> => {
+  try {
+    const apps = await db
+      .select({
+        id: reelApplications.id,
+        userId: reelApplications.userId,
+        instagramHandle: reelApplications.instagramHandle,
+        youtubeChannel: reelApplications.youtubeChannel,
+        facebookHandle: reelApplications.facebookHandle,
+        twitterHandle: reelApplications.twitterHandle,
+        contentType: reelApplications.contentType,
+        reason: reelApplications.reason,
+        status: reelApplications.status,
+        adminNote: reelApplications.adminNote,
+        createdAt: reelApplications.createdAt,
+        updatedAt: reelApplications.updatedAt,
+        userName: usersTable.name,
+        userEmail: usersTable.email,
+        userAvatarUrl: usersTable.avatarUrl,
+        canPostReels: usersTable.canPostReels,
+      })
+      .from(reelApplications)
+      .leftJoin(usersTable, eq(reelApplications.userId, usersTable.id))
+      .orderBy(desc(reelApplications.createdAt));
+    res.json(apps);
+  } catch (err) {
+    console.error("[admin/reel-applications]", err);
+    res.status(500).json({ error: "Failed to fetch reel applications" });
+  }
+});
+
+// ─── GET /admin/users/:id/reel-application ────────────────────────────────────
+router.get("/admin/users/:id/reel-application", requireSuperAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  try {
+    const [app] = await db
+      .select()
+      .from(reelApplications)
+      .where(eq(reelApplications.userId, userId));
+    res.json({ application: app ?? null });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch application" });
+  }
+});
+
+// ─── PATCH /admin/reel-applications/:id/status — approve or reject ────────────
+router.patch("/admin/reel-applications/:id/status", requireSuperAdmin, async (req, res): Promise<void> => {
+  const appId = Number(req.params.id);
+  const { status, adminNote } = req.body;
+  if (!["approved", "rejected"].includes(status)) {
+    res.status(400).json({ error: "status must be 'approved' or 'rejected'" });
+    return;
+  }
+  try {
+    const [app] = await db
+      .update(reelApplications)
+      .set({ status, adminNote: adminNote?.trim() || null })
+      .where(eq(reelApplications.id, appId))
+      .returning();
+    if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+
+    // If approved, also set canPostReels = true on the user
+    if (status === "approved") {
+      await db
+        .update(usersTable)
+        .set({ canPostReels: true })
+        .where(eq(usersTable.id, app.userId));
+    }
+    // If rejected, ensure canPostReels = false
+    if (status === "rejected") {
+      await db
+        .update(usersTable)
+        .set({ canPostReels: false })
+        .where(eq(usersTable.id, app.userId));
+    }
+    res.json({ application: app });
+  } catch (err) {
+    console.error("[admin/reel-applications/:id/status]", err);
+    res.status(500).json({ error: "Failed to update application" });
+  }
+});
+
+// ─── PATCH /admin/users/:id/reel-access — directly grant or revoke ────────────
+router.patch("/admin/users/:id/reel-access", requireSuperAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  const { canPostReels } = req.body;
+  if (typeof canPostReels !== "boolean") {
+    res.status(400).json({ error: "canPostReels (boolean) required" });
+    return;
+  }
+  try {
+    await db
+      .update(usersTable)
+      .set({ canPostReels })
+      .where(eq(usersTable.id, userId));
+    // If granting access, also mark any pending application as approved
+    if (canPostReels) {
+      await db
+        .update(reelApplications)
+        .set({ status: "approved", adminNote: "Manually granted by admin" })
+        .where(eq(reelApplications.userId, userId));
+    }
+    res.json({ ok: true, canPostReels });
+  } catch (err) {
+    console.error("[admin/users/:id/reel-access]", err);
+    res.status(500).json({ error: "Failed to update reel access" });
+  }
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Platform, Image, ActivityIndicator, KeyboardAvoidingView,
@@ -86,8 +86,14 @@ async function compressVideo(
 export default function CreateReelScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { startUpload } = useReelsUpload();
+
+  useEffect(() => {
+    if (user && !user.canPostReels && !user.isAdmin) {
+      router.replace("/apply-for-reels" as any);
+    }
+  }, [user]);
 
   const [caption, setCaption] = useState("");
   const [videoUri, setVideoUri] = useState<string | null>(null);

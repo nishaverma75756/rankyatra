@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { db } from "@workspace/db";
-import { reels, reelLikes, reelCommentsTable, reelCommentLikesTable, usersTable } from "@workspace/db/schema";
+import { reels, reelLikes, reelCommentsTable, reelCommentLikesTable, usersTable, reelApplications } from "@workspace/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../middlewares/auth";
 
@@ -70,8 +70,77 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000);
 
+// ─── POST /api/reels/apply — apply for reel posting permission ────────────────
+router.post("/reels/apply", requireAuth, async (req: any, res) => {
+  const userId = req.user.id;
+  const { instagramHandle, youtubeChannel, facebookHandle, twitterHandle, contentType, reason } = req.body;
+  if (!reason || (reason as string).trim().length < 10) {
+    res.status(400).json({ error: "Please provide a reason (at least 10 characters)" });
+    return;
+  }
+  try {
+    const [existing] = await db.select().from(reelApplications).where(eq(reelApplications.userId, userId));
+    if (existing) {
+      if (existing.status === "approved") {
+        res.status(400).json({ error: "You already have reel posting permission" });
+        return;
+      }
+      // Re-apply: update existing application back to pending
+      const [updated] = await db
+        .update(reelApplications)
+        .set({
+          instagramHandle: instagramHandle?.trim() || null,
+          youtubeChannel: youtubeChannel?.trim() || null,
+          facebookHandle: facebookHandle?.trim() || null,
+          twitterHandle: twitterHandle?.trim() || null,
+          contentType: contentType?.trim() || null,
+          reason: (reason as string).trim(),
+          status: "pending",
+          adminNote: null,
+        })
+        .where(eq(reelApplications.userId, userId))
+        .returning();
+      res.json({ application: updated });
+      return;
+    }
+    const [application] = await db
+      .insert(reelApplications)
+      .values({
+        userId,
+        instagramHandle: instagramHandle?.trim() || null,
+        youtubeChannel: youtubeChannel?.trim() || null,
+        facebookHandle: facebookHandle?.trim() || null,
+        twitterHandle: twitterHandle?.trim() || null,
+        contentType: contentType?.trim() || null,
+        reason: (reason as string).trim(),
+      })
+      .returning();
+    res.status(201).json({ application });
+  } catch (err) {
+    console.error("[reels/apply]", err);
+    res.status(500).json({ error: "Failed to submit application" });
+  }
+});
+
+// ─── GET /api/reels/my-application ────────────────────────────────────────────
+router.get("/reels/my-application", requireAuth, async (req: any, res) => {
+  try {
+    const [application] = await db
+      .select()
+      .from(reelApplications)
+      .where(eq(reelApplications.userId, req.user.id));
+    res.json({ application: application ?? null });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch application" });
+  }
+});
+
 // ─── POST /api/reels/upload-init ─────────────────────────────────────────────
 router.post("/reels/upload-init", requireAuth, async (req: any, res) => {
+  if (!req.user.canPostReels && !req.user.isAdmin && !req.user.isSuperAdmin) {
+    res.status(403).json({ error: "You are not authorized to post reels. Please apply first." });
+    return;
+  }
   const { totalChunks } = req.body;
   if (!totalChunks || typeof totalChunks !== "number" || totalChunks < 1 || totalChunks > 5000) {
     res.status(400).json({ error: "Invalid totalChunks" }); return;

@@ -39,6 +39,7 @@ export const usersTable = pgTable("users", {
   referralCode: text("referral_code").unique(),
   referredById: integer("referred_by_id"),
   registrationIp: text("registration_ip"),
+  canPostReels: boolean("can_post_reels").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -86,6 +86,61 @@ export default function AdminUserDetail() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  // Reel application
+  const [reelApp, setReelApp] = useState<any>(null);
+  const [reelAppLoading, setReelAppLoading] = useState(false);
+  const [reelAppNote, setReelAppNote] = useState("");
+  const [reelAccessLoading, setReelAccessLoading] = useState(false);
+
+  const fetchReelApp = async () => {
+    if (!userId) return;
+    setReelAppLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/reel-application`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      const data = await res.json();
+      setReelApp(data.application ?? null);
+      if (data.application?.adminNote) setReelAppNote(data.application.adminNote);
+    } catch {}
+    setReelAppLoading(false);
+  };
+
+  const handleReelAppStatus = async (status: "approved" | "rejected") => {
+    if (!reelApp) return;
+    setReelAccessLoading(true);
+    try {
+      const res = await fetch(`/api/admin/reel-applications/${reelApp.id}/status`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status, adminNote: reelAppNote }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      toast({ title: status === "approved" ? "Reel access approved!" : "Application rejected." });
+      fetchReelApp();
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+    } finally { setReelAccessLoading(false); }
+  };
+
+  const handleDirectReelAccess = async (grant: boolean) => {
+    setReelAccessLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/reel-access`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ canPostReels: grant }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      toast({ title: grant ? "Reel access granted!" : "Reel access revoked." });
+      fetchReelApp();
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+    } finally { setReelAccessLoading(false); }
+  };
+
   const fetchRoles = async () => {
     if (!userId) return;
     try {
@@ -104,7 +159,7 @@ export default function AdminUserDetail() {
     }
   }, [u?.id]);
 
-  useEffect(() => { fetchRoles(); }, [userId]);
+  useEffect(() => { fetchRoles(); fetchReelApp(); }, [userId]);
 
   const handleAssignRole = async (role: string) => {
     setRolesLoading(true);
@@ -493,6 +548,152 @@ export default function AdminUserDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Reel Access */}
+        {isSuperAdmin && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span className="text-purple-600">🎬</span> Reel Posting Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Current status */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+                    u?.canPostReels
+                      ? "bg-green-50 text-green-700 border-green-200"
+                      : "bg-muted text-muted-foreground border-border"
+                  }`}>
+                    {u?.canPostReels ? "✅ Authorized to Post Reels" : "🔒 Not Authorized"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {u?.canPostReels ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10 text-xs"
+                      onClick={() => handleDirectReelAccess(false)}
+                      disabled={reelAccessLoading}
+                    >
+                      Revoke Access
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                      onClick={() => handleDirectReelAccess(true)}
+                      disabled={reelAccessLoading}
+                    >
+                      Grant Access Directly
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Application */}
+              {reelAppLoading ? (
+                <p className="text-xs text-muted-foreground">Loading application...</p>
+              ) : reelApp ? (
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold">Reel Application</p>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                      reelApp.status === "approved"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : reelApp.status === "rejected"
+                        ? "bg-red-50 text-red-700 border-red-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                      {reelApp.status === "approved" ? "✅ Approved" : reelApp.status === "rejected" ? "❌ Rejected" : "⏳ Pending"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {reelApp.instagramHandle && (
+                      <div className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-2">
+                        <span className="text-muted-foreground">Instagram:</span>
+                        <span className="font-semibold">@{reelApp.instagramHandle}</span>
+                      </div>
+                    )}
+                    {reelApp.youtubeChannel && (
+                      <div className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-2">
+                        <span className="text-muted-foreground">YouTube:</span>
+                        <span className="font-semibold">{reelApp.youtubeChannel}</span>
+                      </div>
+                    )}
+                    {reelApp.facebookHandle && (
+                      <div className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-2">
+                        <span className="text-muted-foreground">Facebook:</span>
+                        <span className="font-semibold">{reelApp.facebookHandle}</span>
+                      </div>
+                    )}
+                    {reelApp.twitterHandle && (
+                      <div className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-2">
+                        <span className="text-muted-foreground">Twitter:</span>
+                        <span className="font-semibold">@{reelApp.twitterHandle}</span>
+                      </div>
+                    )}
+                    {reelApp.contentType && (
+                      <div className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-2 col-span-2">
+                        <span className="text-muted-foreground">Content Type:</span>
+                        <span className="font-semibold">{reelApp.contentType}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {reelApp.reason && (
+                    <div className="bg-muted rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">Why they want to post reels:</p>
+                      <p className="text-sm">{reelApp.reason}</p>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    Applied {new Date(reelApp.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+
+                  {reelApp.status === "pending" && (
+                    <div className="space-y-2 pt-1 border-t border-border">
+                      <p className="text-xs font-semibold text-muted-foreground">Admin note (optional)</p>
+                      <input
+                        className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        placeholder="Add a note for the user..."
+                        value={reelAppNote}
+                        onChange={(e) => setReelAppNote(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                          onClick={() => handleReelAppStatus("approved")}
+                          disabled={reelAccessLoading}
+                        >
+                          ✅ Approve Application
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-destructive/50 text-destructive hover:bg-destructive/10 flex-1"
+                          onClick={() => handleReelAppStatus("rejected")}
+                          disabled={reelAccessLoading}
+                        >
+                          ❌ Reject
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                  This user has not submitted a reel application yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* KYC / ID Verification */}
         <Card>

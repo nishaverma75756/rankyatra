@@ -27,4 +27,5 @@ export * from "./user_roles";
 export * from "./groups";
 export * from "./referrals";
 export * from "./referral_clicks";
+export * from "./reel_applications";
 

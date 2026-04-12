@@ -13,6 +13,7 @@ export interface AuthUser {
   isSuperAdmin: boolean;
   adminPermissions: string[];
   isBlocked: boolean;
+  canPostReels: boolean;
 }
 
 declare global {
@@ -76,6 +77,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isSuperAdmin: user.isSuperAdmin ?? false,
       adminPermissions: (user.adminPermissions as string[]) ?? [],
       isBlocked: user.isBlocked,
+      canPostReels: user.canPostReels ?? false,
     };
     next();
   } catch {

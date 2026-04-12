@@ -870,16 +870,34 @@ export default function MomentsScreen() {
             {/* Create Reel */}
             <TouchableOpacity
               style={[styles.createOption, { backgroundColor: "#a855f710", borderColor: "#a855f730", marginTop: 10 }]}
-              onPress={() => { setShowCreateMenu(false); router.push("/create-reel" as any); }}
+              onPress={() => {
+                setShowCreateMenu(false);
+                if (user?.canPostReels || user?.isAdmin) {
+                  router.push("/create-reel" as any);
+                } else {
+                  router.push("/apply-for-reels" as any);
+                }
+              }}
               activeOpacity={0.75}
             >
               <View style={[styles.createOptionIcon, { backgroundColor: "#a855f720" }]}>
                 <Feather name="film" size={22} color="#a855f7" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.createOptionTitle, { color: colors.foreground }]}>Create Reel</Text>
-                <Text style={[styles.createOptionSub, { color: colors.mutedForeground }]}>Upload a short video (up to 60s)</Text>
+                <Text style={[styles.createOptionTitle, { color: colors.foreground }]}>
+                  {(user?.canPostReels || user?.isAdmin) ? 'Create Reel' : 'Apply for Reels'}
+                </Text>
+                <Text style={[styles.createOptionSub, { color: colors.mutedForeground }]}>
+                  {(user?.canPostReels || user?.isAdmin)
+                    ? 'Upload a short video (up to 60s)'
+                    : 'Request permission to post reels'}
+                </Text>
               </View>
+              {!(user?.canPostReels || user?.isAdmin) && (
+                <View style={{ backgroundColor: '#f59e0b20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginRight: 4 }}>
+                  <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '800' }}>APPLY</Text>
+                </View>
+              )}
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
 

@@ -13,6 +13,7 @@ interface AuthUser {
   phone?: string | null;
   govtId?: string | null;
   verificationStatus?: string;
+  canPostReels?: boolean;
   is_admin?: boolean;
   wallet_balance?: string;
   avatar_url?: string | null;
@@ -41,6 +42,7 @@ function normalizeUser(raw: any): AuthUser {
     phone: raw.phone ?? null,
     govtId: raw.govtId ?? null,
     verificationStatus: raw.verificationStatus ?? "not_submitted",
+    canPostReels: raw.canPostReels ?? false,
   };
 }
 

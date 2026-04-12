@@ -36,6 +36,7 @@ import AdminUpcomingExams from "@/pages/admin/AdminUpcomingExams";
 import AdminReports from "@/pages/admin/AdminReports";
 import AdminRoles from "@/pages/admin/AdminRoles";
 import AdminGroupDetail from "@/pages/admin/AdminGroupDetail";
+import AdminReelApplications from "@/pages/admin/AdminReelApplications";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import FAQ from "@/pages/FAQ";
@@ -186,6 +187,9 @@ function Router() {
       </Route>
       <Route path="/admin/roles">
         <ProtectedRoute component={AdminRoles} />
+      </Route>
+      <Route path="/admin/reel-applications">
+        <ProtectedRoute component={AdminReelApplications} />
       </Route>
       <Route path="/admin/groups/:userId">
         <ProtectedRoute component={AdminGroupDetail} />
