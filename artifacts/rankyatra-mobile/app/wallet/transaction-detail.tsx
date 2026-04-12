@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
+import * as IntentLauncher from "expo-intent-launcher";
 import { showError, showSuccess } from "@/utils/alert";
 
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
@@ -156,27 +157,42 @@ export default function TransactionDetailScreen() {
     setSharing(true);
     try {
       const uri = await captureReceiptImage();
+      const shareText = buildShareText();
 
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        // Share the actual image — opens native share sheet with image
-        // WhatsApp, Telegram, etc. will receive the receipt image directly
-        await Sharing.shareAsync(uri, {
-          mimeType: "image/png",
-          dialogTitle: `Share Receipt ${invoiceNo}`,
-          UTI: "public.png",
-        });
+      if (Platform.OS === "android") {
+        // Android: save to gallery to get a content:// URI, then use
+        // ACTION_SEND intent that sends BOTH image + text caption together
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === "granted") {
+          const asset = await MediaLibrary.createAssetAsync(uri);
+          // asset.uri on Android is a content:// Media Store URI
+          await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
+            type: "image/png",
+            extra: {
+              "android.intent.extra.STREAM": asset.uri,
+              "android.intent.extra.TEXT": shareText,
+              "android.intent.extra.SUBJECT": `Receipt ${invoiceNo}`,
+            },
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          });
+        } else {
+          // No gallery permission — share image only
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: `Share Receipt ${invoiceNo}`,
+          });
+        }
       } else {
-        // Fallback: save to gallery + text share if sharing unavailable
-        await saveImageToGallery(uri);
-        const shareText = buildShareText();
-        await Share.share(
-          { message: shareText, title: `Receipt ${invoiceNo}` },
-          { dialogTitle: `Share Receipt ${invoiceNo}` }
-        );
+        // iOS: Share.share natively supports url (image) + message (text) together
+        await Share.share({
+          url: uri,
+          message: shareText,
+          title: `Receipt ${invoiceNo}`,
+        });
       }
     } catch (e: any) {
-      if (e?.message !== "User did not share") {
+      const msg = e?.message ?? "";
+      if (!msg.includes("cancelled") && !msg.includes("User did not share") && !msg.includes("dismissed")) {
         showError("Could not share receipt. Please try again.");
       }
     } finally {
