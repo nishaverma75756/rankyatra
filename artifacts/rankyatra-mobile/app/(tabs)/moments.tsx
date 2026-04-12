@@ -5,6 +5,7 @@ import {
   ActivityIndicator, Image, Modal, RefreshControl, Share,
   KeyboardAvoidingView, Platform, ScrollView, Linking,
 } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { showSuccess, showError, showAlert } from "@/utils/alert";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +15,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useActivityCount } from "@/contexts/ActivityCountContext";
 import { customFetch } from "@workspace/api-client-react";
 import ReelsFeed from "@/components/ReelsFeed";
+
+const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
+interface PopularUser {
+  id: number;
+  name: string;
+  avatarUrl: string | null;
+  customUid: number | null;
+  verificationStatus: string;
+  preferences: string[] | null;
+  followerCount: number;
+  rankScore: number;
+}
 
 interface Post {
   id: number;
@@ -614,6 +628,57 @@ export default function MomentsScreen() {
   const [followMap, setFollowMap] = useState<Record<number, boolean>>({});
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // Popular users / category tab state
+  const [activeCategory, setActiveCategory] = useState<string | null>(null); // null = All
+  const [popularUsers, setPopularUsers] = useState<PopularUser[]>([]);
+  const [popularOffset, setPopularOffset] = useState(0);
+  const [popularHasMore, setPopularHasMore] = useState(true);
+  const [loadingPopular, setLoadingPopular] = useState(false);
+  const [popularLoadingMore, setPopularLoadingMore] = useState(false);
+
+  const { data: categoriesList = [] } = useQuery<string[]>({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const r = await fetch(`${BASE_URL}/api/categories`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const fetchPopularUsers = useCallback(async (cat: string | null, offset: number, replace: boolean) => {
+    if (offset === 0) setLoadingPopular(true); else setPopularLoadingMore(true);
+    try {
+      const catParam = cat ? `&category=${encodeURIComponent(cat)}` : "";
+      const r = await fetch(`${BASE_URL}/api/users/popular?offset=${offset}&limit=10${catParam}`);
+      if (!r.ok) throw new Error("Failed");
+      const data: { users: PopularUser[]; hasMore: boolean } = await r.json();
+      setPopularUsers((prev) => replace ? data.users : [...prev, ...data.users]);
+      setPopularHasMore(data.hasMore);
+      setPopularOffset(offset + data.users.length);
+    } catch {}
+    setLoadingPopular(false);
+    setPopularLoadingMore(false);
+  }, []);
+
+  // When search modal opens or category changes, load popular users
+  useEffect(() => {
+    if (!showSearch) return;
+    setPopularUsers([]);
+    setPopularOffset(0);
+    setPopularHasMore(true);
+    fetchPopularUsers(activeCategory, 0, true);
+  }, [showSearch, activeCategory, fetchPopularUsers]);
+
+  const closeSearch = () => {
+    setShowSearch(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    setActiveCategory(null);
+    setPopularUsers([]);
+    setPopularOffset(0);
+  };
+
 
   const fetchPosts = useCallback(async (cursor?: number, isRefresh = false) => {
     try {
@@ -673,7 +738,7 @@ export default function MomentsScreen() {
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => { setShowSearch(true); setActiveCategory(null); }} style={styles.iconBtn}>
           <Feather name="search" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Moments</Text>
@@ -777,10 +842,11 @@ export default function MomentsScreen() {
       ))}
 
       {/* ─── Search Modal ─── */}
-      <Modal visible={showSearch} animationType="slide" onRequestClose={() => { setShowSearch(false); setSearchQuery(""); setSearchResults([]); }}>
+      <Modal visible={showSearch} animationType="slide" onRequestClose={closeSearch}>
         <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+          {/* Header row */}
           <View style={[styles.searchHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => { setShowSearch(false); setSearchQuery(""); setSearchResults([]); }}>
+            <TouchableOpacity onPress={closeSearch}>
               <Feather name="x" size={22} color={colors.foreground} />
             </TouchableOpacity>
             <View style={[styles.searchInputWrap, { backgroundColor: colors.muted }]}>
@@ -793,49 +859,177 @@ export default function MomentsScreen() {
                 onChangeText={setSearchQuery}
                 autoFocus
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
-          {searching && <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />}
-          <FlatList
-            data={searchResults}
-            keyExtractor={(u) => String(u.id)}
-            renderItem={({ item }) => {
-              const isFollowingUser = followMap[item.id] ?? false;
-              return (
-                <View style={[styles.searchRow, { borderBottomColor: colors.border }]}>
-                  <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); setShowSearch(false); }}>
-                    <Avatar name={item.name} url={item.avatarUrl} colors={colors} />
+
+          {/* Category tabs — only shown when not searching */}
+          {!searchQuery.trim() && categoriesList.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}
+              contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
+            >
+              {/* All tab */}
+              <TouchableOpacity
+                onPress={() => setActiveCategory(null)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
+                  backgroundColor: activeCategory === null ? colors.primary : colors.muted,
+                  borderColor: activeCategory === null ? colors.primary : colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "700", color: activeCategory === null ? "#fff" : colors.foreground }}>All</Text>
+              </TouchableOpacity>
+              {categoriesList.map((cat) => {
+                const active = activeCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setActiveCategory(cat)}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
+                      backgroundColor: active ? colors.primary : colors.muted,
+                      borderColor: active ? colors.primary : colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: active ? "#fff" : colors.foreground }}>{cat}</Text>
                   </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); setShowSearch(false); }}>
-                      <Text style={[styles.postName, { color: colors.foreground }]}>{item.name}</Text>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {/* Searching state */}
+          {searching && <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />}
+
+          {/* Search results */}
+          {searchQuery.trim() ? (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(u) => `sr-${u.id}`}
+              renderItem={({ item }) => {
+                const isFollowingUser = followMap[item.id] ?? false;
+                return (
+                  <View style={[styles.searchRow, { borderBottomColor: colors.border }]}>
+                    <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); closeSearch(); }}>
+                      <Avatar name={item.name} url={item.avatarUrl} colors={colors} />
                     </TouchableOpacity>
-                    <Text style={[styles.postTime, { color: colors.mutedForeground }]}>UID: {item.id}</Text>
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); closeSearch(); }}>
+                        <Text style={[styles.postName, { color: colors.foreground }]}>{item.name}</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.postTime, { color: colors.mutedForeground }]}>UID: {item.id}</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <TouchableOpacity
+                        style={[styles.followBtn, { borderColor: isFollowingUser ? colors.primary : colors.border, backgroundColor: isFollowingUser ? colors.primary + "15" : "transparent" }]}
+                        onPress={() => handleFollow(item.id, isFollowingUser)}
+                      >
+                        <Feather name={isFollowingUser ? "user-check" : "user-plus"} size={13} color={isFollowingUser ? colors.primary : colors.foreground} />
+                        <Text style={[styles.followBtnText, { color: isFollowingUser ? colors.primary : colors.foreground }]}>{isFollowingUser ? "Following" : "Follow"}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.msgBtn, { backgroundColor: colors.primary }]}
+                        onPress={() => { router.push("/chat" as any); closeSearch(); }}
+                      >
+                        <Feather name="message-circle" size={13} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: "row", gap: 6 }}>
-                    <TouchableOpacity
-                      style={[styles.followBtn, { borderColor: isFollowingUser ? colors.primary : colors.border, backgroundColor: isFollowingUser ? colors.primary + "15" : "transparent" }]}
-                      onPress={() => handleFollow(item.id, isFollowingUser)}
-                    >
-                      <Feather name={isFollowingUser ? "user-check" : "user-plus"} size={13} color={isFollowingUser ? colors.primary : colors.foreground} />
-                      <Text style={[styles.followBtnText, { color: isFollowingUser ? colors.primary : colors.foreground }]}>{isFollowingUser ? "Following" : "Follow"}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.msgBtn, { backgroundColor: colors.primary }]}
-                      onPress={() => { router.push("/chat" as any); setShowSearch(false); }}
-                    >
-                      <Feather name="message-circle" size={13} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
+                );
+              }}
+              ListEmptyComponent={!searching ? (
+                <View style={styles.center}>
+                  <Text style={{ color: colors.mutedForeground, marginTop: 40, fontSize: 14 }}>No users found</Text>
                 </View>
-              );
-            }}
-            ListEmptyComponent={!searching && searchQuery.trim() ? (
-              <View style={styles.center}>
-                <Text style={{ color: colors.mutedForeground, marginTop: 40, fontSize: 14 }}>No users found</Text>
-              </View>
-            ) : null}
-          />
+              ) : null}
+            />
+          ) : (
+            /* Popular users list */
+            <FlatList
+              data={popularUsers}
+              keyExtractor={(u) => `pop-${u.id}`}
+              ListHeaderComponent={
+                <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Feather name="trending-up" size={14} color={colors.primary} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>
+                    {activeCategory ? `Top ${activeCategory} Users` : "Popular Users"}
+                  </Text>
+                </View>
+              }
+              renderItem={({ item, index }) => {
+                const isFollowingUser = followMap[item.id] ?? false;
+                return (
+                  <View style={[styles.searchRow, { borderBottomColor: colors.border }]}>
+                    {/* Rank badge */}
+                    <View style={{ width: 26, alignItems: "center", marginRight: 4 }}>
+                      {index < 3 ? (
+                        <Text style={{ fontSize: 16 }}>{["🥇", "🥈", "🥉"][index]}</Text>
+                      ) : (
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.mutedForeground }}>#{index + 1}</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); closeSearch(); }}>
+                      <Avatar name={item.name} url={item.avatarUrl} colors={colors} />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity onPress={() => { router.push(`/user/${item.id}` as any); closeSearch(); }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Text style={[styles.postName, { color: colors.foreground }]}>{item.name}</Text>
+                          {item.verificationStatus === "verified" && (
+                            <Feather name="check-circle" size={12} color={colors.primary} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                      <Text style={[styles.postTime, { color: colors.mutedForeground }]}>
+                        {item.followerCount} followers · {item.rankScore} pts
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <TouchableOpacity
+                        style={[styles.followBtn, { borderColor: isFollowingUser ? colors.primary : colors.border, backgroundColor: isFollowingUser ? colors.primary + "15" : "transparent" }]}
+                        onPress={() => handleFollow(item.id, isFollowingUser)}
+                      >
+                        <Feather name={isFollowingUser ? "user-check" : "user-plus"} size={13} color={isFollowingUser ? colors.primary : colors.foreground} />
+                        <Text style={[styles.followBtnText, { color: isFollowingUser ? colors.primary : colors.foreground }]}>{isFollowingUser ? "Following" : "Follow"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              }}
+              ListEmptyComponent={loadingPopular ? null : (
+                <View style={styles.center}>
+                  <Text style={{ color: colors.mutedForeground, marginTop: 40, fontSize: 14 }}>
+                    {activeCategory ? `No ${activeCategory} users found` : "No users yet"}
+                  </Text>
+                </View>
+              )}
+              ListFooterComponent={loadingPopular ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 20, marginBottom: 20 }} />
+              ) : popularLoadingMore ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 12, marginBottom: 20 }} />
+              ) : popularHasMore && popularUsers.length > 0 ? (
+                <TouchableOpacity
+                  style={{ alignItems: "center", paddingVertical: 14, marginBottom: 12 }}
+                  onPress={() => { if (!popularLoadingMore) fetchPopularUsers(activeCategory, popularOffset, false); }}
+                >
+                  <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 14 }}>Load more</Text>
+                </TouchableOpacity>
+              ) : null}
+              onEndReached={() => {
+                if (!popularLoadingMore && !loadingPopular && popularHasMore && popularUsers.length > 0) {
+                  fetchPopularUsers(activeCategory, popularOffset, false);
+                }
+              }}
+              onEndReachedThreshold={0.4}
+            />
+          )}
         </View>
       </Modal>
 

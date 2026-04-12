@@ -1,12 +1,48 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, walletTransactionsTable, submissionsTable, registrationsTable, examsTable, followsTable, notificationsTable, pushTokensTable, userRolesTable, groupMembersTable, groupsTable } from "@workspace/db";
-import { eq, count, min, sum, desc, and, ne } from "drizzle-orm";
+import { eq, count, min, sum, desc, and, ne, sql } from "drizzle-orm";
 import { requireAuth, optionalAuth } from "../middlewares/auth";
 import { broadcastToUser } from "../lib/ws";
 import { sendPushToUser, getDisplayName } from "../lib/pushNotifications";
 import bcrypt from "bcryptjs";
 
 const router: IRouter = Router();
+
+// GET /api/users/popular?category=UPSC&offset=0&limit=10
+router.get("/users/popular", optionalAuth, async (req: any, res: any): Promise<void> => {
+  try {
+    const category = typeof req.query.category === "string" ? req.query.category.trim() : null;
+    const offset = Math.max(0, Number(req.query.offset ?? 0));
+    const limit = Math.min(20, Math.max(1, Number(req.query.limit ?? 10)));
+
+    // Build WHERE: if category provided, filter by preferences array containing that category
+    const categoryFilter = category
+      ? sql`AND ${usersTable.preferences} @> ARRAY[${category}]::text[]`
+      : sql``;
+
+    const rows = await db.execute(sql`
+      SELECT
+        u.id,
+        u.name,
+        u.avatar_url AS "avatarUrl",
+        u.custom_uid AS "customUid",
+        u.verification_status AS "verificationStatus",
+        u.preferences,
+        (SELECT COUNT(*)::int FROM follows WHERE following_id = u.id) AS "followerCount",
+        COALESCE((SELECT SUM(score)::int FROM submissions WHERE user_id = u.id), 0) AS "rankScore"
+      FROM users u
+      WHERE u.id != 1
+      ${categoryFilter}
+      ORDER BY "followerCount" DESC, "rankScore" DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    res.json({ users: rows.rows, hasMore: (rows.rows as any[]).length === limit });
+  } catch (err) {
+    console.error("[users/popular]", err);
+    res.status(500).json({ error: "Failed to fetch popular users" });
+  }
+});
 
 router.get("/users/profile", requireAuth, async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
