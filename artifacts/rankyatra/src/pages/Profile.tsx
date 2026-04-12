@@ -302,7 +302,7 @@ export default function Profile() {
             )}
             <p className="text-sm text-white/70">{u?.email}</p>
             {u?.id && (
-              <p className="text-xs font-mono font-bold text-white/50 mt-0.5 tracking-widest">UID-{formatUID(u.id)}</p>
+              <p className="text-xs font-mono font-bold text-white/50 mt-0.5 tracking-widest">UID-{formatUID((u as any).customUid ?? u.id)}</p>
             )}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {u?.isAdmin && (

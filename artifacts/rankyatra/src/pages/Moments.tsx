@@ -575,7 +575,7 @@ function PostCard({ post, currentUserId, onDelete, onFollowToggle, onEdit }: {
               </span>
             </div>
             <p className="text-[10px] font-mono font-bold tracking-widest text-primary mt-0.5">
-              UID-{formatUID(post.userId)}
+              UID-{formatUID(post.userCustomUid ?? post.userId)}
             </p>
             <p className="text-[11px] text-muted-foreground">
               {timeAgo(post.createdAt)}

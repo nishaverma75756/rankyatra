@@ -28,6 +28,7 @@ router.get("/users/profile", requireAuth, async (req, res): Promise<void> => {
 
   res.json({
     id: user.id,
+    customUid: user.customUid ?? null,
     name: user.name,
     email: user.email,
     phone: user.phone,
@@ -62,6 +63,7 @@ router.patch("/users/profile", requireAuth, async (req, res): Promise<void> => {
 
   res.json({
     id: user.id,
+    customUid: user.customUid ?? null,
     name: user.name,
     email: user.email,
     phone: user.phone,
@@ -218,6 +220,7 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
 
   res.json({
     id: user.id,
+    customUid: user.customUid ?? null,
     name: user.name,
     avatarUrl: user.avatarUrl ?? null,
     verificationStatus: user.verificationStatus,

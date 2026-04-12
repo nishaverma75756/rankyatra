@@ -34,14 +34,15 @@ export default function AdminUsers() {
   const users: any[] = search
     ? allUsers.filter((u: any) => {
         const s = search.toLowerCase().trim();
-        const uid = `uid-${formatUID(u.id)}`.toLowerCase();
-        const paddedNum = String(u.id).padStart(6, "0");
+        const displayId = u.customUid ?? u.id;
+        const uid = `uid-${formatUID(displayId)}`.toLowerCase();
+        const paddedNum = String(displayId).padStart(10, "0");
         const plainNum = String(u.id);
         return (
           u.name?.toLowerCase().includes(s) ||
           u.email?.toLowerCase().includes(s) ||
           uid.includes(s) ||
-          paddedNum === s ||
+          paddedNum.includes(s) ||
           plainNum === s
         );
       })
@@ -151,7 +152,7 @@ export default function AdminUsers() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">{u.email}</p>
-                      <p className="text-xs font-mono text-muted-foreground/60 font-semibold">UID-{formatUID(u.id)}</p>
+                      <p className="text-xs font-mono text-muted-foreground/60 font-semibold">UID-{formatUID(u.customUid ?? u.id)}</p>
                     </div>
                     <div className="hidden sm:block text-right mr-2">
                       <p className="font-bold text-sm text-primary">{formatCurrency(u.walletBalance)}</p>

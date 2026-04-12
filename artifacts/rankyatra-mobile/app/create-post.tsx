@@ -36,8 +36,8 @@ function timeAgo(iso: string) {
   if (days < 7) return `${days}d ago`;
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
-function formatUID(id: number) {
-  return `RY${String(id).padStart(10, "0")}`;
+function formatUID(id: number, customUid?: number | null) {
+  return `RY${String(customUid ?? id).padStart(10, "0")}`;
 }
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ function ReadOnlyPostCard({ post, user, colors }: { post: MyPost; user: any; col
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[pStyles.postName, { color: colors.foreground }]} numberOfLines={1}>{user?.name}</Text>
           <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 1 }}>
-            UID-{formatUID(user?.id ?? 0)}
+            UID-{formatUID(user?.id ?? 0, (user as any)?.customUid)}
           </Text>
           <Text style={[pStyles.postTime, { color: colors.mutedForeground }]}>{timeAgo(post.createdAt)}</Text>
         </View>

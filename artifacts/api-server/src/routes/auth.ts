@@ -20,6 +20,7 @@ function userPayload(user: typeof usersTable.$inferSelect) {
     isAdmin: user.isAdmin,
     isSuperAdmin: user.isSuperAdmin ?? false,
     adminPermissions: user.adminPermissions ?? [],
+    customUid: user.customUid ?? null,
     isBlocked: user.isBlocked,
     emailVerified: user.emailVerified,
     verificationStatus: user.verificationStatus,

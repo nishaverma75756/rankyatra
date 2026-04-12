@@ -151,7 +151,7 @@ export default function PublicProfile() {
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/70">Follows you</span>
                   )}
                 </div>
-                <p className="text-white/60 text-xs font-mono font-bold tracking-widest mb-2">UID-{u.id ? formatUID(u.id) : "—"}</p>
+                <p className="text-white/60 text-xs font-mono font-bold tracking-widest mb-2">UID-{u.id ? formatUID((u as any).customUid ?? u.id) : "—"}</p>
                 <div className="flex items-center gap-2 flex-wrap mb-3">
                   {isKyc && (
                     <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "#05966922", color: "#34d399" }}>

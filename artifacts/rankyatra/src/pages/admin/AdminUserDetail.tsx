@@ -292,7 +292,7 @@ export default function AdminUserDetail() {
                   {u?.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground">{u?.email}</p>
-                {u?.id && <p className="text-xs font-mono font-bold text-primary/70 mt-0.5 tracking-widest">UID-{formatUID(u.id)}</p>}
+                {u?.id && <p className="text-xs font-mono font-bold text-primary/70 mt-0.5 tracking-widest">UID-{formatUID(u.customUid ?? u.id)}</p>}
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Joined {u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                 </p>

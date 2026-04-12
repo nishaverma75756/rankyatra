@@ -55,8 +55,8 @@ interface Liker {
   avatarUrl: string | null;
 }
 
-function formatUID(id: number): string {
-  return `RY${String(id).padStart(10, "0")}`;
+function formatUID(id: number, customUid?: number | null): string {
+  return `RY${String(customUid ?? id).padStart(10, "0")}`;
 }
 
 function timeAgo(iso: string) {
@@ -409,7 +409,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
             )}
           </View>
           <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
-            UID-{formatUID(post.userId)}
+            UID-{formatUID(post.userId, post.userCustomUid)}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
             <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(post.createdAt)}</Text>

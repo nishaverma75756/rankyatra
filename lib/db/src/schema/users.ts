@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, decimal, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, decimal, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -34,6 +34,7 @@ export const usersTable = pgTable("users", {
   panCardUrl: text("pan_card_url"),
   emailVerified: boolean("email_verified").notNull().default(false),
   verificationStatus: text("verification_status").notNull().default("not_submitted"),
+  customUid: integer("custom_uid").unique(),
   showOnlineStatus: boolean("show_online_status").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

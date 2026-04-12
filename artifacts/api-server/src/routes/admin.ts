@@ -46,6 +46,7 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
 
       return {
         id: user.id,
+        customUid: user.customUid ?? null,
         name: user.name,
         email: user.email,
         walletBalance: user.walletBalance,
@@ -82,6 +83,7 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
 
   res.json({
     id: user.id,
+    customUid: user.customUid ?? null,
     name: user.name,
     email: user.email,
     phone: user.phone ?? null,

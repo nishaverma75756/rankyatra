@@ -41,8 +41,8 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-function formatUID(id: number) {
-  return `RY${String(id).padStart(10, "0")}`;
+function formatUID(id: number, customUid?: number | null) {
+  return `RY${String(customUid ?? id).padStart(10, "0")}`;
 }
 
 const SKILL_COLORS: Record<string, string> = {
