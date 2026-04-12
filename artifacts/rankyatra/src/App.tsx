@@ -67,7 +67,8 @@ const queryClient = new QueryClient({
 function DomainGuard() {
   useEffect(() => {
     const host = window.location.hostname;
-    if (host !== "rankyatra.in" && host !== "www.rankyatra.in") {
+    const isDev = host === "localhost" || host.endsWith(".replit.dev") || host.endsWith(".janeway.replit.dev") || host.endsWith(".repl.co");
+    if (!isDev && host !== "rankyatra.in" && host !== "www.rankyatra.in") {
       const path = window.location.pathname + window.location.search + window.location.hash;
       window.location.replace("https://rankyatra.in" + path);
     }
