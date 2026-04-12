@@ -17,8 +17,6 @@ import { useColors } from "@/hooks/useColors";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as MediaLibrary from "expo-media-library";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as FileSystem from "expo-file-system/legacy";
 import { showError, showSuccess } from "@/utils/alert";
 
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
@@ -161,20 +159,11 @@ export default function TransactionDetailScreen() {
       const shareText = buildShareText();
 
       if (Platform.OS === "android") {
-        // Android: convert file:// URI → content:// FileProvider URI so apps
-        // like WhatsApp can read the image, then ACTION_SEND with image + text
-        const contentUri = await FileSystem.getContentUriAsync(uri);
-        await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
-          type: "image/png",
-          extra: {
-            "android.intent.extra.STREAM": contentUri,
-            "android.intent.extra.TEXT": shareText,
-            "android.intent.extra.SUBJECT": `Receipt ${invoiceNo}`,
-          },
-          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: `Receipt ${invoiceNo}`,
         });
       } else {
-        // iOS: Share.share natively supports url (image) + message (text) together
         await Share.share({
           url: uri,
           message: shareText,

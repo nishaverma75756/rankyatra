@@ -18,8 +18,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as FileSystem from "expo-file-system/legacy";
 import { showError } from "@/utils/alert";
 
 interface ExamResult {
@@ -177,20 +175,11 @@ export default function ExamResultScreen() {
       ].join("\n");
 
       if (Platform.OS === "android") {
-        // Android: convert file:// URI → content:// FileProvider URI so apps
-        // like WhatsApp can read the image, then ACTION_SEND with image + text
-        const contentUri = await FileSystem.getContentUriAsync(uri);
-        await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
-          type: "image/png",
-          extra: {
-            "android.intent.extra.STREAM": contentUri,
-            "android.intent.extra.TEXT": shareText,
-            "android.intent.extra.SUBJECT": `My Result — ${result.examTitle}`,
-          },
-          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: `My Result — ${result.examTitle}`,
         });
       } else {
-        // iOS: Share.share natively supports url (image) + message (text) together
         await Share.share({
           url: uri,
           message: shareText,

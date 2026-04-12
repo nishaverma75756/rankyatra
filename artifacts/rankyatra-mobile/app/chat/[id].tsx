@@ -757,7 +757,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior="padding"
-        keyboardVerticalOffset={0}
+        enabled={Platform.OS === "ios"}
       >
       {/* Messages */}
       {loading ? (
