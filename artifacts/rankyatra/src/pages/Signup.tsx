@@ -34,6 +34,16 @@ export default function Signup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [signupError, setSignupError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // Read referral code from URL (?ref=CODE) or localStorage
+  useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCode = urlParams.get("ref");
+    const storedCode = localStorage.getItem("referralCode");
+    const code = urlCode ?? storedCode ?? null;
+    if (code) setReferralCode(code.toUpperCase());
+  });
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -58,10 +68,13 @@ export default function Signup() {
 
   const onSubmit = (data: SignupFormValues) => {
     setSignupError(null);
+    const body: any = { name: data.name, email: data.email, password: data.password, phone: data.phone };
+    if (referralCode) body.referralCode = referralCode;
     signupMutation.mutate(
-      { data: { name: data.name, email: data.email, password: data.password, phone: data.phone } },
+      { data: body },
       {
         onSuccess: (res: any) => {
+          localStorage.removeItem("referralCode");
           if (res.requiresVerification) {
             setLocation(`/verify-email?email=${encodeURIComponent(res.email)}`);
             return;
@@ -110,6 +123,12 @@ export default function Signup() {
             <CardDescription className="text-center">
               Register to compete in live high-stakes exams.
             </CardDescription>
+            {referralCode && (
+              <div className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
+                <span className="text-sm">🎁</span>
+                <span className="text-sm text-orange-700 font-semibold">Referral code applied: <span className="font-mono">{referralCode}</span> — aapko ₹20 bonus milega!</span>
+              </div>
+            )}
           </CardHeader>
 
           {/* Google Sign-Up */}

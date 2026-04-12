@@ -36,6 +36,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -95,7 +96,7 @@ export default function SignupScreen() {
     }
     setLoading(true);
     try {
-      const res = await signupApi({ name: name.trim(), email: email.trim().toLowerCase(), password, phone: phone.trim() }) as any;
+      const res = await signupApi({ name: name.trim(), email: email.trim().toLowerCase(), password, phone: phone.trim(), ...(referralCode.trim() ? { referralCode: referralCode.trim().toUpperCase() } : {}) }) as any;
       if (res.requiresVerification) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace({ pathname: "/(auth)/verify-email", params: { email: res.email } });
@@ -222,6 +223,25 @@ export default function SignupScreen() {
             <TouchableOpacity onPress={() => setShowPass(!showPass)}>
               <Feather name={showPass ? "eye-off" : "eye"} size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
+          </View>
+
+          <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="gift" size={18} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.input, { color: colors.foreground }]}
+              placeholder="Referral code (optional)"
+              placeholderTextColor={colors.mutedForeground}
+              value={referralCode}
+              onChangeText={(t) => setReferralCode(t.replace(/\s/g, "").toUpperCase())}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={12}
+            />
+            {referralCode.length > 0 && (
+              <View style={{ backgroundColor: "#f97316", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>APPLIED</Text>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity

@@ -36,6 +36,9 @@ export const usersTable = pgTable("users", {
   verificationStatus: text("verification_status").notNull().default("not_submitted"),
   customUid: integer("custom_uid").unique(),
   showOnlineStatus: boolean("show_online_status").notNull().default(true),
+  referralCode: text("referral_code").unique(),
+  referredById: integer("referred_by_id"),
+  registrationIp: text("registration_ip"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

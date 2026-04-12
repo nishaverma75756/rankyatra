@@ -596,6 +596,22 @@ export default function ProfileScreen() {
       </TouchableOpacity>
 
 
+      {/* Refer & Earn Card */}
+      <TouchableOpacity
+        style={[styles.referEarnCard, { marginHorizontal: 16, marginBottom: 14 }]}
+        onPress={() => router.push("/referral" as any)}
+        activeOpacity={0.85}
+      >
+        <View style={styles.referEarnIcon}>
+          <Feather name="gift" size={24} color="#fff" />
+        </View>
+        <View style={styles.referEarnContent}>
+          <Text style={styles.referEarnTitle}>Refer & Earn ₹20!</Text>
+          <Text style={styles.referEarnSubtitle}>Friend ko refer karo, dono ko ₹20 bonus 🎉</Text>
+        </View>
+        <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+      </TouchableOpacity>
+
       {/* Performance Dashboard */}
       <SectionHeader title="Performance Dashboard" icon="bar-chart-2" colors={colors} />
       <View style={[styles.perfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1091,6 +1107,16 @@ const styles = StyleSheet.create({
   },
   pageTitle: { fontSize: 24, fontWeight: "800" },
   themeToggle: { width: 38, height: 38, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+
+  // Refer & Earn card
+  referEarnCard: {
+    borderRadius: 18, padding: 16, flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "#f97316",
+  },
+  referEarnIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  referEarnContent: { flex: 1 },
+  referEarnTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  referEarnSubtitle: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 2 },
 
   // Wallet banner
   walletBanner: { borderRadius: 18, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

@@ -25,4 +25,6 @@ export * from "./reels";
 export * from "./reel_comments";
 export * from "./user_roles";
 export * from "./groups";
+export * from "./referrals";
+export * from "./referral_clicks";
 

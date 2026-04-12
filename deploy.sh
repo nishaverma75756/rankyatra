@@ -248,6 +248,35 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_permissions text[] NOT NULL DEF
 ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_uid integer UNIQUE;
 "
 
+# Refer & Earn tables and columns (added Apr 2026)
+$DB_CMD -c "
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code text UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_id integer;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip text;
+
+CREATE TABLE IF NOT EXISTS referrals (
+  id serial PRIMARY KEY,
+  referrer_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  referred_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  bonus_paid boolean NOT NULL DEFAULT false,
+  fraud_blocked boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS referral_clicks (
+  id serial PRIMARY KEY,
+  referral_code text NOT NULL,
+  ip text,
+  device_fingerprint text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT ALL PRIVILEGES ON TABLE referrals TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE referrals_id_seq TO PUBLIC;
+GRANT ALL PRIVILEGES ON TABLE referral_clicks TO PUBLIC;
+GRANT ALL PRIVILEGES ON SEQUENCE referral_clicks_id_seq TO PUBLIC;
+"
+
 echo "    Database schema synced."
 
 # 3.5 Add swap memory if not present (needed for Vite build on low-RAM EC2)

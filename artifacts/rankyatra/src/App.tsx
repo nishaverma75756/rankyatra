@@ -53,6 +53,7 @@ import Chat from "@/pages/Chat";
 import ChatConversation from "@/pages/ChatConversation";
 import Moments from "@/pages/Moments";
 import PostComments from "@/pages/PostComments";
+import ReferralPage from "@/pages/Referral";
 import { BottomNav } from "@/components/BottomNav";
 
 const queryClient = new QueryClient({
@@ -198,6 +199,24 @@ function Router() {
       <Route path="/change-credentials">
         <ProtectedRoute component={ChangeCredentials} />
       </Route>
+      <Route path="/referral">
+        <ProtectedRoute component={ReferralPage} />
+      </Route>
+      <Route path="/ref/:code" component={({ params }: any) => {
+        const [, navigate] = useLocation();
+        useEffect(() => {
+          if (params?.code) {
+            localStorage.setItem("referralCode", params.code.toUpperCase());
+            fetch("/api/referral/click", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ referralCode: params.code.toUpperCase() }),
+            }).catch(() => {});
+          }
+          navigate("/signup", { replace: true });
+        }, []);
+        return null;
+      }} />
       <Route path="/oauth-callback" component={OAuthCallback} />
       <Route path="/user/:id" component={PublicProfile} />
       <Route path="/user/:id/:type" component={FollowList} />

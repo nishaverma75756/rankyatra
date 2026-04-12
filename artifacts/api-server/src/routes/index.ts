@@ -25,6 +25,7 @@ import postsRouter from "./posts";
 import reelsRouter from "./reels";
 import notificationsRouter from "./notifications";
 import rolesRouter from "./roles";
+import referralRouter from "./referral";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(postsRouter);
 router.use(reelsRouter);
 router.use(notificationsRouter);
 router.use(rolesRouter);
+router.use(referralRouter);
 
 export default router;

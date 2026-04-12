@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Bookmark, RefreshCw, Radio, Clock, Archive,
-  BarChart2, Play, LogIn,
+  BarChart2, Play, LogIn, Gift, ChevronRight, Users,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -105,8 +105,22 @@ export default function Dashboard() {
       <Navbar />
       <div className="container mx-auto px-4 max-w-2xl pb-24">
 
+        {/* Refer & Earn Card */}
+        <Link href="/referral">
+          <div className="mt-5 mb-4 rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity" style={{ background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)" }}>
+            <div className="p-2.5 bg-white/20 rounded-xl shrink-0">
+              <Gift className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-white text-base">Refer & Earn ₹20!</p>
+              <p className="text-xs text-white/80">Friend ko refer karo, dono ko ₹20 bonus milega 🎉</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-white/70 shrink-0" />
+          </div>
+        </Link>
+
         {/* Header */}
-        <div className="flex items-center gap-3 pt-6 mb-1">
+        <div className="flex items-center gap-3 pt-2 mb-1">
           <h1 className="text-2xl font-black text-foreground tracking-tight">My Exams</h1>
           {myExams.length > 0 && (
             <span className="px-2.5 py-0.5 rounded-xl text-sm font-black" style={{ backgroundColor: "hsl(var(--primary) / 0.12)", color: "hsl(var(--primary))" }}>
