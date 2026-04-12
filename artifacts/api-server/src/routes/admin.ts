@@ -162,6 +162,39 @@ router.patch("/admin/users/:userId", requireAdmin, async (req: any, res): Promis
   });
 });
 
+// ── Super admin only: set custom UID for a user ───────────────────────────────
+router.patch("/admin/users/:userId/custom-uid", requireSuperAdmin, async (req: any, res): Promise<void> => {
+  const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);
+  const { customUid } = req.body as { customUid: number | null };
+
+  if (customUid !== null && (isNaN(customUid) || customUid < 1)) {
+    res.status(400).json({ error: "Invalid UID — must be a positive number" });
+    return;
+  }
+
+  // Check uniqueness if assigning a new value
+  if (customUid !== null) {
+    const [existing] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.customUid, customUid))
+      .limit(1);
+    if (existing && existing.id !== userId) {
+      res.status(409).json({ error: `UID ${customUid} is already assigned to another user` });
+      return;
+    }
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ customUid: customUid ?? null })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+  res.json({ id: updated.id, customUid: updated.customUid ?? null });
+});
+
 // ── Super admin only: update another admin's permissions ─────────────────────
 router.patch("/admin/users/:userId/admin-permissions", requireSuperAdmin, async (req: any, res): Promise<void> => {
   const userId = parseInt(Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId, 10);

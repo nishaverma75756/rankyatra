@@ -76,6 +76,11 @@ export default function AdminUserDetail() {
   const [editPerms, setEditPerms] = useState<string[]>([]);
   const [savingEditPerms, setSavingEditPerms] = useState(false);
 
+  // Custom UID edit
+  const [showUidModal, setShowUidModal] = useState(false);
+  const [uidInput, setUidInput] = useState("");
+  const [savingUid, setSavingUid] = useState(false);
+
   const fetchRoles = async () => {
     if (!userId) return;
     try {
@@ -196,6 +201,28 @@ export default function AdminUserDetail() {
     } finally { setSavingEditPerms(false); }
   };
 
+  const handleSaveCustomUid = async () => {
+    const num = uidInput.trim() === "" ? null : Number(uidInput.trim());
+    if (uidInput.trim() !== "" && (isNaN(num as number) || (num as number) < 1)) {
+      toast({ title: "Invalid UID", description: "Please enter a positive number", variant: "destructive" });
+      return;
+    }
+    setSavingUid(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/custom-uid`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ customUid: num }),
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      toast({ title: num ? `Custom UID set to ${num}` : "Custom UID removed" });
+      setShowUidModal(false);
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed to save UID", variant: "destructive" });
+    } finally { setSavingUid(false); }
+  };
+
   const { mutate: updateUser, isPending: updating } = useAdminUpdateUser({
     mutation: {
       onSuccess: () => { toast({ title: "Profile updated!" }); refetch(); },
@@ -292,7 +319,20 @@ export default function AdminUserDetail() {
                   {u?.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground">{u?.email}</p>
-                {u?.id && <p className="text-xs font-mono font-bold text-primary/70 mt-0.5 tracking-widest">UID-{formatUID(u.customUid ?? u.id)}</p>}
+                {u?.id && (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-xs font-mono font-bold text-primary/70 tracking-widest">UID-{formatUID(u.customUid ?? u.id)}</p>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => { setUidInput(u.customUid ? String(u.customUid) : ""); setShowUidModal(true); }}
+                        className="text-muted-foreground/50 hover:text-primary transition-colors"
+                        title="Edit custom UID"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Joined {u?.createdAt ? new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                 </p>
@@ -679,6 +719,70 @@ export default function AdminUserDetail() {
             <Button variant="outline" onClick={() => setShowEditPermsModal(false)} disabled={savingEditPerms}>Cancel</Button>
             <Button onClick={handleSaveEditPerms} disabled={savingEditPerms}>
               {savingEditPerms ? "Saving..." : `Save (${editPerms.length} permissions)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom UID Edit Modal — super admin only */}
+      <Dialog open={showUidModal} onOpenChange={(o) => { if (!o) setShowUidModal(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" /> Custom UID Set Karo
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{u?.name}</strong> ko ek unique custom UID assign karo. Khali chodo agar default ID use karni hai.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            <div>
+              <Label className="text-xs font-semibold mb-1 block">Custom UID Number</Label>
+              <Input
+                type="number"
+                min={1}
+                placeholder="e.g. 1, 42, 100"
+                value={uidInput}
+                onChange={(e) => setUidInput(e.target.value)}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Display hoga: <span className="font-mono font-bold text-primary">UID-RY{uidInput ? String(Number(uidInput)).padStart(10, "0") : "—"}</span></p>
+            </div>
+            {u?.customUid && (
+              <p className="text-xs text-amber-600 font-medium">Current custom UID: {u.customUid} → Khali chodo agar hatana hai</p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowUidModal(false)} disabled={savingUid}>Cancel</Button>
+            {u?.customUid && (
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                disabled={savingUid}
+                onClick={async () => {
+                  setSavingUid(true);
+                  try {
+                    const res = await fetch(`/api/admin/users/${userId}/custom-uid`, {
+                      method: "PATCH",
+                      headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({ customUid: null }),
+                    });
+                    if (!res.ok) { const e = await res.json(); throw e; }
+                    toast({ title: "Custom UID removed" });
+                    setShowUidModal(false);
+                    refetch();
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e?.error ?? "Failed", variant: "destructive" });
+                  } finally { setSavingUid(false); }
+                }}
+              >
+                Remove UID
+              </Button>
+            )}
+            <Button onClick={handleSaveCustomUid} disabled={savingUid}>
+              {savingUid ? "Saving..." : "Save UID"}
             </Button>
           </DialogFooter>
         </DialogContent>
