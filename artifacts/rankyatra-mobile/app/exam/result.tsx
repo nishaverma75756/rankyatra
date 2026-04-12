@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Share,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +13,9 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
+import ViewShot, { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
+import { showError } from "@/utils/alert";
 
 interface ExamResult {
   id: number;
@@ -65,6 +67,9 @@ export default function ExamResultScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const shareCardRef = useRef<ViewShot>(null);
+  const [sharing, setSharing] = useState(false);
+
   const params = useLocalSearchParams<{
     examId: string;
     examTitle: string;
@@ -89,7 +94,6 @@ export default function ExamResultScreen() {
       customFetch<ExamResult>(`/api/exams/${params.examId}/my-result`)
         .then((data) => setResult(data))
         .catch(() => {
-          // Fallback to URL param data
           setResult({
             id: 0,
             examId: Number(params.examId),
@@ -108,7 +112,6 @@ export default function ExamResultScreen() {
         })
         .finally(() => setLoading(false));
     } else {
-      // For other user's profile — use data from params
       const total = Number(params.totalQuestions ?? 0);
       const correct = Number(params.correctAnswers ?? 0);
       setResult({
@@ -130,23 +133,29 @@ export default function ExamResultScreen() {
     }
   }, [params.examId, isSelf]);
 
-  const handleShare = async () => {
-    if (!result) return;
-    const pct = result.totalQuestions > 0
-      ? Math.round((result.correctAnswers / result.totalQuestions) * 100)
-      : 0;
-    const medal = result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : result.rank ? `#${result.rank}` : "—";
-    await Share.share({
-      message: [
-        `📊 My Exam Result on RankYatra`,
-        `Exam: ${result.examTitle}`,
-        `Score: ${result.score} pts | Accuracy: ${pct}%`,
-        `Correct: ${result.correctAnswers} | Wrong: ${result.wrongAnswers} | Skipped: ${result.skippedAnswers}`,
-        `Rank: ${medal} | Time: ${fmtTime(result.timeTakenSeconds)}`,
-        ``,
-        `Join me on RankYatra — rankyatra.in`,
-      ].join("\n"),
-    });
+  const handleShareImage = async () => {
+    if (!result || sharing) return;
+    setSharing(true);
+    try {
+      const uri = await captureRef(shareCardRef, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: "Share My Exam Result",
+        });
+      } else {
+        showError("Sharing not available on this device.");
+      }
+    } catch {
+      showError("Could not generate result image. Please try again.");
+    } finally {
+      setSharing(false);
+    }
   };
 
   if (loading) {
@@ -173,6 +182,8 @@ export default function ExamResultScreen() {
   const pctColor = pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : pct >= 40 ? "#f97316" : "#ef4444";
   const medal = result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : null;
   const rankLabel = medal ?? (result.rank ? `#${result.rank}` : "—");
+  const perfMsg = pct >= 80 ? "Excellent performance! Keep it up!" : pct >= 60 ? "Good job! A little more practice and you'll ace it." : pct >= 40 ? "Keep practicing — you're getting there!" : "Don't give up! Review the topics and try again.";
+  const perfEmoji = pct >= 80 ? "🎯" : pct >= 60 ? "👍" : pct >= 40 ? "📚" : "💪";
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -184,8 +195,10 @@ export default function ExamResultScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
           Result
         </Text>
-        <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-          <Feather name="share-2" size={20} color={colors.primary} />
+        <TouchableOpacity onPress={handleShareImage} style={styles.shareBtn} disabled={sharing}>
+          {sharing
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Feather name="share-2" size={20} color={colors.primary} />}
         </TouchableOpacity>
       </View>
 
@@ -206,7 +219,6 @@ export default function ExamResultScreen() {
 
         {/* Rank + Score Hero */}
         <View style={[styles.heroRow, { gap: 12 }]}>
-          {/* Rank Card */}
           <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
             <Text style={styles.heroEmoji}>{medal ?? "🏅"}</Text>
             <Text style={[styles.heroValue, { color: result.rank && result.rank <= 3 ? "#f59e0b" : colors.foreground }]}>
@@ -215,7 +227,6 @@ export default function ExamResultScreen() {
             <Text style={[styles.heroLabel, { color: colors.mutedForeground }]}>Your Rank</Text>
           </View>
 
-          {/* Score Card */}
           <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
             <View style={[styles.scoreCircle, { borderColor: pctColor }]}>
               <Text style={[styles.scorePct, { color: pctColor }]}>{pct}%</Text>
@@ -233,95 +244,45 @@ export default function ExamResultScreen() {
 
         {/* Q&A Stats Grid */}
         <View style={styles.statsGrid}>
-          <StatCard
-            icon="check-circle"
-            iconColor="#22c55e"
-            iconBg="#22c55e18"
-            value={String(result.correctAnswers)}
-            label="Correct"
-            colors={colors}
-          />
-          <StatCard
-            icon="x-circle"
-            iconColor="#ef4444"
-            iconBg="#ef444418"
-            value={String(result.wrongAnswers)}
-            label="Wrong"
-            colors={colors}
-          />
-          <StatCard
-            icon="minus-circle"
-            iconColor="#6b7280"
-            iconBg="#6b728018"
-            value={String(result.skippedAnswers)}
-            label="Skipped"
-            colors={colors}
-          />
-          <StatCard
-            icon="help-circle"
-            iconColor="#3b82f6"
-            iconBg="#3b82f618"
-            value={String(result.totalQuestions)}
-            label="Total Qs"
-            colors={colors}
-          />
+          <StatCard icon="check-circle" iconColor="#22c55e" iconBg="#22c55e18" value={String(result.correctAnswers)} label="Correct" colors={colors} />
+          <StatCard icon="x-circle" iconColor="#ef4444" iconBg="#ef444418" value={String(result.wrongAnswers)} label="Wrong" colors={colors} />
+          <StatCard icon="minus-circle" iconColor="#6b7280" iconBg="#6b728018" value={String(result.skippedAnswers)} label="Skipped" colors={colors} />
+          <StatCard icon="help-circle" iconColor="#3b82f6" iconBg="#3b82f618" value={String(result.totalQuestions)} label="Total Qs" colors={colors} />
         </View>
 
         {/* Details */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Details</Text>
-
-          <DetailRow
-            icon="clock"
-            iconColor="#8b5cf6"
-            label="Time Taken"
-            value={fmtTime(result.timeTakenSeconds)}
-            colors={colors}
-          />
-          <DetailRow
-            icon="book-open"
-            iconColor="#f97316"
-            label="Category"
-            value={result.examCategory}
-            colors={colors}
-          />
+          <DetailRow icon="clock" iconColor="#8b5cf6" label="Time Taken" value={fmtTime(result.timeTakenSeconds)} colors={colors} />
+          <DetailRow icon="book-open" iconColor="#f97316" label="Category" value={result.examCategory} colors={colors} />
           {Number(result.entryFee) > 0 && (
-            <DetailRow
-              icon="credit-card"
-              iconColor="#059669"
-              label="Entry Fee"
-              value={`₹${Number(result.entryFee).toLocaleString("en-IN")}`}
-              colors={colors}
-            />
+            <DetailRow icon="credit-card" iconColor="#059669" label="Entry Fee" value={`₹${Number(result.entryFee).toLocaleString("en-IN")}`} colors={colors} />
           )}
-          <DetailRow
-            icon="calendar"
-            iconColor="#0ea5e9"
-            label="Submitted"
-            value={fmtDate(result.submittedAt)}
-            colors={colors}
-            last
-          />
+          <DetailRow icon="calendar" iconColor="#0ea5e9" label="Submitted" value={fmtDate(result.submittedAt)} colors={colors} last />
         </View>
 
         {/* Performance Message */}
-        <View style={[styles.perfMsg, {
-          backgroundColor: pctColor + "15",
-          borderColor: pctColor + "40",
-        }]}>
-          <Text style={[styles.perfEmoji]}>
-            {pct >= 80 ? "🎯" : pct >= 60 ? "👍" : pct >= 40 ? "📚" : "💪"}
-          </Text>
-          <Text style={[styles.perfText, { color: pctColor }]}>
-            {pct >= 80
-              ? "Excellent performance! Keep it up!"
-              : pct >= 60
-              ? "Good job! A little more practice and you'll ace it."
-              : pct >= 40
-              ? "Keep practicing — you're getting there!"
-              : "Don't give up! Review the topics and try again."}
-          </Text>
+        <View style={[styles.perfMsg, { backgroundColor: pctColor + "15", borderColor: pctColor + "40" }]}>
+          <Text style={styles.perfEmoji}>{perfEmoji}</Text>
+          <Text style={[styles.perfText, { color: pctColor }]}>{perfMsg}</Text>
         </View>
+
+        {/* Share Result Button */}
+        {isSelf && (
+          <TouchableOpacity
+            style={[styles.shareResultBtn, { backgroundColor: colors.card, borderColor: colors.primary }]}
+            onPress={handleShareImage}
+            disabled={sharing}
+            activeOpacity={0.8}
+          >
+            {sharing
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Feather name="share-2" size={17} color={colors.primary} />}
+            <Text style={[styles.shareResultBtnText, { color: colors.primary }]}>
+              {sharing ? "Generating Image..." : "Share My Result"}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* CTA */}
         <TouchableOpacity
@@ -333,6 +294,105 @@ export default function ExamResultScreen() {
           <Text style={styles.ctaBtnText}>Join Another Contest</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Off-screen shareable result card (captured as image) */}
+      <View style={styles.offScreen} pointerEvents="none">
+        <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
+          <ResultShareCard result={result} pct={pct} pctColor={pctColor} rankLabel={rankLabel} medal={medal} perfMsg={perfMsg} perfEmoji={perfEmoji} userName={user?.name} />
+        </ViewShot>
+      </View>
+    </View>
+  );
+}
+
+function ResultShareCard({ result, pct, pctColor, rankLabel, medal, perfMsg, perfEmoji, userName }: {
+  result: ExamResult;
+  pct: number;
+  pctColor: string;
+  rankLabel: string;
+  medal: string | null;
+  perfMsg: string;
+  perfEmoji: string;
+  userName?: string;
+}) {
+  const isTop3 = result.rank !== null && result.rank <= 3;
+  const bgGradient = isTop3 ? "#1a0a00" : "#0f172a";
+  const accentColor = "#f97316";
+
+  return (
+    <View style={[shareStyles.card, { backgroundColor: bgGradient }]}>
+      {/* Header */}
+      <View style={shareStyles.cardHeader}>
+        <View style={shareStyles.brandRow}>
+          <View style={[shareStyles.brandDot, { backgroundColor: accentColor }]} />
+          <Text style={[shareStyles.brandName, { color: accentColor }]}>RankYatra</Text>
+        </View>
+        <Text style={shareStyles.cardLabel}>EXAM RESULT</Text>
+      </View>
+
+      {/* Exam title */}
+      <View style={[shareStyles.examBlock, { borderColor: "#ffffff15" }]}>
+        <View style={[shareStyles.catBadge, { backgroundColor: accentColor + "30" }]}>
+          <Text style={[shareStyles.catBadgeText, { color: accentColor }]}>{result.examCategory}</Text>
+        </View>
+        <Text style={shareStyles.examTitleText} numberOfLines={2}>{result.examTitle}</Text>
+      </View>
+
+      {/* Rank + Score row */}
+      <View style={shareStyles.heroRow}>
+        <View style={[shareStyles.heroBox, { backgroundColor: "#ffffff08", borderColor: "#ffffff15" }]}>
+          <Text style={shareStyles.heroEmoji}>{medal ?? "🏅"}</Text>
+          <Text style={[shareStyles.heroVal, { color: isTop3 ? "#fbbf24" : "#fff" }]}>{rankLabel}</Text>
+          <Text style={shareStyles.heroLbl}>Your Rank</Text>
+        </View>
+        <View style={[shareStyles.heroDivider, { backgroundColor: "#ffffff20" }]} />
+        <View style={[shareStyles.heroBox, { backgroundColor: "#ffffff08", borderColor: "#ffffff15" }]}>
+          <View style={[shareStyles.pctCircle, { borderColor: pctColor }]}>
+            <Text style={[shareStyles.pctText, { color: pctColor }]}>{pct}%</Text>
+          </View>
+          <Text style={[shareStyles.heroVal, { color: "#fff" }]}>{result.score} pts</Text>
+          <Text style={shareStyles.heroLbl}>Score</Text>
+        </View>
+      </View>
+
+      {/* Stats */}
+      <View style={shareStyles.statsRow}>
+        <View style={[shareStyles.statPill, { backgroundColor: "#22c55e18" }]}>
+          <Text style={shareStyles.statPillIcon}>✅</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#22c55e" }]}>{result.correctAnswers}</Text>
+          <Text style={shareStyles.statPillLbl}>Correct</Text>
+        </View>
+        <View style={[shareStyles.statPill, { backgroundColor: "#ef444418" }]}>
+          <Text style={shareStyles.statPillIcon}>❌</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#ef4444" }]}>{result.wrongAnswers}</Text>
+          <Text style={shareStyles.statPillLbl}>Wrong</Text>
+        </View>
+        <View style={[shareStyles.statPill, { backgroundColor: "#ffffff10" }]}>
+          <Text style={shareStyles.statPillIcon}>⏭</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#94a3b8" }]}>{result.skippedAnswers}</Text>
+          <Text style={shareStyles.statPillLbl}>Skipped</Text>
+        </View>
+        <View style={[shareStyles.statPill, { backgroundColor: "#6b728018" }]}>
+          <Text style={shareStyles.statPillIcon}>⏱</Text>
+          <Text style={[shareStyles.statPillVal, { color: "#a78bfa" }]}>{result.timeTakenSeconds > 0 ? `${Math.floor(result.timeTakenSeconds / 60)}m` : "—"}</Text>
+          <Text style={shareStyles.statPillLbl}>Time</Text>
+        </View>
+      </View>
+
+      {/* Performance message */}
+      <View style={[shareStyles.perfRow, { backgroundColor: pctColor + "20", borderColor: pctColor + "40" }]}>
+        <Text style={shareStyles.perfEmoji}>{perfEmoji}</Text>
+        <Text style={[shareStyles.perfMsg, { color: pctColor }]} numberOfLines={2}>{perfMsg}</Text>
+      </View>
+
+      {/* Footer */}
+      <View style={shareStyles.footer}>
+        <Text style={[shareStyles.footerTag, { color: "#ffffff40" }]}>
+          {userName ? `${userName} on ` : ""}
+          <Text style={{ color: accentColor, fontWeight: "800" }}>rankyatra.in</Text>
+          {" • Compete. Rank. Win."}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -378,7 +438,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4, marginRight: 8 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: "800" },
-  shareBtn: { padding: 4 },
+  shareBtn: { padding: 4, minWidth: 28, alignItems: "center" },
 
   examHeader: {
     borderRadius: 16,
@@ -466,6 +526,18 @@ const styles = StyleSheet.create({
   perfEmoji: { fontSize: 24 },
   perfText: { flex: 1, fontSize: 14, fontWeight: "600", lineHeight: 20 },
 
+  shareResultBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 12,
+  },
+  shareResultBtnText: { fontSize: 15, fontWeight: "700" },
+
   ctaBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -475,4 +547,84 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   ctaBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  offScreen: {
+    position: "absolute",
+    left: -9999,
+    top: 0,
+    opacity: 0,
+  },
+});
+
+const shareStyles = StyleSheet.create({
+  card: {
+    width: 360,
+    borderRadius: 24,
+    padding: 24,
+    gap: 16,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  brandDot: { width: 8, height: 8, borderRadius: 4 },
+  brandName: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
+  cardLabel: { fontSize: 10, fontWeight: "700", color: "#ffffff40", letterSpacing: 2, textTransform: "uppercase" },
+
+  examBlock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    gap: 8,
+    alignItems: "center",
+  },
+  catBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 },
+  catBadgeText: { fontSize: 11, fontWeight: "700" },
+  examTitleText: { fontSize: 17, fontWeight: "800", color: "#fff", textAlign: "center", lineHeight: 22 },
+
+  heroRow: { flexDirection: "row", alignItems: "stretch" },
+  heroDivider: { width: 1, marginHorizontal: 12 },
+  heroBox: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  heroEmoji: { fontSize: 28 },
+  heroVal: { fontSize: 20, fontWeight: "900" },
+  heroLbl: { fontSize: 11, color: "#ffffff50", fontWeight: "600" },
+  pctCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2.5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  pctText: { fontSize: 13, fontWeight: "900" },
+
+  statsRow: { flexDirection: "row", gap: 8 },
+  statPill: { flex: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 3 },
+  statPillIcon: { fontSize: 14 },
+  statPillVal: { fontSize: 16, fontWeight: "800" },
+  statPillLbl: { fontSize: 9, color: "#ffffff50", fontWeight: "600" },
+
+  perfRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+  },
+  perfEmoji: { fontSize: 20 },
+  perfMsg: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+
+  footer: { alignItems: "center" },
+  footerTag: { fontSize: 12 },
 });
