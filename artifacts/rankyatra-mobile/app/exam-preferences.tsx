@@ -10,7 +10,7 @@ import {
 import { Stack, router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useThemeColors } from "@/hooks/useThemeColors";
+import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { showError, showSuccess } from "@/utils/alert";
 
@@ -41,7 +41,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function ExamPreferences() {
-  const colors = useThemeColors();
+  const colors = useColors();
   const { token, user, updateUser } = useAuth();
   const queryClient = useQueryClient();
 
