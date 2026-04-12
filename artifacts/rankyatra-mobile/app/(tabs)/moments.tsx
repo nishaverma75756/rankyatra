@@ -18,6 +18,69 @@ import ReelsFeed from "@/components/ReelsFeed";
 
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
+// ─── SmartPostImage ───────────────────────────────────────────────────────────
+// Rules:
+//  • Landscape (16:9) → full width, natural height, resizeMode=contain
+//  • Square (1:1)     → full width, same height, resizeMode=contain
+//  • Portrait ≤ 3:4   → full width, capped at 4/3 × width height, resizeMode=contain
+//  • Portrait > 3:4 tall (9:16, etc.) → capped at 3:4 box, resizeMode=cover
+const MIN_ASPECT = 3 / 4; // maximum height = width × (4/3)
+
+function SmartPostImage({ uri, onPress, colors }: { uri: string; onPress: () => void; colors: any }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [resizeMode, setResizeMode] = useState<"cover" | "contain">("cover");
+
+  useEffect(() => {
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (!w || !h) return;
+        const natural = w / h;
+        if (natural < MIN_ASPECT) {
+          // Too tall (9:16 etc.) — cap at 3:4, crop with cover
+          setAspectRatio(MIN_ASPECT);
+          setResizeMode("cover");
+        } else {
+          // Landscape or moderate portrait — show full image with contain
+          setAspectRatio(natural);
+          setResizeMode("contain");
+        }
+      },
+      () => {
+        // Fallback on error
+        setAspectRatio(MIN_ASPECT);
+        setResizeMode("cover");
+      }
+    );
+  }, [uri]);
+
+  if (!aspectRatio) {
+    // Placeholder while dimensions load
+    return (
+      <View style={{ width: "100%", aspectRatio: MIN_ASPECT, backgroundColor: colors.muted }} />
+    );
+  }
+
+  return (
+    <TouchableOpacity activeOpacity={0.92} onPress={onPress}>
+      <View
+        style={{
+          width: "100%",
+          aspectRatio,
+          backgroundColor: resizeMode === "contain" ? colors.muted + "60" : "transparent",
+          overflow: "hidden",
+        }}
+      >
+        <Image
+          source={{ uri }}
+          style={{ width: "100%", height: "100%" }}
+          resizeMode={resizeMode}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 interface PopularUser {
   id: number;
   name: string;
@@ -482,16 +545,15 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
         </View>
       )}
 
-      {/* Post image — 3:4 portrait ratio, tap to open full post */}
+      {/* Post image — smart sizing, tap to open full post */}
       {post.imageUrl && (
-        <TouchableOpacity
-          activeOpacity={0.92}
-          onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
-        >
-          <View style={styles.postImageWrap}>
-            <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" />
-          </View>
-        </TouchableOpacity>
+        <View style={styles.postImageWrap}>
+          <SmartPostImage
+            uri={post.imageUrl}
+            colors={colors}
+            onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
+          />
+        </View>
       )}
 
       {/* Top comment preview */}

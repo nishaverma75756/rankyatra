@@ -15,6 +15,28 @@ import * as VideoThumbnails from "expo-video-thumbnails";
 import { useEffect, useRef } from "react";
 import { showConfirm, showError } from "@/utils/alert";
 
+const _MIN_ASPECT = 3 / 4;
+function SmartPostImage({ uri, onPress, colors }: { uri: string; onPress: () => void; colors: any }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [resizeMode, setResizeMode] = useState<"cover" | "contain">("cover");
+  useEffect(() => {
+    Image.getSize(uri, (w, h) => {
+      if (!w || !h) return;
+      const nat = w / h;
+      if (nat < _MIN_ASPECT) { setAspectRatio(_MIN_ASPECT); setResizeMode("cover"); }
+      else { setAspectRatio(nat); setResizeMode("contain"); }
+    }, () => { setAspectRatio(_MIN_ASPECT); setResizeMode("cover"); });
+  }, [uri]);
+  if (!aspectRatio) return <View style={{ width: "100%", aspectRatio: _MIN_ASPECT, backgroundColor: "#0000001a", marginBottom: 8 }} />;
+  return (
+    <TouchableOpacity activeOpacity={0.92} onPress={onPress}>
+      <View style={{ width: "100%", aspectRatio, marginBottom: 8, overflow: "hidden", backgroundColor: resizeMode === "contain" ? "#0000000f" : "transparent" }}>
+        <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode={resizeMode} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 function resolveAvatar(url: string | null | undefined): string | null {
@@ -139,12 +161,11 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
         <Text style={[styles.postContent, { color: colors.foreground }]}>{post.content}</Text>
       )}
       {resolveImage(post.imageUrl) && (
-        <TouchableOpacity
-          activeOpacity={0.92}
+        <SmartPostImage
+          uri={resolveImage(post.imageUrl)!}
+          colors={colors}
           onPress={() => router.push({ pathname: "/post-comments", params: { id: post.id } } as any)}
-        >
-          <Image source={{ uri: resolveImage(post.imageUrl)! }} style={styles.postImage} resizeMode="cover" />
-        </TouchableOpacity>
+        />
       )}
 
       {/* Top comment preview */}

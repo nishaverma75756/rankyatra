@@ -11,6 +11,26 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { customFetch } from "@workspace/api-client-react";
 
+const MIN_ASPECT = 3 / 4;
+function SmartImage({ uri, colors }: { uri: string; colors: any }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [resizeMode, setResizeMode] = useState<"cover" | "contain">("cover");
+  useEffect(() => {
+    Image.getSize(uri, (w, h) => {
+      if (!w || !h) return;
+      const nat = w / h;
+      if (nat < MIN_ASPECT) { setAspectRatio(MIN_ASPECT); setResizeMode("cover"); }
+      else { setAspectRatio(nat); setResizeMode("contain"); }
+    }, () => { setAspectRatio(MIN_ASPECT); setResizeMode("cover"); });
+  }, [uri]);
+  if (!aspectRatio) return <View style={{ width: "100%", aspectRatio: MIN_ASPECT, backgroundColor: colors.muted, borderRadius: 12, marginTop: 10 }} />;
+  return (
+    <View style={{ width: "100%", aspectRatio, borderRadius: 12, marginTop: 10, overflow: "hidden", backgroundColor: resizeMode === "contain" ? colors.muted + "60" : "transparent" }}>
+      <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode={resizeMode} />
+    </View>
+  );
+}
+
 interface Post {
   id: number;
   content: string;
@@ -285,9 +305,7 @@ export default function PostCommentsScreen() {
           </View>
           <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{post.content}</Text>
           {post.imageUrl && (
-            <View style={{ width: "100%", aspectRatio: 3 / 4, borderRadius: 12, marginTop: 10, overflow: "hidden", backgroundColor: "#00000008" }}>
-              <Image source={{ uri: post.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
-            </View>
+            <SmartImage uri={post.imageUrl} colors={colors} />
           )}
           <View style={{ flexDirection: "row", gap: 16, marginTop: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
