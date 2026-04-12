@@ -30,6 +30,7 @@ import { eq, count, sum, desc, asc, like, sql, or } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewares/auth";
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
+import { sendPushToUser } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -789,6 +790,22 @@ router.patch("/admin/reel-applications/:id/status", requireSuperAdmin, async (re
         .update(usersTable)
         .set({ canPostReels: true })
         .where(eq(usersTable.id, app.userId));
+
+      // In-app notification
+      await db.insert(notificationsTable).values({
+        userId: app.userId,
+        type: "system",
+        title: "Reel Access Approved! 🎬",
+        body: "Congratulations! You are now authorized to post reels on RankYatra. Go to Moments and start creating!",
+        data: JSON.stringify({ screen: "apply-for-reels" }),
+      }).catch(() => {});
+
+      // Push notification
+      await sendPushToUser(app.userId, {
+        title: "Reel Access Approved! 🎬",
+        body: "Congratulations! You can now post reels on RankYatra. Go to Moments and start creating!",
+        data: { screen: "apply-for-reels" },
+      }).catch(() => {});
     }
     // If rejected, ensure canPostReels = false
     if (status === "rejected") {
@@ -796,6 +813,26 @@ router.patch("/admin/reel-applications/:id/status", requireSuperAdmin, async (re
         .update(usersTable)
         .set({ canPostReels: false })
         .where(eq(usersTable.id, app.userId));
+
+      const rejectMsg = adminNote?.trim()
+        ? `Your reel access request was not approved. Reason: ${adminNote.trim()}`
+        : "Your reel access request was not approved at this time. You may re-apply with more details.";
+
+      // In-app notification
+      await db.insert(notificationsTable).values({
+        userId: app.userId,
+        type: "system",
+        title: "Reel Application Update",
+        body: rejectMsg,
+        data: JSON.stringify({ screen: "apply-for-reels" }),
+      }).catch(() => {});
+
+      // Push notification
+      await sendPushToUser(app.userId, {
+        title: "Reel Application Update",
+        body: rejectMsg,
+        data: { screen: "apply-for-reels" },
+      }).catch(() => {});
     }
     res.json({ application: app });
   } catch (err) {

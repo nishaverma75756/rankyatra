@@ -73,6 +73,14 @@ export default function ApplyForReelsScreen() {
           setTwitterHandle(data.application.twitterHandle ?? "");
           setContentType(data.application.contentType ?? "");
           setReason(data.application.reason ?? "");
+
+          // Sync canPostReels into AuthContext so the app reflects approval
+          // without requiring a re-login
+          if (data.application.status === "approved" && !user?.canPostReels) {
+            updateUser({ canPostReels: true });
+          } else if (data.application.status !== "approved" && user?.canPostReels) {
+            updateUser({ canPostReels: false });
+          }
         }
       }
     } catch {}
