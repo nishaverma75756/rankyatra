@@ -110,7 +110,7 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
         userId: referrer.id,
         amount: "20.00",
         type: "credit",
-        description: `Referral bonus — ${user.name} ne join kiya!`,
+        description: `Referral bonus — ${user.name} joined using your code!`,
         balanceAfter: updatedReferrer?.walletBalance ?? "0.00",
       });
 
@@ -125,7 +125,7 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
         userId: user.id,
         amount: "20.00",
         type: "credit",
-        description: "Welcome bonus — referral ke through join karne par!",
+        description: "Welcome bonus — joined via a referral code!",
         balanceAfter: updatedUser?.walletBalance ?? "0.00",
       });
     }

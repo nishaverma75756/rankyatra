@@ -89,9 +89,8 @@ function GroupInviteRow({ n, colors, onRespond }: { n: Notification; colors: any
       <View style={{ flex: 1 }}>
         <Text style={[styles.notifText, { color: colors.foreground }]}>
           <Text style={{ fontWeight: "700" }}>{n.fromUserName ?? "Someone"}</Text>
-          {" "}ne aapko{" "}
+          {" "}invited you to{" "}
           <Text style={{ fontWeight: "700" }}>"{parsed.groupName ?? "Group"}"</Text>
-          {" "}mein invite kiya hai
         </Text>
         <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{timeAgo(n.createdAt)}</Text>
         {done ? (

@@ -113,7 +113,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-white text-base">Refer & Earn ₹20!</p>
-              <p className="text-xs text-white/80">Friend ko refer karo, dono ko ₹20 bonus milega 🎉</p>
+              <p className="text-xs text-white/80">Refer a friend and both of you get a ₹20 bonus 🎉</p>
             </div>
             <ChevronRight className="h-5 w-5 text-white/70 shrink-0" />
           </div>

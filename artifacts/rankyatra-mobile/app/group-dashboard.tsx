@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
-import { showError, showConfirm } from "@/utils/alert";
+import { showError, showConfirm, showSuccess } from "@/utils/alert";
 import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
@@ -56,7 +56,7 @@ export default function GroupDashboardScreen() {
 
   const pickGroupPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showError("Gallery permission chahiye"); return; }
+    if (status !== "granted") { showError("Permission Required", "Please allow gallery access to upload a photo."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -164,7 +164,7 @@ export default function GroupDashboardScreen() {
       if (!r.ok) throw new Error(d.error);
       setInviteUid("");
       setFoundUser(null);
-      showError("Invitation Bhej Di!", `${d.targetName} ko group invite aur email notification bhej di gayi`);
+      showSuccess("Invitation Sent!", `Group invite and email notification sent to ${d.targetName}`);
       fetchAll();
     } catch (e: any) {
       showError("Error", e.message);
@@ -219,7 +219,7 @@ export default function GroupDashboardScreen() {
       setShowWithdraw(false);
       setWithdrawAmount("");
       setWithdrawUpi("");
-      showError("Request Submitted!", "Commission withdrawal request admin ko bhej di gayi");
+      showSuccess("Request Submitted!", "Commission withdrawal request has been sent to admin");
       fetchAll();
     } catch (e: any) {
       showError("Error", e.message);
@@ -293,7 +293,7 @@ export default function GroupDashboardScreen() {
                   <View key={inv.id} style={s.inviteRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.inviteName, { color: colors.foreground }]}>{inv.ownerName}</Text>
-                      <Text style={[s.inviteSub, { color: colors.mutedForeground }]}>"{inv.groupName}" group mein invite</Text>
+                      <Text style={[s.inviteSub, { color: colors.mutedForeground }]}>Invited to "{inv.groupName}"</Text>
                     </View>
                     <View style={s.inviteActions}>
                       <TouchableOpacity style={[s.acceptBtn, { backgroundColor: "#22c55e" }]} onPress={() => handleInviteResponse(inv.id, "accept")}>

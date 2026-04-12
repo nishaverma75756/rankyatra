@@ -398,7 +398,7 @@ export default function ChatConversation() {
         const rawText = await res.text().catch(() => "Unknown error");
         let errMsg = rawText;
         try { const j = JSON.parse(rawText); errMsg = j.detail ?? j.message ?? rawText; } catch {}
-        alert(`Message send nahi hua: ${errMsg}`);
+        alert(`Failed to send message: ${errMsg}`);
         setText(content);
       }
     } catch (err: any) {

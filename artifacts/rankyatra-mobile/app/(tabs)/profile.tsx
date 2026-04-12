@@ -607,7 +607,7 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.referEarnContent}>
           <Text style={styles.referEarnTitle}>Refer & Earn ₹20!</Text>
-          <Text style={styles.referEarnSubtitle}>Friend ko refer karo, dono ko ₹20 bonus 🎉</Text>
+          <Text style={styles.referEarnSubtitle}>Refer a friend — both of you get ₹20 bonus 🎉</Text>
         </View>
         <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
       </TouchableOpacity>

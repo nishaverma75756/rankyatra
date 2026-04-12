@@ -314,11 +314,11 @@ export default function AdminExamDetail() {
                           className={`flex-1 ${isCorrect ? "border-green-300 bg-white" : ""}`}
                         />
                         {isCorrect && (
-                          <span className="text-xs text-green-600 font-bold whitespace-nowrap">✓ Sahi</span>
+                          <span className="text-xs text-green-600 font-bold whitespace-nowrap">✓ Correct</span>
                         )}
                       </div>
                       <Textarea
-                        placeholder={isCorrect ? `Ye option sahi kyun hai? Samjhao...` : `Ye option galat kyun hai? Samjhao...`}
+                        placeholder={isCorrect ? `Why is this option correct? Explain...` : `Why is this option incorrect? Explain...`}
                         rows={2}
                         value={form[expKey] as string}
                         onChange={(e) => setForm({ ...form, [expKey]: e.target.value })}

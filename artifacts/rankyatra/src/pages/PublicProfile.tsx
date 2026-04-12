@@ -186,7 +186,7 @@ export default function PublicProfile() {
                             const res = await apiFetch(`/api/chat/conversations/start/${userId}`, { method: "POST" });
                             navigate(`/chat/${res.id}`);
                           } catch (err: any) {
-                            alert(err?.message ?? "Message bhejne mein error aayi, please retry.");
+                            alert(err?.message ?? "Failed to open conversation. Please try again.");
                           } finally {
                             setMsgLoading(false);
                           }

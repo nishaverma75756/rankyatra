@@ -140,17 +140,17 @@ export default function ReferralScreen() {
           <View style={styles.heroIcon}>
             <Feather name="gift" size={28} color="#fff" />
           </View>
-          <Text style={styles.heroTitle}>Dono ko milega ₹20!</Text>
-          <Text style={styles.heroSubtitle}>Friend ko refer karo — dono ke wallet mein ₹20 bonus automatically credit hoga</Text>
+          <Text style={styles.heroTitle}>Both get ₹20!</Text>
+          <Text style={styles.heroSubtitle}>Refer a friend — ₹20 bonus is automatically credited to both wallets</Text>
           <View style={styles.heroBadgeRow}>
-            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>✅ Aap ko ₹20</Text></View>
-            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>✅ Friend ko ₹20</Text></View>
+            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>✅ You get ₹20</Text></View>
+            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>✅ Friend gets ₹20</Text></View>
           </View>
         </View>
 
         {/* Referral Link Card */}
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.cardTitle, { color: c.foreground }]}>Aapka Referral Link</Text>
+          <Text style={[styles.cardTitle, { color: c.foreground }]}>Your Referral Link</Text>
           {loading ? (
             <View style={[styles.linkBox, { backgroundColor: c.muted }]}>
               <ActivityIndicator size="small" color={c.primary} />
@@ -249,11 +249,11 @@ export default function ReferralScreen() {
 
         {/* How it works */}
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.cardTitle, { color: c.foreground }]}>Kaise Kaam Karta Hai?</Text>
+          <Text style={[styles.cardTitle, { color: c.foreground }]}>How It Works</Text>
           {[
-            "Apna referral link copy karo ya share karo",
-            "Friend us link se sign up kare",
-            "Dono ke wallet mein ₹20-₹20 automatically credit ho jaega!",
+            "Copy or share your referral link",
+            "Your friend signs up using your link",
+            "₹20 is automatically credited to both wallets!",
           ].map((text, i) => (
             <View key={i} style={styles.stepRow}>
               <View style={[styles.stepNum, { backgroundColor: c.primary }]}>
@@ -299,7 +299,7 @@ export default function ReferralScreen() {
         {!loading && referrals.length === 0 && (
           <View style={styles.emptyBox}>
             <Feather name="users" size={36} color={c.mutedForeground} style={{ opacity: 0.4 }} />
-            <Text style={[styles.emptyText, { color: c.mutedForeground }]}>Abhi koi referral nahi. Link share karo!</Text>
+            <Text style={[styles.emptyText, { color: c.mutedForeground }]}>No referrals yet. Share your link to get started!</Text>
           </View>
         )}
 

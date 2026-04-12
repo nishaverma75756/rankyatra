@@ -126,7 +126,7 @@ export default function Signup() {
             {referralCode && (
               <div className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
                 <span className="text-sm">🎁</span>
-                <span className="text-sm text-orange-700 font-semibold">Referral code applied: <span className="font-mono">{referralCode}</span> — aapko ₹20 bonus milega!</span>
+                <span className="text-sm text-orange-700 font-semibold">Referral code applied: <span className="font-mono">{referralCode}</span> — you will receive a ₹20 bonus!</span>
               </div>
             )}
           </CardHeader>

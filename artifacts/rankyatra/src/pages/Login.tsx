@@ -48,7 +48,7 @@ export default function Login() {
       return { message: msg };
     }
     if (msg === "Invalid email or password" || error?.status === 401) {
-      return { message: "Email ya password sahi nahi hai. Agar account nahi hai to pehle signup karo.", notFound: true };
+      return { message: "Incorrect email or password. If you don't have an account, please sign up first.", notFound: true };
     }
     return { message: msg || "Login failed. Please try again." };
   }
@@ -115,7 +115,7 @@ export default function Login() {
                     onClick={() => setLocation("/signup")}
                     className="ml-6 text-primary font-bold underline underline-offset-2 text-left hover:opacity-80"
                   >
-                    → Abhi Signup Karo
+                    → Sign Up Now
                   </button>
                 )}
               </div>

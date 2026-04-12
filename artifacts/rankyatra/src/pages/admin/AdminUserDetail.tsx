@@ -34,15 +34,15 @@ const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: s
 };
 
 const ALL_PERMISSIONS = [
-  { key: "users",       label: "Manage Users",        desc: "Users dekhe, block/unblock kare, profiles manage kare" },
-  { key: "exams",       label: "Manage Exams",         desc: "Exams create/edit kare, prizes distribute kare" },
-  { key: "deposits",    label: "Deposit Requests",     desc: "Deposit requests approve/reject kare" },
-  { key: "withdrawals", label: "Withdrawal Requests",  desc: "Withdrawal requests approve/reject kare" },
-  { key: "kyc",         label: "KYC Verifications",    desc: "Identity verification approve/reject kare" },
-  { key: "reports",     label: "User Reports",         desc: "User reports dekhe aur action le" },
-  { key: "banners",     label: "Banner Slider",        desc: "Promotional banners manage kare" },
-  { key: "categories",  label: "Exam Categories",      desc: "Exam categories manage kare" },
-  { key: "roles",       label: "Roles & Groups",       desc: "Users ko special roles assign kare" },
+  { key: "users",       label: "Manage Users",        desc: "View users, block/unblock, and manage profiles" },
+  { key: "exams",       label: "Manage Exams",         desc: "Create/edit exams and distribute prizes" },
+  { key: "deposits",    label: "Deposit Requests",     desc: "Approve or reject deposit requests" },
+  { key: "withdrawals", label: "Withdrawal Requests",  desc: "Approve or reject withdrawal requests" },
+  { key: "kyc",         label: "KYC Verifications",    desc: "Approve or reject identity verifications" },
+  { key: "reports",     label: "User Reports",         desc: "Review user reports and take action" },
+  { key: "banners",     label: "Banner Slider",        desc: "Manage promotional banners" },
+  { key: "categories",  label: "Exam Categories",      desc: "Manage exam categories" },
+  { key: "roles",       label: "Roles & Groups",       desc: "Assign special roles to users" },
 ];
 
 export default function AdminUserDetail() {
@@ -422,7 +422,7 @@ export default function AdminUserDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-destructive uppercase tracking-widest">Danger Zone</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">User ka saara data permanently delete ho jayega</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">All of this user's data will be permanently deleted</p>
                   </div>
                   <Button
                     size="sm"
@@ -641,7 +641,7 @@ export default function AdminUserDetail() {
               <Shield className="h-5 w-5" /> Grant Admin Access
             </DialogTitle>
             <DialogDescription>
-              <strong>{u?.name}</strong> ko admin banane ke baad kaunse sections access milenge — select karo:
+              Select which sections <strong>{u?.name}</strong> will have access to as an admin:
             </DialogDescription>
           </DialogHeader>
 
@@ -655,8 +655,8 @@ export default function AdminUserDetail() {
                 }}
               />
               <div>
-                <p className="text-sm font-bold text-primary">Sabhi Permissions (Full Access)</p>
-                <p className="text-xs text-muted-foreground">Sab sections ka access de do</p>
+                <p className="text-sm font-bold text-primary">All Permissions (Full Access)</p>
+                <p className="text-xs text-muted-foreground">Grant access to all sections</p>
               </div>
             </label>
 
@@ -681,7 +681,7 @@ export default function AdminUserDetail() {
 
           {grantPerms.length === 0 && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Koi permission select nahi ki — admin ban jayega lekin kuch access nahi hoga.
+              No permissions selected — this admin will have no section access.
             </p>
           )}
 
@@ -703,7 +703,7 @@ export default function AdminUserDetail() {
               <Settings2 className="h-5 w-5" /> Edit Admin Permissions
             </DialogTitle>
             <DialogDescription>
-              <strong>{u?.name}</strong> ke liye permissions update karo:
+              Update permissions for <strong>{u?.name}</strong>:
             </DialogDescription>
           </DialogHeader>
 
@@ -716,8 +716,8 @@ export default function AdminUserDetail() {
                 }}
               />
               <div>
-                <p className="text-sm font-bold text-primary">Sabhi Permissions (Full Access)</p>
-                <p className="text-xs text-muted-foreground">Sab sections ka access de do</p>
+                <p className="text-sm font-bold text-primary">All Permissions (Full Access)</p>
+                <p className="text-xs text-muted-foreground">Grant access to all sections</p>
               </div>
             </label>
 
@@ -754,10 +754,10 @@ export default function AdminUserDetail() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" /> Custom UID Set Karo
+              <KeyRound className="h-5 w-5 text-primary" /> Set Custom UID
             </DialogTitle>
             <DialogDescription>
-              <strong>{u?.name}</strong> ko ek unique custom UID assign karo. Khali chodo agar default ID use karni hai.
+              Assign a unique custom UID to <strong>{u?.name}</strong>. Leave blank to use the default ID.
             </DialogDescription>
           </DialogHeader>
 
@@ -772,10 +772,10 @@ export default function AdminUserDetail() {
                 onChange={(e) => setUidInput(e.target.value)}
                 className="font-mono"
               />
-              <p className="text-xs text-muted-foreground mt-1">Display hoga: <span className="font-mono font-bold text-primary">UID-RY{uidInput ? String(Number(uidInput)).padStart(10, "0") : "—"}</span></p>
+              <p className="text-xs text-muted-foreground mt-1">Will display as: <span className="font-mono font-bold text-primary">UID-RY{uidInput ? String(Number(uidInput)).padStart(10, "0") : "—"}</span></p>
             </div>
             {u?.customUid && (
-              <p className="text-xs text-amber-600 font-medium">Current custom UID: {u.customUid} → Khali chodo agar hatana hai</p>
+              <p className="text-xs text-amber-600 font-medium">Current custom UID: {u.customUid} → Leave blank to remove it</p>
             )}
           </div>
 
@@ -820,16 +820,16 @@ export default function AdminUserDetail() {
               <X className="h-5 w-5" /> Full Data Reset
             </DialogTitle>
             <DialogDescription>
-              <strong>{u?.name}</strong> ka <strong>saara data permanently delete</strong> ho jayega:<br />
-              Posts, reels, exam history, wallet balance, follows, KYC, roles — sab kuch.
+              <strong>All data for {u?.name}</strong> will be <strong>permanently deleted</strong>:<br />
+              Posts, reels, exam history, wallet balance, follows, KYC, roles — everything.
               <br /><br />
-              Account (naam, email, password) aur custom UID intact rahega.
+              The account (name, email, password) and custom UID will remain intact.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-1">
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-xs text-destructive font-medium">
-              Yeh action undo nahi hoga. Confirm karne ke liye neeche <strong>RESET</strong> type karo.
+              This action cannot be undone. Type <strong>RESET</strong> below to confirm.
             </div>
             <Input
               placeholder='Type "RESET" to confirm'
