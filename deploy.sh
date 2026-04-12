@@ -241,6 +241,13 @@ GRANT ALL PRIVILEGES ON TABLE group_commission_withdrawals TO PUBLIC;
 GRANT ALL PRIVILEGES ON SEQUENCE group_commission_withdrawals_id_seq TO PUBLIC;
 "
 
+# Super Admin + Custom UID columns (added Apr 2026)
+$DB_CMD -c "
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_permissions text[] NOT NULL DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_uid integer UNIQUE;
+"
+
 echo "    Database schema synced."
 
 # 3.5 Add swap memory if not present (needed for Vite build on low-RAM EC2)

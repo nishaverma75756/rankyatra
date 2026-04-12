@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck,
   TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff,
-  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2
+  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2, Edit2
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
