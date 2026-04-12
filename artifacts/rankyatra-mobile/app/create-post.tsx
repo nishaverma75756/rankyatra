@@ -124,7 +124,7 @@ export default function CreatePostScreen() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  const [category, setCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const { data: categories = [] } = useQuery<string[]>({
     queryKey: ["categories"],
@@ -136,7 +136,15 @@ export default function CreatePostScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const canPost = (text.trim().length > 0 || !!selectedImage) && !posting;
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) => {
+      if (prev.includes(cat)) return prev.filter((c) => c !== cat);
+      if (prev.length >= 5) return prev;
+      return [...prev, cat];
+    });
+  };
+
+  const canPost = (text.trim().length > 0 || !!selectedImage) && !posting && selectedCategories.length > 0;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -181,7 +189,7 @@ export default function CreatePostScreen() {
     try {
       await customFetch("/api/posts", {
         method: "POST",
-        body: JSON.stringify({ content: text.trim(), imageUrl: selectedImage ?? undefined, category: category || undefined }),
+        body: JSON.stringify({ content: text.trim(), imageUrl: selectedImage ?? undefined, categories: selectedCategories }),
         headers: { "Content-Type": "application/json" },
       });
       router.back();
@@ -266,28 +274,33 @@ export default function CreatePostScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Category picker */}
+        {/* Category picker — mandatory */}
         {categories.length > 0 && (
           <View style={[cStyles.categorySection, { borderTopColor: colors.border }]}>
             <View style={cStyles.categoryHeader}>
-              <Feather name="tag" size={13} color={colors.mutedForeground} />
-              <Text style={[cStyles.categoryLabel, { color: colors.mutedForeground }]}>
-                Post category <Text style={{ color: colors.mutedForeground, fontWeight: "400" }}>(optional)</Text>
+              <Feather name="tag" size={13} color={selectedCategories.length === 0 ? "#ef4444" : colors.primary} />
+              <Text style={[cStyles.categoryLabel, { color: selectedCategories.length === 0 ? "#ef4444" : colors.foreground }]}>
+                Exam category{" "}
+                <Text style={{ fontWeight: "400", color: colors.mutedForeground }}>
+                  ({selectedCategories.length}/5 selected — required)
+                </Text>
               </Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
               {categories.map((cat) => {
-                const active = category === cat;
+                const active = selectedCategories.includes(cat);
+                const atMax = !active && selectedCategories.length >= 5;
                 return (
                   <TouchableOpacity
                     key={cat}
-                    onPress={() => setCategory(active ? null : cat)}
+                    onPress={() => !atMax && toggleCategory(cat)}
                     activeOpacity={0.75}
                     style={[
                       cStyles.catChip,
                       {
-                        backgroundColor: active ? colors.primary : colors.muted,
+                        backgroundColor: active ? colors.primary : atMax ? colors.muted + "80" : colors.muted,
                         borderColor: active ? colors.primary : colors.border,
+                        opacity: atMax ? 0.5 : 1,
                       },
                     ]}
                   >

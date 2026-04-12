@@ -99,7 +99,7 @@ export default function CreateReelScreen() {
   }, [user]);
 
   const [caption, setCaption] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [videoUri, setVideoUri] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery<string[]>({
@@ -111,6 +111,14 @@ export default function CreateReelScreen() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) => {
+      if (prev.includes(cat)) return prev.filter((c) => c !== cat);
+      if (prev.length >= 5) return prev;
+      return [...prev, cat];
+    });
+  };
   const [videoMime, setVideoMime] = useState("video/mp4");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
@@ -123,8 +131,8 @@ export default function CreateReelScreen() {
   const [thumbError, setThumbError] = useState(false);
 
   const canPost = Platform.OS === "web"
-    ? !!videoFile && !!token && !loadingVideo
-    : !!videoUri && !!token && !loadingVideo && !compressStatus;
+    ? !!videoFile && !!token && !loadingVideo && selectedCategories.length > 0
+    : !!videoUri && !!token && !loadingVideo && !compressStatus && selectedCategories.length > 0;
 
   // ── Pick cover image from gallery ─────────────────────────────────────────
   const pickThumbnailFromGallery = async () => {
@@ -244,7 +252,7 @@ export default function CreateReelScreen() {
       videoUri,
       videoMime,
       caption: caption.trim(),
-      category: category || undefined,
+      categories: selectedCategories.length > 0 ? selectedCategories : undefined,
       thumbnailUri: thumbUri ?? undefined,
       thumbnailMime: "image/jpeg",
       token: token!,
@@ -425,22 +433,26 @@ export default function CreateReelScreen() {
           <Text style={[s.charCount, { color: colors.mutedForeground }]}>{300 - caption.length}</Text>
         </View>
 
-        {/* Category picker */}
+        {/* Category picker — mandatory */}
         {categories.length > 0 && (
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: selectedCategories.length === 0 ? "#ef4444" : colors.border }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <Feather name="tag" size={13} color={colors.mutedForeground} />
-              <Text style={[s.cardLabel, { color: colors.mutedForeground, marginBottom: 0 }]}>
-                Category <Text style={{ textTransform: "none", fontWeight: "400" }}>(optional)</Text>
+              <Feather name="tag" size={13} color={selectedCategories.length === 0 ? "#ef4444" : colors.primary} />
+              <Text style={[s.cardLabel, { color: selectedCategories.length === 0 ? "#ef4444" : colors.foreground, marginBottom: 0 }]}>
+                Exam category{" "}
+                <Text style={{ textTransform: "none", fontWeight: "400", color: colors.mutedForeground }}>
+                  ({selectedCategories.length}/5 — required)
+                </Text>
               </Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {categories.map((cat) => {
-                const active = category === cat;
+                const active = selectedCategories.includes(cat);
+                const atMax = !active && selectedCategories.length >= 5;
                 return (
                   <TouchableOpacity
                     key={cat}
-                    onPress={() => setCategory(active ? null : cat)}
+                    onPress={() => !atMax && toggleCategory(cat)}
                     activeOpacity={0.75}
                     style={{
                       flexDirection: "row", alignItems: "center", gap: 5,
@@ -448,6 +460,7 @@ export default function CreateReelScreen() {
                       borderRadius: 20, borderWidth: 1.5,
                       backgroundColor: active ? colors.primary : colors.background,
                       borderColor: active ? colors.primary : colors.border,
+                      opacity: atMax ? 0.4 : 1,
                     }}
                   >
                     <Text style={{ fontSize: 13, fontWeight: "600", color: active ? "#fff" : colors.foreground }}>{cat}</Text>

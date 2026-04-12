@@ -15,7 +15,7 @@ interface ReelsUploadContextType extends UploadState {
     videoUri: string;
     videoMime: string;
     caption: string;
-    category?: string;
+    categories?: string[];
     thumbnailUri?: string;
     thumbnailMime?: string;
     token: string;
@@ -43,7 +43,7 @@ function uploadViaXHR(
   videoFile: File | null,
   videoMime: string,
   caption: string,
-  category: string | undefined,
+  categories: string[] | undefined,
   thumbnailBase64: string | undefined,
   thumbnailMime: string,
   token: string,
@@ -65,7 +65,9 @@ function uploadViaXHR(
     }
 
     formData.append("caption", caption || "");
-    if (category) formData.append("category", category);
+    if (categories && categories.length > 0) {
+      formData.append("categories", categories.join(","));
+    }
     if (thumbnailBase64) {
       formData.append("thumbnailBase64", thumbnailBase64);
       formData.append("thumbnailMime", thumbnailMime || "image/jpeg");
@@ -101,12 +103,12 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const startUpload = useCallback(({
-    videoUri, videoMime, caption, category, thumbnailUri, thumbnailMime, token, onSuccess, videoFile,
+    videoUri, videoMime, caption, categories, thumbnailUri, thumbnailMime, token, onSuccess, videoFile,
   }: {
     videoUri: string;
     videoMime: string;
     caption: string;
-    category?: string;
+    categories?: string[];
     thumbnailUri?: string;
     thumbnailMime?: string;
     token: string;
@@ -141,7 +143,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
           setState((s) => ({ ...s, progress: 10, statusText: "Uploading..." }));
 
           const result = await uploadViaXHR(
-            finalVideoUri, null, videoMime, caption, category,
+            finalVideoUri, null, videoMime, caption, categories,
             thumbnailBase64, thumbnailMime || "image/jpeg",
             token,
             (pct) => setState((s) => ({
@@ -163,7 +165,7 @@ export function ReelsUploadProvider({ children }: { children: React.ReactNode })
           setState((s) => ({ ...s, progress: 10, statusText: "Uploading..." }));
 
           const result = await uploadViaXHR(
-            null, videoFile, videoMime, caption, category,
+            null, videoFile, videoMime, caption, categories,
             undefined, thumbnailMime || "image/jpeg",
             token,
             (pct) => setState((s) => ({

@@ -9,7 +9,7 @@ export const reels = pgTable("reels", {
   likeCount: integer("like_count").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),
   viewCount: integer("view_count").notNull().default(0),
-  category: text("category"),
+  categories: text("categories").array(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -63,7 +63,7 @@ router.get("/posts", optionalAuth, async (req: any, res: any) => {
         topReplyUserAvatar: sql<string | null>`(SELECT u.avatar_url FROM post_comments pc JOIN users u ON u.id = pc.user_id WHERE pc.post_id = ${postsTable.id} AND pc.parent_comment_id IS NOT NULL ORDER BY pc.created_at DESC LIMIT 1)`,
         userRole: sql<string | null>`(SELECT role FROM user_roles WHERE user_id = ${postsTable.userId} ORDER BY assigned_at ASC LIMIT 1)`,
         userGroupBadge: sql<string | null>`(SELECT g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ${postsTable.userId} AND gm.status = 'accepted' LIMIT 1)`,
-        category: postsTable.category,
+        categories: postsTable.categories,
       })
       .from(postsTable)
       .innerJoin(usersTable, eq(usersTable.id, postsTable.userId))
@@ -71,7 +71,7 @@ router.get("/posts", optionalAuth, async (req: any, res: any) => {
         const prefs: string[] = req.user?.preferences ?? [];
         const cursorCond = cursor ? lt(postsTable.id, cursor) : undefined;
         if (prefs.length > 0) {
-          const prefFilter = sql`(${postsTable.category} IS NULL OR ${postsTable.category} = ANY(ARRAY[${sql.join(prefs.map(p => sql`${p}`), sql`, `)}]::text[]))`;
+          const prefFilter = sql`(${postsTable.categories} IS NULL OR ${postsTable.categories} && ARRAY[${sql.join(prefs.map(p => sql`${p}`), sql`, `)}]::text[])`;
           return cursorCond ? and(cursorCond, prefFilter) : prefFilter;
         }
         return cursorCond;
@@ -199,16 +199,19 @@ router.post("/posts/:id/share", optionalAuth, async (req: any, res: any) => {
 // Create post
 router.post("/posts", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
-  const { content, imageUrl, category } = req.body;
+  const { content, imageUrl, categories } = req.body;
   const trimmedContent = content?.trim() ?? "";
-  // At least one of content or imageUrl must be present
   if (!trimmedContent && !imageUrl) return res.status(400).json({ message: "Content or image required" });
+  const cats: string[] | null = Array.isArray(categories) && categories.length > 0
+    ? categories.slice(0, 5).map((c: string) => c.trim()).filter(Boolean)
+    : null;
+  if (!cats || cats.length === 0) return res.status(400).json({ message: "At least 1 category is required" });
   try {
     const [post] = await db.insert(postsTable).values({
       userId,
       content: trimmedContent,
       imageUrl: imageUrl ?? null,
-      category: category?.trim() || null,
+      categories: cats,
     }).returning();
     res.json(post);
 
