@@ -410,8 +410,9 @@ router.post("/users/push-token", requireAuth, async (req: any, res: any): Promis
     });
     console.log(`[Push] Token saved for user ${userId}: ${isExpoToken ? "Expo" : "FCM"}`);
     res.json({ success: true });
-  } catch {
-    res.status(500).json({ error: "Failed to save push token" });
+  } catch (err: any) {
+    console.error(`[Push] Failed to save token for user ${req.user?.id}:`, err?.message ?? err);
+    res.status(500).json({ error: "Failed to save push token", detail: err?.message });
   }
 });
 
