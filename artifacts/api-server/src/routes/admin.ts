@@ -353,19 +353,75 @@ router.delete("/admin/users/:userId", requireAdmin, async (req, res): Promise<vo
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   if (user.isAdmin || user.isSuperAdmin) { res.status(403).json({ error: "Admin users cannot be deleted" }); return; }
 
-  // Delete in the correct order to avoid FK constraint violations
-  // (tables without ON DELETE CASCADE must be cleaned manually)
-  await db.execute(sql`DELETE FROM messages WHERE sender_id = ${userId}`);
-  await db.execute(sql`DELETE FROM conversations WHERE user1_id = ${userId} OR user2_id = ${userId}`);
-  await db.execute(sql`DELETE FROM reels WHERE user_id = ${userId}`);
-  await db.execute(sql`DELETE FROM reel_likes WHERE user_id = ${userId}`);
-  await db.execute(sql`DELETE FROM reports WHERE reporter_id = ${userId} OR reported_user_id = ${userId}`);
-  await db.execute(sql`DELETE FROM verifications WHERE user_id = ${userId}`);
-  // Finally delete user — cascade handles: follows, post_likes, post_comments, registrations,
-  // submissions, notifications, push_tokens, password_resets, email_verifications, wallet_transactions, user_blocks
-  await db.delete(usersTable).where(eq(usersTable.id, userId));
+  try {
+    // Delete in the correct order to avoid FK constraint violations
+    // (tables without ON DELETE CASCADE must be cleaned manually)
 
-  res.json({ success: true, message: `User ${user.name} (ID: ${userId}) deleted successfully.` });
+    // 1. Messages & conversations
+    await db.execute(sql`DELETE FROM messages WHERE sender_id = ${userId}`);
+    await db.execute(sql`DELETE FROM muted_conversations WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM conversations WHERE user1_id = ${userId} OR user2_id = ${userId}`);
+
+    // 2. Reels + engagement
+    await db.execute(sql`DELETE FROM reel_comment_likes WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM reel_comments WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM reel_likes WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM reel_applications WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM reels WHERE user_id = ${userId}`);
+
+    // 3. Posts + engagement
+    await db.execute(sql`DELETE FROM post_comment_likes WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM post_comments WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM post_likes WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM posts WHERE user_id = ${userId}`);
+
+    // 4. Exam data
+    await db.execute(sql`DELETE FROM user_answers WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM submissions WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM registrations WHERE user_id = ${userId}`);
+
+    // 5. Social relationships
+    await db.execute(sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`);
+    await db.execute(sql`DELETE FROM user_blocks WHERE blocker_id = ${userId} OR blocked_id = ${userId}`);
+
+    // 6. Referrals
+    await db.execute(sql`DELETE FROM referral_clicks WHERE referral_id IN (SELECT id FROM referrals WHERE referrer_id = ${userId} OR referred_id = ${userId})`);
+    await db.execute(sql`DELETE FROM referrals WHERE referrer_id = ${userId} OR referred_id = ${userId}`);
+
+    // 7. Groups
+    await db.execute(sql`DELETE FROM group_commission_withdrawals WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM group_members WHERE user_id = ${userId}`);
+
+    // 8. Notifications & push
+    await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM push_tokens WHERE user_id = ${userId}`);
+
+    // 9. Wallet
+    await db.execute(sql`DELETE FROM wallet_transactions WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM wallet_deposits WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM wallet_withdrawals WHERE user_id = ${userId}`);
+
+    // 10. Auth / verification
+    await db.execute(sql`DELETE FROM verifications WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM password_resets WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM email_verifications WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM user_roles WHERE user_id = ${userId}`);
+
+    // 11. Reports
+    await db.execute(sql`DELETE FROM reports WHERE reporter_id = ${userId} OR reported_user_id = ${userId}`);
+
+    // 12. Finally delete the user row
+    await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+    console.log(`[Admin] User ${user.name} (ID: ${userId}) deleted by admin`);
+    res.json({ success: true, message: `User ${user.name} (ID: ${userId}) deleted successfully.` });
+  } catch (err: any) {
+    console.error(`[Admin] Failed to delete user ${userId}:`, err);
+    res.status(500).json({
+      error: "Failed to delete user",
+      detail: err?.message ?? "Unknown error — check server logs",
+    });
+  }
 });
 
 router.patch("/admin/users/:userId/wallet", requireAdmin, async (req, res): Promise<void> => {
