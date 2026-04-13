@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict IUq3jAyy43VspzOJJU41lsc38voYl0tBOt4zlw5mJ32wgo3gGRoo1UPfa9LcWWU
+\restrict zn4N7idJI3i3vitZvLwDHzpOY5oeUq7nwkjhiPDm3cBT00adBznZNvaKrKIrj5t
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -38,7 +38,8 @@ CREATE TABLE public.banners (
     display_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    image_url text
 );
 
 
@@ -202,6 +203,43 @@ CREATE SEQUENCE public.exams_id_seq
 --
 
 ALTER SEQUENCE public.exams_id_seq OWNED BY public.exams.id;
+
+
+--
+-- Name: feedback; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.feedback (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    type text DEFAULT 'feedback'::text NOT NULL,
+    message text NOT NULL,
+    image_url text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    admin_note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.feedback_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.feedback_id_seq OWNED BY public.feedback.id;
 
 
 --
@@ -517,9 +555,9 @@ CREATE TABLE public.post_comments (
     id integer NOT NULL,
     post_id integer NOT NULL,
     user_id integer NOT NULL,
+    parent_comment_id integer,
     content text NOT NULL,
-    created_at timestamp without time zone DEFAULT now() NOT NULL,
-    parent_comment_id integer
+    created_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -548,7 +586,6 @@ ALTER SEQUENCE public.post_comments_id_seq OWNED BY public.post_comments.id;
 --
 
 CREATE TABLE public.post_likes (
-    id integer NOT NULL,
     post_id integer NOT NULL,
     user_id integer NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL
@@ -566,13 +603,6 @@ CREATE SEQUENCE public.post_likes_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-
---
--- Name: post_likes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.post_likes_id_seq OWNED BY public.post_likes.id;
 
 
 --
@@ -622,8 +652,8 @@ CREATE TABLE public.push_tokens (
     user_id integer NOT NULL,
     token text NOT NULL,
     platform text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -820,8 +850,8 @@ CREATE TABLE public.reels (
     like_count integer DEFAULT 0 NOT NULL,
     comment_count integer DEFAULT 0 NOT NULL,
     view_count integer DEFAULT 0 NOT NULL,
-    created_at timestamp without time zone DEFAULT now() NOT NULL,
-    categories text[]
+    categories text[],
+    created_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -888,8 +918,8 @@ CREATE TABLE public.referrals (
     referred_id integer NOT NULL,
     bonus_paid boolean DEFAULT false NOT NULL,
     fraud_blocked boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    device_fingerprint text
+    device_fingerprint text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -956,12 +986,12 @@ CREATE TABLE public.reports (
     reported_user_id integer,
     reported_post_id integer,
     reported_reel_id integer,
-    reason text NOT NULL,
-    status text DEFAULT 'pending'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
     conversation_id integer,
     post_id integer,
-    details text
+    reason text NOT NULL,
+    details text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1137,23 +1167,25 @@ CREATE TABLE public.users (
     winning_balance numeric(10,2) DEFAULT 0.00 NOT NULL,
     avatar_url text,
     is_admin boolean DEFAULT false NOT NULL,
+    is_super_admin boolean DEFAULT false NOT NULL,
+    admin_permissions text[] DEFAULT '{}'::text[] NOT NULL,
     is_blocked boolean DEFAULT false NOT NULL,
     phone text,
     govt_id text,
     pan_card_url text,
     email_verified boolean DEFAULT false NOT NULL,
     verification_status text DEFAULT 'not_submitted'::text NOT NULL,
-    show_online_status boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    is_super_admin boolean DEFAULT false NOT NULL,
-    admin_permissions text[] DEFAULT '{}'::text[] NOT NULL,
     custom_uid integer,
+    show_online_status boolean DEFAULT true NOT NULL,
     referral_code text,
     referred_by_id integer,
     registration_ip text,
     can_post_reels boolean DEFAULT false NOT NULL,
-    preferences text[] DEFAULT '{}'::text[] NOT NULL
+    preferences text[] DEFAULT '{}'::text[] NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    banned_until timestamp with time zone,
+    ban_reason text
 );
 
 
@@ -1360,6 +1392,13 @@ ALTER TABLE ONLY public.exams ALTER COLUMN id SET DEFAULT nextval('public.exams_
 
 
 --
+-- Name: feedback id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feedback ALTER COLUMN id SET DEFAULT nextval('public.feedback_id_seq'::regclass);
+
+
+--
 -- Name: group_commission_withdrawals id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1420,13 +1459,6 @@ ALTER TABLE ONLY public.payment_settings ALTER COLUMN id SET DEFAULT nextval('pu
 --
 
 ALTER TABLE ONLY public.post_comments ALTER COLUMN id SET DEFAULT nextval('public.post_comments_id_seq'::regclass);
-
-
---
--- Name: post_likes id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.post_likes ALTER COLUMN id SET DEFAULT nextval('public.post_likes_id_seq'::regclass);
 
 
 --
@@ -1626,11 +1658,19 @@ ALTER TABLE ONLY public.exams
 
 
 --
--- Name: follows follows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: feedback feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feedback
+    ADD CONSTRAINT feedback_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: follows follows_follower_id_following_id_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.follows
-    ADD CONSTRAINT follows_pkey PRIMARY KEY (follower_id, following_id);
+    ADD CONSTRAINT follows_follower_id_following_id_pk PRIMARY KEY (follower_id, following_id);
 
 
 --
@@ -1698,6 +1738,14 @@ ALTER TABLE ONLY public.password_resets
 
 
 --
+-- Name: password_resets password_resets_token_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_token_unique UNIQUE (token);
+
+
+--
 -- Name: payment_settings payment_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1706,11 +1754,11 @@ ALTER TABLE ONLY public.payment_settings
 
 
 --
--- Name: post_comment_likes post_comment_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: post_comment_likes post_comment_likes_comment_id_user_id_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.post_comment_likes
-    ADD CONSTRAINT post_comment_likes_pkey PRIMARY KEY (comment_id, user_id);
+    ADD CONSTRAINT post_comment_likes_comment_id_user_id_pk PRIMARY KEY (comment_id, user_id);
 
 
 --
@@ -1722,11 +1770,11 @@ ALTER TABLE ONLY public.post_comments
 
 
 --
--- Name: post_likes post_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: post_likes post_likes_post_id_user_id_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.post_likes
-    ADD CONSTRAINT post_likes_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT post_likes_post_id_user_id_pk PRIMARY KEY (post_id, user_id);
 
 
 --
@@ -1743,6 +1791,14 @@ ALTER TABLE ONLY public.posts
 
 ALTER TABLE ONLY public.push_tokens
     ADD CONSTRAINT push_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: push_tokens push_tokens_token_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_tokens
+    ADD CONSTRAINT push_tokens_token_unique UNIQUE (token);
 
 
 --
@@ -1770,11 +1826,19 @@ ALTER TABLE ONLY public.reel_applications
 
 
 --
--- Name: reel_comment_likes reel_comment_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: reel_applications reel_applications_user_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reel_applications
+    ADD CONSTRAINT reel_applications_user_id_unique UNIQUE (user_id);
+
+
+--
+-- Name: reel_comment_likes reel_comment_likes_comment_id_user_id_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reel_comment_likes
-    ADD CONSTRAINT reel_comment_likes_pkey PRIMARY KEY (comment_id, user_id);
+    ADD CONSTRAINT reel_comment_likes_comment_id_user_id_pk PRIMARY KEY (comment_id, user_id);
 
 
 --
@@ -1898,11 +1962,27 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: users users_custom_uid_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_custom_uid_unique UNIQUE (custom_uid);
+
+
+--
 -- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_email_key UNIQUE (email);
+
+
+--
+-- Name: users users_email_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_unique UNIQUE (email);
 
 
 --
@@ -1914,11 +1994,27 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: users users_facebook_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_facebook_id_unique UNIQUE (facebook_id);
+
+
+--
 -- Name: users users_google_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_google_id_key UNIQUE (google_id);
+
+
+--
+-- Name: users users_google_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_google_id_unique UNIQUE (google_id);
 
 
 --
@@ -1935,6 +2031,14 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_referral_code_key UNIQUE (referral_code);
+
+
+--
+-- Name: users users_referral_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_referral_code_unique UNIQUE (referral_code);
 
 
 --
@@ -1978,11 +2082,27 @@ ALTER TABLE ONLY public.conversations
 
 
 --
+-- Name: conversations conversations_user1_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_user1_id_users_id_fk FOREIGN KEY (user1_id) REFERENCES public.users(id);
+
+
+--
 -- Name: conversations conversations_user2_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.conversations
     ADD CONSTRAINT conversations_user2_id_fkey FOREIGN KEY (user2_id) REFERENCES public.users(id);
+
+
+--
+-- Name: conversations conversations_user2_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_user2_id_users_id_fk FOREIGN KEY (user2_id) REFERENCES public.users(id);
 
 
 --
@@ -1994,11 +2114,35 @@ ALTER TABLE ONLY public.email_verifications
 
 
 --
+-- Name: email_verifications email_verifications_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_verifications
+    ADD CONSTRAINT email_verifications_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: feedback feedback_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feedback
+    ADD CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: follows follows_follower_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.follows
     ADD CONSTRAINT follows_follower_id_fkey FOREIGN KEY (follower_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: follows follows_follower_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.follows
+    ADD CONSTRAINT follows_follower_id_users_id_fk FOREIGN KEY (follower_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2010,11 +2154,27 @@ ALTER TABLE ONLY public.follows
 
 
 --
+-- Name: follows follows_following_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.follows
+    ADD CONSTRAINT follows_following_id_users_id_fk FOREIGN KEY (following_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: group_commission_withdrawals group_commission_withdrawals_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.group_commission_withdrawals
     ADD CONSTRAINT group_commission_withdrawals_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_commission_withdrawals group_commission_withdrawals_group_id_groups_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_commission_withdrawals
+    ADD CONSTRAINT group_commission_withdrawals_group_id_groups_id_fk FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
 
 
 --
@@ -2026,11 +2186,27 @@ ALTER TABLE ONLY public.group_commission_withdrawals
 
 
 --
+-- Name: group_commission_withdrawals group_commission_withdrawals_owner_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_commission_withdrawals
+    ADD CONSTRAINT group_commission_withdrawals_owner_id_users_id_fk FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: group_members group_members_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.group_members
     ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_members group_members_group_id_groups_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_members
+    ADD CONSTRAINT group_members_group_id_groups_id_fk FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
 
 
 --
@@ -2042,11 +2218,35 @@ ALTER TABLE ONLY public.group_members
 
 
 --
+-- Name: group_members group_members_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_members
+    ADD CONSTRAINT group_members_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: groups groups_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.groups
     ADD CONSTRAINT groups_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: groups groups_owner_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.groups
+    ADD CONSTRAINT groups_owner_id_users_id_fk FOREIGN KEY (owner_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: messages messages_conversation_id_conversations_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_conversation_id_conversations_id_fk FOREIGN KEY (conversation_id) REFERENCES public.conversations(id);
 
 
 --
@@ -2066,6 +2266,22 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: messages messages_sender_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_sender_id_users_id_fk FOREIGN KEY (sender_id) REFERENCES public.users(id);
+
+
+--
+-- Name: muted_conversations muted_conversations_conversation_id_conversations_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_conversation_id_conversations_id_fk FOREIGN KEY (conversation_id) REFERENCES public.conversations(id);
+
+
+--
 -- Name: muted_conversations muted_conversations_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2082,11 +2298,27 @@ ALTER TABLE ONLY public.muted_conversations
 
 
 --
+-- Name: muted_conversations muted_conversations_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.muted_conversations
+    ADD CONSTRAINT muted_conversations_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: notifications notifications_from_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_from_user_id_fkey FOREIGN KEY (from_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notifications notifications_from_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_from_user_id_users_id_fk FOREIGN KEY (from_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2098,11 +2330,27 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: notifications notifications_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: password_resets password_resets_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.password_resets
     ADD CONSTRAINT password_resets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: password_resets password_resets_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_resets
+    ADD CONSTRAINT password_resets_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2114,11 +2362,27 @@ ALTER TABLE ONLY public.post_comment_likes
 
 
 --
+-- Name: post_comment_likes post_comment_likes_comment_id_post_comments_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_comment_likes
+    ADD CONSTRAINT post_comment_likes_comment_id_post_comments_id_fk FOREIGN KEY (comment_id) REFERENCES public.post_comments(id) ON DELETE CASCADE;
+
+
+--
 -- Name: post_comment_likes post_comment_likes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.post_comment_likes
     ADD CONSTRAINT post_comment_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_comment_likes post_comment_likes_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_comment_likes
+    ADD CONSTRAINT post_comment_likes_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2130,6 +2394,38 @@ ALTER TABLE ONLY public.post_comments
 
 
 --
+-- Name: post_comments post_comments_post_id_posts_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_comments
+    ADD CONSTRAINT post_comments_post_id_posts_id_fk FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_comments post_comments_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_comments
+    ADD CONSTRAINT post_comments_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_likes post_likes_post_id_posts_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_likes
+    ADD CONSTRAINT post_likes_post_id_posts_id_fk FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: post_likes post_likes_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.post_likes
+    ADD CONSTRAINT post_likes_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: posts posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2138,11 +2434,35 @@ ALTER TABLE ONLY public.posts
 
 
 --
+-- Name: posts posts_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: push_tokens push_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.push_tokens
     ADD CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_tokens push_tokens_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_tokens
+    ADD CONSTRAINT push_tokens_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: questions questions_exam_id_exams_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions
+    ADD CONSTRAINT questions_exam_id_exams_id_fk FOREIGN KEY (exam_id) REFERENCES public.exams(id) ON DELETE CASCADE;
 
 
 --
@@ -2162,11 +2482,27 @@ ALTER TABLE ONLY public.reel_comment_likes
 
 
 --
+-- Name: reel_comment_likes reel_comment_likes_comment_id_reel_comments_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reel_comment_likes
+    ADD CONSTRAINT reel_comment_likes_comment_id_reel_comments_id_fk FOREIGN KEY (comment_id) REFERENCES public.reel_comments(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reel_comment_likes reel_comment_likes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reel_comment_likes
     ADD CONSTRAINT reel_comment_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reel_comment_likes reel_comment_likes_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reel_comment_likes
+    ADD CONSTRAINT reel_comment_likes_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2178,11 +2514,27 @@ ALTER TABLE ONLY public.reel_comments
 
 
 --
+-- Name: reel_comments reel_comments_reel_id_reels_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reel_comments
+    ADD CONSTRAINT reel_comments_reel_id_reels_id_fk FOREIGN KEY (reel_id) REFERENCES public.reels(id) ON DELETE CASCADE;
+
+
+--
 -- Name: reel_comments reel_comments_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reel_comments
     ADD CONSTRAINT reel_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reel_comments reel_comments_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reel_comments
+    ADD CONSTRAINT reel_comments_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2194,11 +2546,35 @@ ALTER TABLE ONLY public.referrals
 
 
 --
+-- Name: referrals referrals_referred_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referrals
+    ADD CONSTRAINT referrals_referred_id_users_id_fk FOREIGN KEY (referred_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: referrals referrals_referrer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.referrals
     ADD CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: referrals referrals_referrer_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referrals
+    ADD CONSTRAINT referrals_referrer_id_users_id_fk FOREIGN KEY (referrer_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: registrations registrations_exam_id_exams_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.registrations
+    ADD CONSTRAINT registrations_exam_id_exams_id_fk FOREIGN KEY (exam_id) REFERENCES public.exams(id) ON DELETE CASCADE;
 
 
 --
@@ -2218,6 +2594,22 @@ ALTER TABLE ONLY public.registrations
 
 
 --
+-- Name: registrations registrations_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.registrations
+    ADD CONSTRAINT registrations_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reports reports_conversation_id_conversations_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_conversation_id_conversations_id_fk FOREIGN KEY (conversation_id) REFERENCES public.conversations(id);
+
+
+--
 -- Name: reports reports_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2234,11 +2626,43 @@ ALTER TABLE ONLY public.reports
 
 
 --
+-- Name: reports reports_post_id_posts_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_post_id_posts_id_fk FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reports reports_reported_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_reported_user_id_users_id_fk FOREIGN KEY (reported_user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: reports reports_reporter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reports reports_reporter_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reports
+    ADD CONSTRAINT reports_reporter_id_users_id_fk FOREIGN KEY (reporter_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: submissions submissions_exam_id_exams_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_exam_id_exams_id_fk FOREIGN KEY (exam_id) REFERENCES public.exams(id) ON DELETE CASCADE;
 
 
 --
@@ -2258,6 +2682,22 @@ ALTER TABLE ONLY public.submissions
 
 
 --
+-- Name: submissions submissions_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.submissions
+    ADD CONSTRAINT submissions_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_answers user_answers_exam_id_exams_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_answers
+    ADD CONSTRAINT user_answers_exam_id_exams_id_fk FOREIGN KEY (exam_id) REFERENCES public.exams(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_answers user_answers_exam_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2274,11 +2714,27 @@ ALTER TABLE ONLY public.user_answers
 
 
 --
+-- Name: user_answers user_answers_question_id_questions_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_answers
+    ADD CONSTRAINT user_answers_question_id_questions_id_fk FOREIGN KEY (question_id) REFERENCES public.questions(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_answers user_answers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_answers
     ADD CONSTRAINT user_answers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_answers user_answers_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_answers
+    ADD CONSTRAINT user_answers_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2290,11 +2746,27 @@ ALTER TABLE ONLY public.user_blocks
 
 
 --
+-- Name: user_blocks user_blocks_blocked_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_blocks
+    ADD CONSTRAINT user_blocks_blocked_id_users_id_fk FOREIGN KEY (blocked_id) REFERENCES public.users(id);
+
+
+--
 -- Name: user_blocks user_blocks_blocker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_blocks
     ADD CONSTRAINT user_blocks_blocker_id_fkey FOREIGN KEY (blocker_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_blocks user_blocks_blocker_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_blocks
+    ADD CONSTRAINT user_blocks_blocker_id_users_id_fk FOREIGN KEY (blocker_id) REFERENCES public.users(id);
 
 
 --
@@ -2306,11 +2778,27 @@ ALTER TABLE ONLY public.user_roles
 
 
 --
+-- Name: user_roles user_roles_assigned_by_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_assigned_by_users_id_fk FOREIGN KEY (assigned_by) REFERENCES public.users(id);
+
+
+--
 -- Name: user_roles user_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_roles user_roles_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -2322,11 +2810,27 @@ ALTER TABLE ONLY public.verifications
 
 
 --
+-- Name: verifications verifications_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.verifications
+    ADD CONSTRAINT verifications_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: wallet_deposits wallet_deposits_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.wallet_deposits
     ADD CONSTRAINT wallet_deposits_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: wallet_deposits wallet_deposits_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wallet_deposits
+    ADD CONSTRAINT wallet_deposits_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --
@@ -2338,6 +2842,14 @@ ALTER TABLE ONLY public.wallet_transactions
 
 
 --
+-- Name: wallet_transactions wallet_transactions_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wallet_transactions
+    ADD CONSTRAINT wallet_transactions_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: wallet_withdrawals wallet_withdrawals_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2346,8 +2858,16 @@ ALTER TABLE ONLY public.wallet_withdrawals
 
 
 --
+-- Name: wallet_withdrawals wallet_withdrawals_user_id_users_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wallet_withdrawals
+    ADD CONSTRAINT wallet_withdrawals_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IUq3jAyy43VspzOJJU41lsc38voYl0tBOt4zlw5mJ32wgo3gGRoo1UPfa9LcWWU
+\unrestrict zn4N7idJI3i3vitZvLwDHzpOY5oeUq7nwkjhiPDm3cBT00adBznZNvaKrKIrj5t
 

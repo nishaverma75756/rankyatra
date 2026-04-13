@@ -242,9 +242,9 @@ NO Hinglish (mixed Hindi/English) in any UI string.
 | `registrations.ts` | Exam registrations + fee deduction |
 | `submissions.ts` | Submissions, auto-scoring, leaderboard |
 | `wallet.ts` | Wallet balance, transactions |
-| `deposits.ts` | Deposit requests (Instamojo + manual) |
+| `deposits.ts` | Deposit requests (Instamojo + manual) — live Instamojo polling on status check |
 | `withdrawals.ts` | Withdrawal requests |
-| `roles.ts` | Special roles (teacher/influencer/promoter/partner/premium) + 5% commission |
+| `roles.ts` | Special roles (teacher/influencer/promoter/partner/premium/customer_support) + 5% commission |
 | `groups.ts` | Study groups — creation, members, invites |
 | `chat.ts` | DM conversations + messages (REST + WS) |
 | `notifications.ts` | In-app notifications (push via FCM) |
@@ -253,8 +253,10 @@ NO Hinglish (mixed Hindi/English) in any UI string.
 | `referral.ts` | Referral codes, link clicks, ₹20 reward |
 | `leaderboard.ts` | Exam leaderboard + global leaderboard |
 | `categories.ts` | Exam categories |
-| `banners.ts` | Home screen promotional banners |
+| `banners.ts` | Home screen banners (text or image, image upload supported) |
 | `admin.ts` | Admin panel — user management, approvals, KYC |
+| `support.ts` | Customer support — agent info, support conversation, feedback CRUD |
+| `sitemap.ts` | Dynamic `/api/sitemap.xml` for SEO |
 | `reports.ts` | User reports |
 | `blocks.ts` | Block/unblock users |
 | `avatar.ts` | Avatar image upload |
@@ -283,16 +285,26 @@ Authorization: Bearer <jwt_token>
 - **State:** React Context (AuthContext, ActivityCountContext, ReelsUploadContext)
 - **Styling:** StyleSheet + `useColors()` hook
 
+### Tab Bar
+
+5 visible tabs: **Home, My Exams, Moments, Leaderboard, Profile**
+Hidden tabs (no tab icon): `chat`, `wallet`, `support`
+
+The `support` screen is accessible from:
+- Profile page header (headphones icon, before Groups icon)
+- Profile page → Support section → "Customer Support" menu item
+
 ### Key Files
 
 | File | Purpose |
 |------|---------|
 | `contexts/AuthContext.tsx` | Auth state, token, user (includes customUid, AppState refresh) |
 | `app/(tabs)/_layout.tsx` | Tab layout + OnboardingPopup |
-| `app/(tabs)/index.tsx` | Home screen — banners, exams |
-| `app/(tabs)/profile.tsx` | Own profile — stats, hero card, edit name, KYC badge |
+| `app/(tabs)/index.tsx` | Home screen — banners (text or image), exams |
+| `app/(tabs)/profile.tsx` | Own profile — stats, hero card, edit name, KYC badge, support header button |
 | `app/(tabs)/moments.tsx` | Social feed — posts + reels |
 | `app/(tabs)/joined.tsx` | My Exams tab |
+| `app/(tabs)/support.tsx` | Customer support — Live Chat tab + Feedback/Suggestion tab |
 | `app/user/[id].tsx` | Public user profile (posts/reels tabs, self: create + delete) |
 | `app/chat/[id].tsx` | DM chat — inverted FlatList, WhatsApp style |
 | `app/exam/[id].tsx` | Live exam screen |
@@ -338,6 +350,25 @@ import * as FileSystem from "expo-file-system/legacy";
 - **State:** TanStack React Query
 - **Purpose:** Admin dashboard for managing users, exams, deposits, KYC
 
+### Admin Pages
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| `AdminDashboard` | `/admin` | Main admin hub with all quick links |
+| `AdminUsers` | `/admin/users` | User list |
+| `AdminUserDetail` | `/admin/users/:id` | User profile — block, ban, grant admin, assign roles |
+| `AdminExams` | `/admin/exams` | Exam management |
+| `AdminDeposits` | `/admin/deposits` | Deposit requests |
+| `AdminWithdrawals` | `/admin/withdrawals` | Withdrawal requests |
+| `AdminVerifications` | `/admin/verifications` | KYC verification queue |
+| `AdminBanners` | `/admin/banners` | Banner slider (text or image toggle) |
+| `AdminCategories` | `/admin/categories` | Exam categories |
+| `AdminRoles` | `/admin/roles` | Role holders list with filters |
+| `AdminReelApplications` | `/admin/reel-applications` | Approve/reject reel access |
+| `AdminBroadcast` | `/admin/broadcast` | Send push + in-app notifications |
+| `AdminEmailCompose` | `/admin/email` | HTML email composer (5 templates) |
+| `AdminFeedback` | `/admin/feedback` | Feedback & suggestions from users |
+
 ---
 
 ## Database Schema (Drizzle ORM / PostgreSQL)
@@ -348,29 +379,32 @@ Schema path: `lib/db/src/schema/`
 
 | Table | Description |
 |-------|-------------|
-| `users` | Core user accounts (email, phone, password hash, wallet balances, customUid, referralCode) |
+| `users` | Core user accounts (email, phone, password hash, wallet balances, customUid, referralCode, preferences, canPostReels) |
 | `exams` | Exam definitions (title, fees, prize, duration, category, status) |
 | `questions` | MCQ questions per exam (4 options, correct answer) |
 | `registrations` | User exam registrations (fee paid, registered timestamp) |
 | `submissions` | Exam submissions + scores + rank |
 | `user_answers` | Per-question answers per user per exam |
 | `categories` | Exam categories |
-| `banners` | Home screen promotional banners |
+| `banners` | Home screen banners (text or image — `imageUrl` column) |
 | `posts` | Social feed posts (text + optional image) |
 | `post_likes` | Post likes (userId + postId) |
 | `post_comments` | Post comments (supports replies via parentId) |
+| `post_comment_likes` | Likes on post comments |
 | `reels` | Short video reels |
 | `reel_likes` | Reel likes |
 | `reel_comments` | Reel comments |
+| `reel_comment_likes` | Likes on reel comments |
 | `reel_applications` | Applications to get reel posting access |
 | `follows` | User follow relationships |
-| `conversations` | DM conversations (user pairs) |
+| `conversations` | DM conversations (user pairs, isAccepted flag) |
 | `messages` | Chat messages (edit + soft-delete support) |
+| `muted_conversations` | Muted DM conversations per user |
 | `notifications` | In-app notifications |
 | `groups` | Study groups |
 | `group_members` | Group membership (pending/accepted/declined) |
 | `group_commission_withdrawals` | Group owner commission withdrawal requests |
-| `user_roles` | Special roles (teacher/influencer/promoter/partner/premium) |
+| `user_roles` | Special roles: teacher / influencer / promoter / partner / premium / **customer_support** |
 | `wallet_transactions` | All wallet credit/debit history |
 | `wallet_deposits` | Deposit requests (Instamojo + manual) |
 | `wallet_withdrawals` | Withdrawal requests |
@@ -378,14 +412,12 @@ Schema path: `lib/db/src/schema/`
 | `verifications` | KYC (govt ID + PAN card photos) |
 | `email_verifications` | OTP verification codes |
 | `password_resets` | Password reset tokens |
-| `push_tokens` | Firebase FCM tokens per device |
+| `push_tokens` | Firebase FCM tokens per device (platform + updatedAt columns) |
 | `user_blocks` | Blocked users |
 | `reports` | User reports (reason, details, conversationId, postId) |
 | `referrals` | Referral relationships (referrer → referred user, ₹20 reward) |
 | `referral_clicks` | Link click tracking per device fingerprint (anti-abuse) |
-| `muted_conversations` | Muted DM conversations per user |
-| `post_comment_likes` | Likes on post comments |
-| `reel_comment_likes` | Likes on reel comments |
+| `feedback` | User-submitted feedback and suggestions (type, message, imageUrl, status, adminNote) |
 
 ### Key Business Logic
 
@@ -413,6 +445,26 @@ Schema path: `lib/db/src/schema/`
 - Status values: `not_submitted`, `pending`, `verified`, `rejected`
 - KYC docs stored via Object Storage
 
+**Customer Support:**
+- Users with `customer_support` role in `user_roles` are support agents
+- Support chat reuses existing `conversations` table (auto-accepted)
+- First user with `customer_support` role is the active support agent
+- Feedback stored in `feedback` table with image upload support
+- Feedback images stored at: `uploads/feedback/` → served at `${APP_URL}/uploads/feedback/filename`
+
+**Payment Verification (Instamojo):**
+- Mobile polls `GET /api/wallet/deposits/:id` every 2 seconds
+- Backend now calls Instamojo API live on each poll when status is "pending"
+- Instantly credits wallet as soon as Instamojo confirms payment
+- Fallback: auto-verify scheduler still runs every 3 minutes
+
+**Leaderboard Skill Levels:**
+- ≤100 pts → Beginner 🌱
+- ≤200 pts → Explorer ⚡
+- ≤400 pts → Warrior ⚔️
+- ≤700 pts → Advanced 🔥
+- >700 pts → Champion 🏆
+
 ---
 
 ## Payments
@@ -421,6 +473,7 @@ Schema path: `lib/db/src/schema/`
 - **Manual Deposits:** Admin approves with UTR number
 - **Withdrawals:** UPI only, admin processes manually
 - **Webhook:** Instamojo sends callback to `/api/deposits/webhook`
+- **Live Polling:** `GET /api/wallet/deposits/:id` calls Instamojo API in real-time for pending deposits
 
 ---
 
@@ -438,6 +491,16 @@ Schema path: `lib/db/src/schema/`
 - **Library:** Nodemailer
 - **Credentials:** `SMTP_USER` + `SMTP_PASS` secrets
 - **Used for:** OTP email verification + password reset emails
+
+---
+
+## SEO
+
+- `artifacts/rankyatra/public/index.html` — `lang=hi`, canonical to `rankyatra.in`, JSON-LD structured data (Organization + WebApplication + FAQPage), manifest.json link
+- `artifacts/rankyatra/public/robots.txt` — allows all crawlers, sitemap link
+- `artifacts/rankyatra/public/manifest.json` — PWA manifest
+- `artifacts/rankyatra/public/sitemap.xml` — static sitemap (23 pages: 11 static + 12 exams)
+- `GET /api/sitemap.xml` — dynamic sitemap from backend (all live exams)
 
 ---
 
@@ -498,12 +561,15 @@ pnpm run typecheck
 | Chat extra space after keyboard closes | KAV behavior must be `"padding"` (not `"height"`) — already fixed |
 | Reel upload fails in dev | Reel uploads always go to `https://rankyatra.in/api/reels/upload` regardless of env |
 | `Alert.alert()` used somewhere | Replace with `showError/showConfirm/showAlert/showSuccess` from `@/utils/alert` |
+| "Invalid role" when assigning role | Ensure role key is in `validRoles` array in `routes/roles.ts` |
+| Payment stuck on "Verifying" | Backend now calls Instamojo live on each poll — deploy latest code |
 
 ---
 
-## Recent Changes (This Session — All Changes Made)
+## All Changes Made (Full History Since Import)
 
-### New Database Tables Added
+### New Database Tables
+
 | Table | Purpose |
 |-------|---------|
 | `reel_applications` | Users apply for permission to post reels; admin approves/rejects |
@@ -513,8 +579,10 @@ pnpm run typecheck
 | `reel_comment_likes` | Likes on reel comments |
 | `post_comment_likes` | Likes on post comments |
 | `muted_conversations` | Muted DM conversations per user |
+| `feedback` | User feedback and suggestions (type, message, imageUrl, status, adminNote) |
 
 ### New Columns Added to Existing Tables
+
 | Table | New Column | Type | Notes |
 |-------|-----------|------|-------|
 | `users` | `can_post_reels` | boolean | Admin grants reel posting permission |
@@ -526,58 +594,78 @@ pnpm run typecheck
 | `reports` | `conversation_id` | integer | FK to conversations (report from chat) |
 | `reports` | `post_id` | integer | FK to posts (report a post) |
 | `reports` | `details` | text | Additional details text from reporter |
+| `banners` | `image_url` | text | Optional image for banner (replaces text if set) |
 
-### Code Changes
+### New Backend Routes
 
-#### Mobile App (`artifacts/rankyatra-mobile`)
+| Route | Purpose |
+|-------|---------|
+| `GET /api/support/agent` | Returns first user with `customer_support` role |
+| `POST /api/support/conversation` | Creates/retrieves support chat conversation (auto-accepted) |
+| `POST /api/feedback` | Submit feedback or suggestion with optional image |
+| `GET /api/admin/feedback` | Admin: list all feedback with user info |
+| `PUT /api/admin/feedback/:id` | Admin: update status + add note |
+| `DELETE /api/admin/feedback/:id` | Admin: delete feedback |
+| `GET /api/sitemap.xml` | Dynamic sitemap from live exam data |
+
+### Mobile App Changes
+
 1. **OnboardingPopup** (`components/OnboardingPopup.tsx`)
-   - Delay increased from 2s → **10 seconds** after login
-   - Uses `userRef` to read **latest server-refreshed** user data before deciding to show
-   - `shownThisSession` set immediately to prevent multiple timers
-   - Timer cleaned up on logout / component unmount
-   - Checks in order: phone missing → preferences missing → KYC not submitted
+   - Delay: 2s → **10 seconds** after login
+   - Uses `userRef` to read latest server-refreshed user data
 
 2. **Chat Screen** (`app/chat/[id].tsx`)
-   - `KeyboardAvoidingView` behavior changed from `"height"` → **`"padding"`** for both iOS and Android
-   - Fixes: large empty space at top of chat when keyboard closes on Android
+   - `KeyboardAvoidingView` behavior: `"height"` → **`"padding"`** (both platforms)
 
 3. **Reel Access** (`app/apply-for-reels.tsx`)
-   - Application status auto-syncs `canPostReels` into `AuthContext` when status = `"approved"`
-   - No re-login needed after admin approves reel access
+   - Application status auto-syncs `canPostReels` into AuthContext
 
 4. **AuthContext** (`contexts/AuthContext.tsx`)
-   - `customUid` added to `AuthUser` interface
-   - `normalizeUser()` maps `custom_uid` from API response
-   - `AppState` listener added — refreshes user from `/api/auth/me` every time app comes to foreground
+   - `customUid` added; `AppState` listener refreshes user on foreground
 
-5. **Wallet + Result Share** (`app/wallet/transaction-detail.tsx`, `app/exam/result.tsx`)
-   - Android: shares image+text using `IntentLauncher` (`ACTION_SEND` with `EXTRA_STREAM` + `EXTRA_TEXT`)
-   - iOS: uses `Share.share({ url, message })`
-   - Package: `expo-intent-launcher` installed
+5. **Wallet / Share** (`app/wallet/transaction-detail.tsx`, `app/exam/result.tsx`)
+   - Android: `IntentLauncher` for share image+text; iOS: `Share.share()`
 
 6. **Profile Screen** (`app/(tabs)/profile.tsx`)
-   - Displays `customUid ?? id` everywhere UID is shown
-   - Copy UID copies the display UID correctly
+   - Displays `customUid`; headphones 🎧 header button opens Customer Support
+   - Support section in menu has "Customer Support" as first item
 
-7. **Public User Profile** (`app/user/[id].tsx`)
-   - `formatUID(id, customUid)` used for all UID display
+7. **Support Screen** (`app/(tabs)/support.tsx`) — **NEW**
+   - Tab 1 Live Chat: opens conversation with support agent via existing chat system
+   - Tab 2 Feedback: submit text + optional image as feedback/suggestion
 
-8. **Referred Users UI** (`app/referral.tsx`)
-   - Each referred user gets avatar circle with initials (color-coded by status)
-   - Section header with orange users icon + count badge
-   - Status pill with Feather icon: ✓ ₹20 Credited / ⏳ Pending / ✗ Blocked
-   - Calendar icon + "Joined DD Mon YYYY" date format
+8. **Tab Layout** (`app/(tabs)/_layout.tsx`)
+   - Support tab hidden from tab bar (`href: null`)
+   - Navigate to support via profile header or profile menu
 
-#### API Server (`artifacts/api-server`)
-9. **Reel Approval Notifications** (`routes/admin.ts`)
-   - Admin approve/reject sends FCM push notification to user's devices
-   - Also creates in-app notification in `notifications` table
-   - Message: "Your reel access request has been approved/rejected"
+9. **Home Screen** (`app/(tabs)/index.tsx`)
+   - Full-width image banners when `imageUrl` is set on a banner
 
-10. **Commission Fix** (`routes/roles.ts`)
-    - All 4 role commission endpoints now filter `registeredAt >= joinedAt`
-    - Prevents counting registrations that happened before user joined the role
+10. **Leaderboard** — Skill level badges added (Beginner/Explorer/Warrior/Advanced/Champion)
 
-#### DB Schema Files (`lib/db/src/schema/`)
-11. **`push_tokens.ts`** — Added `platform` (text) and `updatedAt` columns
-12. **`reports.ts`** — Added `reportedPostId`, `reportedReelId`, `conversationId`, `postId`, `details` columns; `reportedUserId` changed to nullable
+11. **Referral** (`app/referral.tsx`)
+    - Referred users list with avatar, status pill, join date
+
+### Web App (Admin) Changes
+
+1. **AdminBanners** — Text/image toggle, image upload (1200×375px PNG recommended), preview
+2. **AdminFeedback** (`/admin/feedback`) — **NEW** — full CRUD with status management, filter tabs, image viewer, admin notes drawer
+3. **AdminDashboard** — "Feedback & Suggestions" quick link button added
+4. **AdminUserDetail** — **Live Support** role added to ASSIGN ROLES section (headphones icon, blue)
+5. **AdminRoles** — Live Support filter tab added, shown in role holders list
+6. **Home** (`src/pages/Home.tsx`) — Image banners rendered full-width
+
+### API Server Changes
+
+1. **deposits.ts** — `GET /wallet/deposits/:id` now calls Instamojo API live for pending deposits → instant payment confirmation
+2. **roles.ts** — `customer_support` added to `validRoles` list for assign/revoke
+3. **banners.ts** — `imageUrl` field added; image upload endpoint for banners
+4. **support.ts** — New route file for customer support + feedback
+5. **sitemap.ts** — Dynamic sitemap generation from DB
+
+### SEO Setup (rankyatra.in)
+
+- `index.html`: `lang=hi`, canonical, JSON-LD (Organization + WebApplication + FAQPage), OG tags
+- `robots.txt`, `manifest.json`, `sitemap.xml` added to `public/`
+- Dynamic `/api/sitemap.xml` from backend
+- Google Search Console: verified + sitemap submitted
