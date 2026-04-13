@@ -94,6 +94,21 @@ function LeaderboardItem({ item, isMe, onPress }: { item: EntryWithStats; isMe: 
             ) : null}
           </Text>
           <Text style={[styles.sub, { color: colors.mutedForeground }]}>Rank #{rank}</Text>
+          {/* Skill + Group badges */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+            {!!(item as any).skillLevel && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#f9731618", borderWidth: 1, borderColor: "#f9731640" }}>
+                <Text style={{ fontSize: 9 }}>{(item as any).skillIcon}</Text>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#f97316" }}>{(item as any).skillLevel}</Text>
+              </View>
+            )}
+            {!!(item as any).groupBadge && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#0369a118", borderWidth: 1, borderColor: "#0369a140" }}>
+                <Feather name="users" size={8} color="#0369a1" />
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#0369a1" }} numberOfLines={1}>{(item as any).groupBadge}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.right}>

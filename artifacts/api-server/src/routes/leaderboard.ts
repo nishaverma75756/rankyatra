@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, submissionsTable, usersTable, walletTransactionsTable } from "@workspace/db";
+import { db, submissionsTable, usersTable, walletTransactionsTable, groupMembersTable, groupsTable } from "@workspace/db";
 import { eq, desc, asc, sum, count, and, like, gte } from "drizzle-orm";
 import { optionalAuth } from "../middlewares/auth";
 
@@ -86,6 +86,23 @@ router.get("/leaderboard/global", optionalAuth, async (req, res): Promise<void> 
         ? Math.round((winCount / examsParticipated) * 100)
         : 0;
 
+      // Skill level based on total score (correct answers)
+      let skillLevel: string; let skillIcon: string;
+      if (totalScore <= 100) { skillLevel = "Beginner"; skillIcon = "🌱"; }
+      else if (totalScore <= 200) { skillLevel = "Explorer"; skillIcon = "⚡"; }
+      else if (totalScore <= 400) { skillLevel = "Warrior"; skillIcon = "⚔️"; }
+      else if (totalScore <= 700) { skillLevel = "Advanced"; skillIcon = "🔥"; }
+      else { skillLevel = "Champion"; skillIcon = "🏆"; }
+
+      // Group badge
+      const groupData = await db
+        .select({ groupName: groupsTable.name })
+        .from(groupMembersTable)
+        .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
+        .where(and(eq(groupMembersTable.userId, user.id), eq(groupMembersTable.status, "accepted")))
+        .limit(1);
+      const groupBadge = groupData[0]?.groupName ?? null;
+
       return {
         userId: user.id,
         userName: user.name,
@@ -95,6 +112,9 @@ router.get("/leaderboard/global", optionalAuth, async (req, res): Promise<void> 
         totalWinnings,
         winCount,
         winRatio,
+        skillLevel,
+        skillIcon,
+        groupBadge,
       };
     })
   );
