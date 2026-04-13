@@ -223,7 +223,7 @@ export default function DepositScreen() {
   const startPolling = (depositId: number, amountPaid: number) => {
     pollingStopped.current = false;
     const TIMEOUT_MS = 10 * 60 * 1000;
-    const INTERVAL_MS = 5000;
+    const INTERVAL_MS = 2000;
     const startTime = Date.now();
 
     const tick = async () => {
