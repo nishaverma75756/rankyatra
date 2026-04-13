@@ -102,37 +102,76 @@ export default function DepositScreen() {
     fetchHistory();
   }, [fetchHistory]);
 
-  const pollDepositStatus = async (depositId: number, amountPaid: number): Promise<void> => {
-    setVerifying(true);
-    const maxAttempts = 15; // poll for ~30 seconds
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+  const activeDepositId = React.useRef<number | null>(null);
+  const pollingStopped = React.useRef(false);
+
+  const stopPolling = () => { pollingStopped.current = true; };
+
+  const startPolling = (depositId: number, amountPaid: number) => {
+    pollingStopped.current = false;
+    activeDepositId.current = depositId;
+    const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+    const INTERVAL_MS = 5000;
+    const startTime = Date.now();
+
+    const tick = async () => {
+      if (pollingStopped.current) return;
+
+      // 10-minute timeout — auto-reject
+      if (Date.now() - startTime >= TIMEOUT_MS) {
+        stopPolling();
+        try {
+          await fetch(`${baseUrl}/api/wallet/deposit/instamojo/timeout/${depositId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch (_) {}
+        WebBrowser.dismissBrowser();
+        setVerifying(false);
+        setPaying(false);
+        await fetchHistory();
+        showError("Payment Timed Out", "Payment was not completed within 10 minutes. Please try again.");
+        return;
+      }
+
       try {
         const res = await fetch(`${baseUrl}/api/wallet/deposits/${depositId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data.status === "success") {
-          setVerifying(false);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          await Promise.all([fetchHistory(), fetchLimits()]);
-          setCustomAmount("");
-          setTab("history");
-          showSuccess("Payment Successful! 🎉", `₹${amountPaid} has been added to your wallet.`);
-          return;
-        }
-        if (data.status === "rejected") {
-          setVerifying(false);
-          showError("Payment Failed", data.adminNote ?? "Payment could not be verified. Contact support if money was deducted.");
-          await fetchHistory();
-          return;
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.status === "success") {
+            stopPolling();
+            WebBrowser.dismissBrowser();
+            setVerifying(false);
+            setPaying(false);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            await Promise.all([fetchHistory(), fetchLimits()]);
+            setCustomAmount("");
+            setTab("history");
+            showSuccess("Payment Successful! 🎉", `₹${amountPaid} has been added to your wallet.`);
+            return;
+          }
+
+          if (data.status === "rejected") {
+            stopPolling();
+            WebBrowser.dismissBrowser();
+            setVerifying(false);
+            setPaying(false);
+            await fetchHistory();
+            showError("Payment Failed", "Payment was not completed. No money has been deducted.");
+            return;
+          }
         }
       } catch (_) {}
-    }
-    // Timed out — refresh history silently, user can check later
-    await fetchHistory();
-    setVerifying(false);
+
+      // Schedule next tick
+      if (!pollingStopped.current) setTimeout(tick, INTERVAL_MS);
+    };
+
+    // First check after 5 seconds
+    setTimeout(tick, INTERVAL_MS);
   };
 
   const handlePayInstamojo = async () => {
@@ -155,6 +194,7 @@ export default function DepositScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPaying(true);
+    setVerifying(false);
 
     try {
       const res = await fetch(`${baseUrl}/api/wallet/deposit/instamojo/create`, {
@@ -165,24 +205,28 @@ export default function DepositScreen() {
       const data = await res.json();
       if (!res.ok) {
         showError("Payment Error", data.error ?? "Could not initiate payment. Please try again.");
+        setPaying(false);
         return;
       }
 
       const { paymentUrl, depositId } = data;
 
-      // Open payment page — we don't rely on deep link redirect at all
-      // Instead, after browser closes we poll the deposit status
+      // Start polling immediately in background (parallel with browser)
+      setVerifying(true);
+      startPolling(depositId, finalAmount);
+
+      // Open browser — polling runs in background while user pays
       await WebBrowser.openBrowserAsync(paymentUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
 
-      // Browser closed — now poll backend to check if payment went through
-      // The callback route already auto-verifies with Instamojo when user pays
-      await pollDepositStatus(depositId, finalAmount);
+      // Browser closed by user — keep polling until result or timeout
+      // (polling already handles setPaying/setVerifying false on result)
     } catch (e: any) {
-      showError("Error", e.message ?? "Something went wrong. Please try again.");
-    } finally {
+      stopPolling();
+      setVerifying(false);
       setPaying(false);
+      showError("Error", e.message ?? "Something went wrong. Please try again.");
     }
   };
 

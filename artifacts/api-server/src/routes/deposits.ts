@@ -365,6 +365,25 @@ router.post("/wallet/deposit/instamojo/webhook", async (req, res): Promise<void>
   }
 });
 
+// ── INSTAMOJO: Auto-reject timed-out deposit ──────────────────────────────
+router.post("/wallet/deposit/instamojo/timeout/:id", requireAuth, async (req, res): Promise<void> => {
+  const depositId = parseInt(req.params.id);
+  const [deposit] = await db
+    .select()
+    .from(walletDepositsTable)
+    .where(and(eq(walletDepositsTable.id, depositId), eq(walletDepositsTable.userId, req.user!.id)));
+
+  if (!deposit) { res.status(404).json({ error: "Not found" }); return; }
+  if (deposit.status !== "pending") { res.json({ status: deposit.status }); return; }
+
+  await db
+    .update(walletDepositsTable)
+    .set({ status: "rejected", adminNote: "Payment timed out — not completed within 10 minutes", updatedAt: new Date() })
+    .where(eq(walletDepositsTable.id, depositId));
+
+  res.json({ ok: true, status: "rejected" });
+});
+
 // ── INSTAMOJO: User auto-verify pending deposits ───────────────────────────
 router.post("/wallet/deposit/instamojo/verify-pending", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
