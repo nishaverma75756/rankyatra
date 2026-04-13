@@ -1028,6 +1028,35 @@ router.delete("/admin/reels/:reelId", requireAdmin, async (req, res): Promise<vo
   }
 });
 
+// ─── POST /admin/upload-image — upload notification image, returns public URL ─
+router.post("/admin/upload-image", requireAdmin, async (req: any, res): Promise<void> => {
+  const { imageBase64, mimeType } = req.body;
+  if (!imageBase64 || !mimeType) { res.status(400).json({ error: "imageBase64 and mimeType required" }); return; }
+
+  try {
+    const ext = mimeType.split("/")[1]?.replace("jpeg", "jpg").replace("svg+xml", "svg") || "jpg";
+    const { randomUUID } = await import("crypto");
+    const path = await import("path");
+    const fs = await import("fs");
+
+    const dir = path.join(process.cwd(), "uploads", "notification-images");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const buffer = Buffer.from(imageBase64, "base64");
+    if (buffer.length > 8 * 1024 * 1024) { res.status(400).json({ error: "Image too large (max 8MB)" }); return; }
+
+    const filename = `${randomUUID()}.${ext}`;
+    fs.writeFileSync(path.join(dir, filename), buffer);
+
+    const APP_URL = process.env.APP_URL || "https://rankyatra.in";
+    const url = `${APP_URL}/uploads/notification-images/${filename}`;
+    res.json({ url, path: `/uploads/notification-images/${filename}` });
+  } catch (err) {
+    console.error("[admin/upload-image]", err);
+    res.status(500).json({ error: "Failed to save image" });
+  }
+});
+
 // ─── POST /admin/email/send — send custom HTML email to user(s) ──────────────
 router.post("/admin/email/send", requireAdmin, async (req: any, res): Promise<void> => {
   const { subject, html, target, userId, userIds } = req.body;

@@ -10,6 +10,7 @@ import { getAuthToken } from "@/lib/auth";
 import {
   Bell, Users, User, ChevronLeft, Send, Eye, Sparkles,
   CheckCircle2, AlertCircle, Info, Image as ImageIcon,
+  Upload, X, Link2,
 } from "lucide-react";
 
 const TEMPLATE_VARS = [
@@ -73,12 +74,46 @@ export default function AdminBroadcast() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [target, setTarget] = useState<"all" | "specific">("all");
   const [userIdsInput, setUserIdsInput] = useState("");
   const [inApp, setInApp] = useState(true);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+
+  const handleImageFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) { toast({ title: "Error", description: "Sirf image files allowed hain", variant: "destructive" }); return; }
+    if (file.size > 8 * 1024 * 1024) { toast({ title: "Error", description: "Image 8MB se kam honi chahiye", variant: "destructive" }); return; }
+    setImageUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken()}` },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Upload failed");
+      setImageUrl(data.url);
+      setImagePreview(URL.createObjectURL(file));
+      toast({ title: "Image uploaded!" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const clearImage = () => { setImageUrl(""); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
 
   const insertVar = (variable: string, field: "title" | "body") => {
     if (field === "title" && titleRef.current) {
@@ -271,18 +306,100 @@ export default function AdminBroadcast() {
                   </div>
                 </div>
 
-                {/* Image URL */}
-                <div className="space-y-1.5">
+                {/* Image Upload */}
+                <div className="space-y-2">
                   <Label className="text-sm font-semibold flex items-center gap-1.5">
-                    <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" /> Image URL
+                    <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" /> Notification Image
                     <span className="text-xs text-muted-foreground font-normal">(optional, Android only)</span>
                   </Label>
-                  <Input
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://rankyatra.in/logo.png"
-                    className="text-sm"
-                  />
+
+                  {/* Mode toggle */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setImageMode("upload"); clearImage(); }}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${imageMode === "upload" ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                    >
+                      <Upload className="h-3.5 w-3.5" /> Upload Image
+                    </button>
+                    <button
+                      onClick={() => { setImageMode("url"); clearImage(); }}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${imageMode === "url" ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                    >
+                      <Link2 className="h-3.5 w-3.5" /> Paste URL
+                    </button>
+                  </div>
+
+                  {imageMode === "upload" ? (
+                    <div>
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
+                      />
+
+                      {imagePreview ? (
+                        /* Preview with remove button */
+                        <div className="relative rounded-xl overflow-hidden border border-border bg-muted" style={{ maxHeight: 180 }}>
+                          <img src={imagePreview} alt="preview" className="w-full object-cover" style={{ maxHeight: 180 }} />
+                          <button
+                            onClick={clearImage}
+                            className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5">
+                            <p className="text-white text-xs truncate font-mono">{imageUrl}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Drop zone */
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleImageFile(f); }}
+                          className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-6 text-center cursor-pointer transition-colors group"
+                        >
+                          {imageUploading ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                              <p className="text-sm text-muted-foreground">Uploading...</p>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                                <Upload className="h-5 w-5 text-primary" />
+                              </div>
+                              <p className="text-sm font-semibold text-foreground">Click ya drag & drop karo</p>
+                              <p className="text-xs text-muted-foreground">PNG, JPG, WebP — max 8MB</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Input
+                        value={imageUrl}
+                        onChange={(e) => { setImageUrl(e.target.value); setImagePreview(null); }}
+                        placeholder="https://rankyatra.in/logo.png"
+                        className="text-sm font-mono"
+                      />
+                      {imageUrl && (
+                        <div className="relative rounded-xl overflow-hidden border border-border bg-muted mt-1" style={{ maxHeight: 120 }}>
+                          <img
+                            src={imageUrl}
+                            alt="preview"
+                            className="w-full object-cover"
+                            style={{ maxHeight: 120 }}
+                            onError={(e) => (e.currentTarget.style.display = "none")}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
