@@ -153,43 +153,47 @@ export async function sendPushToUser(
     }
 
     // Send via Expo push service (fallback for ExponentPushTokens)
+    // Send each token individually to avoid PUSH_TOO_MANY_EXPERIENCE_IDS error
     if (expoTokens.length > 0) {
-      const messages: PushMessage[] = expoTokens.map((token) => ({
-        to: token,
-        title,
-        body,
-        data: data ?? {},
-        sound: "default",
-        ...(options.category ? { categoryId: options.category } : {}),
-        ...(options.imageUrl ? { image: options.imageUrl } : {}),
-      }));
-      const expoRes = await fetch(EXPO_PUSH_URL, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Accept-Encoding": "gzip, deflate",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(messages),
-      });
-      const expoJson = await expoRes.json().catch(() => null);
-      console.log(`[Push] Expo push sent to ${expoTokens.length} token(s):`, JSON.stringify(expoJson));
-
-      // Clean up stale Expo tokens
-      if (expoJson?.data) {
-        const staleExpoTokens: string[] = [];
-        (expoJson.data as any[]).forEach((item: any, i: number) => {
-          if (
-            item?.status === "error" &&
-            (item?.details?.error === "DeviceNotRegistered" || item?.details?.error === "InvalidCredentials")
-          ) {
-            staleExpoTokens.push(expoTokens[i]);
+      const staleExpoTokens: string[] = [];
+      await Promise.allSettled(expoTokens.map(async (token) => {
+        const message: PushMessage = {
+          to: token,
+          title,
+          body,
+          data: data ?? {},
+          sound: "default",
+          ...(options.category ? { categoryId: options.category } : {}),
+          ...(options.imageUrl ? { image: options.imageUrl } : {}),
+        };
+        try {
+          const expoRes = await fetch(EXPO_PUSH_URL, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Accept-Encoding": "gzip, deflate",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify([message]),
+          });
+          const expoJson = await expoRes.json().catch(() => null);
+          const result = expoJson?.data?.[0];
+          if (result?.status === "error") {
+            const errCode = result?.details?.error;
+            if (errCode === "DeviceNotRegistered" || errCode === "InvalidCredentials") {
+              staleExpoTokens.push(token);
+            } else {
+              console.warn(`[Push] Expo error for token ${token.slice(0, 30)}:`, errCode, result?.message);
+            }
           }
-        });
-        if (staleExpoTokens.length > 0) {
-          await db.delete(pushTokensTable).where(inArray(pushTokensTable.token, staleExpoTokens)).catch(() => {});
-          console.log(`[Push] Removed ${staleExpoTokens.length} stale Expo token(s)`);
+        } catch (e) {
+          console.error(`[Push] Expo fetch failed for token ${token.slice(0, 30)}:`, e);
         }
+      }));
+      console.log(`[Push] Expo push attempted for ${expoTokens.length} token(s)`);
+      if (staleExpoTokens.length > 0) {
+        await db.delete(pushTokensTable).where(inArray(pushTokensTable.token, staleExpoTokens)).catch(() => {});
+        console.log(`[Push] Removed ${staleExpoTokens.length} stale Expo token(s)`);
       }
     }
 
