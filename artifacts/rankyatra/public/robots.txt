@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Block admin pages from indexing
+Disallow: /admin/
+Disallow: /admin
+Disallow: /take-exam/
+Disallow: /answer-sheet/
+Disallow: /oauth/callback
+Disallow: /verify-email
+
+# Block API
+Disallow: /api/
+
+# Sitemaps
+Sitemap: https://rankyatra.in/sitemap.xml
+Sitemap: https://rankyatra.in/api/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
