@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Trash2, Crown, Shield } from "lucide-react";
+import { ArrowLeft, Search, UserX, UserCheck, Wallet, Eye, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Trash2, Crown, Shield, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,8 +25,30 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [walletUser, setWalletUser] = useState<any>(null);
+  const [walletMode, setWalletMode] = useState<"credit" | "debit">("debit");
   const [walletAmount, setWalletAmount] = useState("");
-  const [walletNote, setWalletNote] = useState("");
+  const [walletReason, setWalletReason] = useState("");
+  const [walletCustomReason, setWalletCustomReason] = useState("");
+  const [walletConfirm, setWalletConfirm] = useState(false);
+
+  const DEBIT_REASONS = [
+    "Scam / Fraudulent Activity",
+    "Account Hacked — Security Reversal",
+    "Chargeback / Payment Reversal",
+    "Terms of Service Violation",
+    "Duplicate Payment Refund",
+    "Admin Correction",
+    "Other (specify below)",
+  ];
+
+  const openWallet = (u: any, mode: "credit" | "debit") => {
+    setWalletUser(u);
+    setWalletMode(mode);
+    setWalletAmount("");
+    setWalletReason("");
+    setWalletCustomReason("");
+    setWalletConfirm(false);
+  };
   const [deleteUser, setDeleteUser] = useState<any>(null);
 
   const { data, isLoading, refetch } = useAdminListUsers();
@@ -74,10 +96,12 @@ export default function AdminUsers() {
   const { mutate: adjustWallet, isPending: adjusting } = useAdminAdjustWallet({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Wallet updated!" });
+        toast({ title: walletMode === "debit" ? "💸 Amount Debited" : "✅ Amount Credited", description: `₹${walletAmount} ${walletMode === "debit" ? "debited from" : "credited to"} ${walletUser?.name}'s wallet.` });
         setWalletUser(null);
         setWalletAmount("");
-        setWalletNote("");
+        setWalletReason("");
+        setWalletCustomReason("");
+        setWalletConfirm(false);
         refetch();
       },
       onError: (e: any) => toast({ title: "Error", description: e?.response?.data?.message, variant: "destructive" }),
@@ -171,11 +195,20 @@ export default function AdminUsers() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-blue-600 hover:text-blue-700"
-                        title="Adjust wallet"
-                        onClick={() => setWalletUser(u)}
+                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        title="Credit wallet"
+                        onClick={() => openWallet(u, "credit")}
                       >
-                        <Wallet className="h-4 w-4" />
+                        <TrendingUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="Debit wallet (scam/hack/penalty)"
+                        onClick={() => openWallet(u, "debit")}
+                      >
+                        <TrendingDown className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -250,40 +283,139 @@ export default function AdminUsers() {
         </DialogContent>
       </Dialog>
 
-      {/* Wallet adjust dialog */}
-      <Dialog open={!!walletUser} onOpenChange={(o) => !o && setWalletUser(null)}>
-        <DialogContent>
+      {/* Wallet Credit / Debit dialog */}
+      <Dialog open={!!walletUser} onOpenChange={(o) => { if (!o) { setWalletUser(null); setWalletConfirm(false); } }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Adjust Wallet — {walletUser?.name}</DialogTitle>
-            <DialogDescription>
-              Current balance: {formatCurrency(walletUser?.walletBalance ?? 0)}. Enter a positive amount to credit, negative to debit.
+            <DialogTitle className={`flex items-center gap-2 ${walletMode === "debit" ? "text-red-600" : "text-green-600"}`}>
+              {walletMode === "debit"
+                ? <><TrendingDown className="h-5 w-5" /> Debit Wallet — {walletUser?.name}</>
+                : <><TrendingUp className="h-5 w-5" /> Credit Wallet — {walletUser?.name}</>
+              }
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className={`rounded-lg p-3 mt-1 text-sm font-medium ${walletMode === "debit" ? "bg-red-50 border border-red-200 text-red-700" : "bg-green-50 border border-green-200 text-green-700"}`}>
+                Current balance: <strong>{formatCurrency(walletUser?.walletBalance ?? 0)}</strong>
+              </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              type="number"
-              placeholder="Amount (e.g. 100 or -50)"
-              value={walletAmount}
-              onChange={(e) => setWalletAmount(e.target.value)}
-            />
-            <Input
-              placeholder="Note / reason"
-              value={walletNote}
-              onChange={(e) => setWalletNote(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWalletUser(null)}>Cancel</Button>
-            <Button
-              disabled={!walletAmount || adjusting}
-              onClick={() => adjustWallet({
-                userId: walletUser?.id,
-                data: { amount: String(Math.abs(Number(walletAmount))), type: Number(walletAmount) >= 0 ? "credit" as const : "debit" as const, description: walletNote || "Admin adjustment" },
-              })}
-            >
-              {adjusting ? "Updating..." : "Update Wallet"}
-            </Button>
-          </DialogFooter>
+
+          {!walletConfirm ? (
+            <div className="space-y-4">
+              {/* Amount */}
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-1 block">
+                  Amount (₹) <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Enter amount"
+                  value={walletAmount}
+                  onChange={(e) => setWalletAmount(e.target.value)}
+                  className={walletMode === "debit" ? "border-red-200 focus-visible:ring-red-400" : "border-green-200 focus-visible:ring-green-400"}
+                />
+              </div>
+
+              {/* Reason — dropdown for debit, text for credit */}
+              {walletMode === "debit" ? (
+                <div>
+                  <label className="text-sm font-semibold text-foreground mb-1 block">
+                    Reason <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    className="w-full rounded-md border border-red-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                    value={walletReason}
+                    onChange={(e) => setWalletReason(e.target.value)}
+                  >
+                    <option value="">— Select a reason —</option>
+                    {DEBIT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  {walletReason === "Other (specify below)" && (
+                    <Input
+                      className="mt-2 border-red-200 focus-visible:ring-red-400"
+                      placeholder="Describe the reason..."
+                      value={walletCustomReason}
+                      onChange={(e) => setWalletCustomReason(e.target.value)}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-semibold text-foreground mb-1 block">Note / Reason</label>
+                  <Input
+                    placeholder="e.g. Bonus, Referral correction, Manual credit..."
+                    value={walletReason}
+                    onChange={(e) => setWalletReason(e.target.value)}
+                    className="border-green-200 focus-visible:ring-green-400"
+                  />
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setWalletUser(null)}>Cancel</Button>
+                <Button
+                  className={walletMode === "debit" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                  disabled={
+                    !walletAmount ||
+                    Number(walletAmount) <= 0 ||
+                    (walletMode === "debit" && !walletReason) ||
+                    (walletReason === "Other (specify below)" && !walletCustomReason)
+                  }
+                  onClick={() => setWalletConfirm(true)}
+                >
+                  {walletMode === "debit" ? "Review Debit →" : "Review Credit →"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            /* Confirmation step */
+            <div className="space-y-4">
+              <div className={`rounded-xl border-2 p-4 space-y-2 ${walletMode === "debit" ? "border-red-300 bg-red-50" : "border-green-300 bg-green-50"}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className={`h-5 w-5 ${walletMode === "debit" ? "text-red-600" : "text-green-600"}`} />
+                  <span className={`font-bold text-sm ${walletMode === "debit" ? "text-red-700" : "text-green-700"}`}>
+                    Confirm {walletMode === "debit" ? "Debit" : "Credit"}
+                  </span>
+                </div>
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">User</span><strong>{walletUser?.name}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Action</span><strong className={walletMode === "debit" ? "text-red-600" : "text-green-600"}>{walletMode === "debit" ? `−₹${walletAmount}` : `+₹${walletAmount}`}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Current Balance</span><strong>{formatCurrency(walletUser?.walletBalance ?? 0)}</strong></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">After {walletMode}</span>
+                    <strong className={walletMode === "debit" ? "text-red-600" : "text-green-600"}>
+                      {formatCurrency(Math.max(0, parseFloat(walletUser?.walletBalance ?? "0") + (walletMode === "credit" ? 1 : -1) * Number(walletAmount)))}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-start gap-2 pt-1 border-t border-current/20">
+                    <span className="text-muted-foreground shrink-0">Reason</span>
+                    <strong className="text-right text-xs">{walletReason === "Other (specify below)" ? walletCustomReason : walletReason || "Admin adjustment"}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setWalletConfirm(false)} disabled={adjusting}>← Back</Button>
+                <Button
+                  className={walletMode === "debit" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                  disabled={adjusting}
+                  onClick={() => {
+                    const finalReason = walletReason === "Other (specify below)" ? walletCustomReason : (walletReason || "Admin adjustment");
+                    adjustWallet({
+                      userId: walletUser?.id,
+                      data: {
+                        amount: String(Number(walletAmount)),
+                        type: walletMode,
+                        description: `[Admin ${walletMode === "debit" ? "Debit" : "Credit"}] ${finalReason}`,
+                      },
+                    });
+                  }}
+                >
+                  {adjusting ? "Processing..." : walletMode === "debit" ? "✓ Confirm Debit" : "✓ Confirm Credit"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
