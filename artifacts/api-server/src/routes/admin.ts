@@ -31,6 +31,7 @@ import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewar
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
 import { sendPushToUser } from "../lib/pushNotifications";
+import { broadcastToUser } from "../lib/ws";
 
 const router: IRouter = Router();
 
@@ -1225,8 +1226,14 @@ router.post("/admin/notifications/broadcast", requireAdmin, async (req: any, res
             type: "system",
             title: resolvedTitle,
             body: resolvedBody,
-            data: JSON.stringify({ screen: "notifications" }),
+            data: JSON.stringify({ type: "system", screen: "notifications" }),
           }).catch(() => {});
+
+          // Real-time badge update via WebSocket
+          broadcastToUser(user.id, JSON.stringify({
+            type: "notification",
+            notifType: "system",
+          }));
         }
 
         // Push notification
@@ -1234,7 +1241,7 @@ router.post("/admin/notifications/broadcast", requireAdmin, async (req: any, res
           user.id,
           resolvedTitle,
           resolvedBody,
-          { screen: "notifications" },
+          { type: "system", screen: "notifications" },
           { imageUrl: imageUrl?.trim() || undefined }
         );
       })

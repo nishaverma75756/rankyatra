@@ -143,6 +143,8 @@ function PushNotificationSetup() {
       router.push(`/post-comments?postId=${data.postId}` as any);
     } else if (data?.type === "new_post" || data?.type === "like" || data?.type === "comment" || data?.type === "reply") {
       router.push("/notifications" as any);
+    } else if (data?.type === "system" || data?.screen === "notifications") {
+      router.push("/notifications" as any);
     }
   };
 
