@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag, Crown } from "lucide-react";
+import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag, Crown, Bell } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/utils";
 import { getAuthToken } from "@/lib/auth";
@@ -174,6 +174,11 @@ export default function AdminDashboard() {
               </Link>
             </Button>
           )}
+          <Button asChild variant="outline" className="border-primary text-primary hover:bg-primary/10">
+            <Link href="/admin/broadcast" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" /> Broadcast Notifications
+            </Link>
+          </Button>
         </div>
 
         {/* Stats */}
@@ -201,6 +206,21 @@ export default function AdminDashboard() {
         )}
 
         <div className="grid md:grid-cols-2 gap-6">
+          <Card className="border-primary/30 bg-primary/5 md:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Bell className="h-5 w-5 text-primary" /> Broadcast Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-sm text-muted-foreground flex-1">
+                Send custom push + in-app notifications to all users or specific users. Supports personal template variables like <code className="bg-primary/10 text-primary text-xs px-1 rounded">{"{name}"}</code>, <code className="bg-primary/10 text-primary text-xs px-1 rounded">{"{uid}"}</code>, <code className="bg-primary/10 text-primary text-xs px-1 rounded">{"{wallet}"}</code> — har user ko personalized message milega.
+              </p>
+              <Button asChild className="shrink-0">
+                <Link href="/admin/broadcast">Open Broadcast →</Link>
+              </Button>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">

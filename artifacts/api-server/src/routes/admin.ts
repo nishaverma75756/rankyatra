@@ -26,7 +26,7 @@ import {
   pushTokensTable,
   reelApplications,
 } from "@workspace/db";
-import { eq, count, sum, desc, asc, like, sql, or } from "drizzle-orm";
+import { eq, count, sum, desc, asc, like, sql, or, inArray } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin, requirePermission } from "../middlewares/auth";
 import bcrypt from "bcryptjs";
 import { sendPrizeWonEmail, sendKycApprovedEmail, sendKycRejectedEmail } from "../lib/email";
@@ -946,6 +946,90 @@ router.delete("/admin/reels/:reelId", requireAdmin, async (req, res): Promise<vo
   } catch (err) {
     console.error("[admin/reels/:reelId DELETE]", err);
     res.status(500).json({ error: "Failed to delete reel" });
+  }
+});
+
+// ─── POST /admin/notifications/broadcast — send custom push + in-app notification to users ──
+router.post("/admin/notifications/broadcast", requireAdmin, async (req: any, res): Promise<void> => {
+  const { title, body, target, userIds, imageUrl, inApp = true } = req.body;
+
+  if (!title?.trim() || !body?.trim()) {
+    res.status(400).json({ error: "title and body are required" });
+    return;
+  }
+  if (!["all", "specific"].includes(target)) {
+    res.status(400).json({ error: "target must be 'all' or 'specific'" });
+    return;
+  }
+  if (target === "specific" && (!Array.isArray(userIds) || userIds.length === 0)) {
+    res.status(400).json({ error: "userIds array required for specific target" });
+    return;
+  }
+
+  try {
+    const selectFields = {
+      id: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      phone: usersTable.phone,
+      customUid: usersTable.customUid,
+      walletBalance: usersTable.walletBalance,
+    };
+
+    const users = target === "all"
+      ? await db.select(selectFields).from(usersTable)
+      : await db.select(selectFields).from(usersTable).where(inArray(usersTable.id, userIds.map(Number)));
+
+    const resolveTemplate = (text: string, user: any) => {
+      const uid = `RY${String(user.customUid ?? user.id).padStart(10, "0")}`;
+      return text
+        .replace(/\{name\}/g, user.name ?? "User")
+        .replace(/\{uid\}/g, uid)
+        .replace(/\{email\}/g, user.email ?? "")
+        .replace(/\{wallet\}/g, `₹${user.walletBalance ?? 0}`)
+        .replace(/\{phone\}/g, user.phone ?? "N/A");
+    };
+
+    let sent = 0;
+    let failed = 0;
+
+    const results = await Promise.allSettled(
+      users.map(async (user) => {
+        const resolvedTitle = resolveTemplate(title, user);
+        const resolvedBody = resolveTemplate(body, user);
+
+        // In-app notification
+        if (inApp) {
+          await db.insert(notificationsTable).values({
+            userId: user.id,
+            type: "system",
+            title: resolvedTitle,
+            body: resolvedBody,
+            data: JSON.stringify({ screen: "notifications" }),
+          }).catch(() => {});
+        }
+
+        // Push notification
+        await sendPushToUser(
+          user.id,
+          resolvedTitle,
+          resolvedBody,
+          { screen: "notifications" },
+          { imageUrl: imageUrl?.trim() || undefined }
+        );
+      })
+    );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") sent++;
+      else failed++;
+    }
+
+    console.log(`[admin/broadcast] Sent ${sent}/${users.length} notifications`);
+    res.json({ ok: true, sent, failed, total: users.length });
+  } catch (err) {
+    console.error("[admin/notifications/broadcast]", err);
+    res.status(500).json({ error: "Broadcast failed" });
   }
 });
 
