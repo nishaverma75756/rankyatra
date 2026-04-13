@@ -569,12 +569,38 @@ router.get("/wallet/deposits/:id", requireAuth, async (req, res): Promise<void> 
   const depositId = parseInt(req.params.id);
   if (isNaN(depositId)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
-  const [d] = await db
+  let [d] = await db
     .select()
     .from(walletDepositsTable)
     .where(and(eq(walletDepositsTable.id, depositId), eq(walletDepositsTable.userId, req.user!.id)));
 
   if (!d) { res.status(404).json({ error: "Deposit not found" }); return; }
+
+  // Live Instamojo check — if still pending, call Instamojo NOW instead of waiting for auto-verify
+  if (d.status === "pending" && d.paymentMethod === "instamojo" && d.paymentRequestId) {
+    try {
+      const { apiKey, authToken } = getInstamojoKeys();
+      const imRes = await fetch(`${INSTAMOJO_BASE}/payment-requests/${d.paymentRequestId}/`, {
+        headers: { "X-Api-Key": apiKey, "X-Auth-Token": authToken },
+      });
+      if (imRes.ok) {
+        const imData = await imRes.json() as any;
+        if (imData.success) {
+          const payments: any[] = imData.payment_request?.payments ?? [];
+          const credited = payments.find((p: any) => p.status === "Credit");
+          if (credited) {
+            await creditDepositAndWallet(d.id, credited.payment_id);
+            // Re-fetch updated record
+            const [updated] = await db
+              .select()
+              .from(walletDepositsTable)
+              .where(eq(walletDepositsTable.id, depositId));
+            if (updated) d = updated;
+          }
+        }
+      }
+    } catch (_) { /* silent — return whatever is in DB */ }
+  }
 
   res.json({
     id: d.id,
