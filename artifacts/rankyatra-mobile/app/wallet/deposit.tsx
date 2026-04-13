@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Modal,
+  Animated,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +18,7 @@ import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
-import { showSuccess, showError } from "@/utils/alert";
+import { showError } from "@/utils/alert";
 
 const AMOUNTS = [10, 20, 30, 50, 100];
 const MAX_DAILY = 100;
@@ -31,6 +33,8 @@ interface Deposit {
   adminNote: string | null;
   createdAt: string;
 }
+
+type VerifyState = null | "verifying" | "success" | "failed";
 
 function StatusBadge({ status }: { status: string }) {
   const colors = useColors();
@@ -48,6 +52,119 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function PaymentVerifyOverlay({
+  state,
+  amount,
+  onDone,
+}: {
+  state: VerifyState;
+  amount: number;
+  onDone: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (state === "verifying") {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.12, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+    }
+  }, [state]);
+
+  useEffect(() => {
+    if (state === "success" || state === "failed") {
+      Animated.parallel([
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 100, friction: 8 }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0);
+      opacityAnim.setValue(0);
+    }
+  }, [state]);
+
+  if (!state) return null;
+
+  const isSuccess = state === "success";
+  const isFailed = state === "failed";
+  const isVerifying = state === "verifying";
+
+  return (
+    <Modal transparent animationType="fade" visible statusBarTranslucent>
+      <View style={styles.overlayBg}>
+        <View style={styles.overlayCard}>
+          {isVerifying && (
+            <>
+              <Animated.View style={[styles.overlayIconRing, { borderColor: "#f97316", transform: [{ scale: pulseAnim }] }]}>
+                <ActivityIndicator size="large" color="#f97316" />
+              </Animated.View>
+              <Text style={styles.overlayTitle}>Verifying Payment...</Text>
+              <Text style={styles.overlaySub}>Please wait. Checking your payment status.</Text>
+              <View style={styles.overlayDots}>
+                {[0, 1, 2].map((i) => (
+                  <BounceDot key={i} delay={i * 200} />
+                ))}
+              </View>
+              <Text style={styles.overlayHint}>Do not close the app</Text>
+            </>
+          )}
+
+          {isSuccess && (
+            <Animated.View style={{ alignItems: "center", opacity: opacityAnim, transform: [{ scale: scaleAnim }] }}>
+              <View style={[styles.overlayIconRing, { borderColor: "#22c55e", backgroundColor: "#f0fdf4" }]}>
+                <Feather name="check" size={40} color="#16a34a" />
+              </View>
+              <Text style={[styles.overlayTitle, { color: "#16a34a" }]}>Payment Successful!</Text>
+              <Text style={[styles.overlayAmount, { color: "#16a34a" }]}>+₹{amount}</Text>
+              <Text style={styles.overlaySub}>Added to your wallet</Text>
+              <TouchableOpacity style={[styles.overlayBtn, { backgroundColor: "#16a34a" }]} onPress={onDone}>
+                <Text style={styles.overlayBtnText}>Go to Wallet →</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {isFailed && (
+            <Animated.View style={{ alignItems: "center", opacity: opacityAnim, transform: [{ scale: scaleAnim }] }}>
+              <View style={[styles.overlayIconRing, { borderColor: "#ef4444", backgroundColor: "#fef2f2" }]}>
+                <Feather name="x" size={40} color="#dc2626" />
+              </View>
+              <Text style={[styles.overlayTitle, { color: "#dc2626" }]}>Payment Failed</Text>
+              <Text style={styles.overlaySub}>Payment was not completed.{"\n"}No money has been deducted.</Text>
+              <TouchableOpacity style={[styles.overlayBtn, { backgroundColor: "#dc2626" }]} onPress={onDone}>
+                <Text style={styles.overlayBtnText}>Try Again</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function BounceDot({ delay }: { delay: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: -8, duration: 350, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 350, useNativeDriver: true }),
+        Animated.delay(600 - delay),
+      ])
+    ).start();
+  }, []);
+  return (
+    <Animated.View style={[styles.dot, { transform: [{ translateY: anim }] }]} />
+  );
+}
+
 export default function DepositScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -57,7 +174,8 @@ export default function DepositScreen() {
   const [tab, setTab] = useState<"add" | "history">("add");
   const [customAmount, setCustomAmount] = useState("");
   const [paying, setPaying] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [verifyState, setVerifyState] = useState<VerifyState>(null);
+  const [verifyAmount, setVerifyAmount] = useState(0);
   const [history, setHistory] = useState<Deposit[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [limits, setLimits] = useState<{
@@ -78,9 +196,7 @@ export default function DepositScreen() {
     } catch {}
   }, [token]);
 
-  useEffect(() => {
-    fetchLimits();
-  }, [fetchLimits]);
+  useEffect(() => { fetchLimits(); }, [fetchLimits]);
 
   const fetchHistory = useCallback(async () => {
     if (!token) return;
@@ -98,26 +214,21 @@ export default function DepositScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
-  const activeDepositId = React.useRef<number | null>(null);
-  const pollingStopped = React.useRef(false);
+  const pollingStopped = useRef(false);
 
   const stopPolling = () => { pollingStopped.current = true; };
 
   const startPolling = (depositId: number, amountPaid: number) => {
     pollingStopped.current = false;
-    activeDepositId.current = depositId;
-    const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+    const TIMEOUT_MS = 10 * 60 * 1000;
     const INTERVAL_MS = 5000;
     const startTime = Date.now();
 
     const tick = async () => {
       if (pollingStopped.current) return;
 
-      // 10-minute timeout — auto-reject
       if (Date.now() - startTime >= TIMEOUT_MS) {
         stopPolling();
         try {
@@ -127,10 +238,9 @@ export default function DepositScreen() {
           });
         } catch (_) {}
         WebBrowser.dismissBrowser();
-        setVerifying(false);
         setPaying(false);
+        setVerifyState("failed");
         await fetchHistory();
-        showError("Payment Timed Out", "Payment was not completed within 10 minutes. Please try again.");
         return;
       }
 
@@ -144,34 +254,38 @@ export default function DepositScreen() {
           if (data.status === "success") {
             stopPolling();
             WebBrowser.dismissBrowser();
-            setVerifying(false);
             setPaying(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await Promise.all([fetchHistory(), fetchLimits()]);
             setCustomAmount("");
-            setTab("history");
-            showSuccess("Payment Successful! 🎉", `₹${amountPaid} has been added to your wallet.`);
+            setVerifyState("success");
             return;
           }
 
           if (data.status === "rejected") {
             stopPolling();
             WebBrowser.dismissBrowser();
-            setVerifying(false);
             setPaying(false);
             await fetchHistory();
-            showError("Payment Failed", "Payment was not completed. No money has been deducted.");
+            setVerifyState("failed");
             return;
           }
         }
       } catch (_) {}
 
-      // Schedule next tick
       if (!pollingStopped.current) setTimeout(tick, INTERVAL_MS);
     };
 
-    // First check after 5 seconds
     setTimeout(tick, INTERVAL_MS);
+  };
+
+  const handleVerifyDone = () => {
+    if (verifyState === "success") {
+      setVerifyState(null);
+      setTab("history");
+    } else {
+      setVerifyState(null);
+    }
   };
 
   const handlePayInstamojo = async () => {
@@ -194,7 +308,6 @@ export default function DepositScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPaying(true);
-    setVerifying(false);
 
     try {
       const res = await fetch(`${baseUrl}/api/wallet/deposit/instamojo/create`, {
@@ -210,22 +323,24 @@ export default function DepositScreen() {
       }
 
       const { paymentUrl, depositId } = data;
+      setVerifyAmount(finalAmount);
 
-      // Start polling immediately in background (parallel with browser)
-      setVerifying(true);
+      // Start background polling before opening browser
       startPolling(depositId, finalAmount);
 
-      // Open browser — polling runs in background while user pays
+      // Open browser — polling runs simultaneously
       await WebBrowser.openBrowserAsync(paymentUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
 
-      // Browser closed by user — keep polling until result or timeout
-      // (polling already handles setPaying/setVerifying false on result)
+      // Browser closed — show verifying overlay if not already resolved
+      if (!pollingStopped.current) {
+        setVerifyState("verifying");
+      }
     } catch (e: any) {
       stopPolling();
-      setVerifying(false);
       setPaying(false);
+      setVerifyState(null);
       showError("Error", e.message ?? "Something went wrong. Please try again.");
     }
   };
@@ -245,6 +360,8 @@ export default function DepositScreen() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      <PaymentVerifyOverlay state={verifyState} amount={verifyAmount} onDone={handleVerifyDone} />
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
@@ -337,17 +454,15 @@ export default function DepositScreen() {
             <TouchableOpacity
               style={[
                 styles.payBtn,
-                { backgroundColor: verifying ? "#16a34a" : colors.primary, opacity: finalAmount >= 10 && !paying && !verifying ? 1 : 0.75 },
+                { backgroundColor: colors.primary, opacity: finalAmount >= 10 && !paying ? 1 : 0.5 },
               ]}
               onPress={handlePayInstamojo}
-              disabled={finalAmount < 10 || paying || verifying}
+              disabled={finalAmount < 10 || paying}
             >
-              {paying || verifying ? (
+              {paying ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.payBtnText, { color: "#fff" }]}>
-                    {verifying ? "Verifying Payment..." : "Opening Payment Page..."}
-                  </Text>
+                  <Text style={[styles.payBtnText, { color: "#fff" }]}>Opening Payment Page...</Text>
                 </View>
               ) : (
                 <>
@@ -469,7 +584,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabText: { fontSize: 14, fontWeight: "700" },
   imBadge: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 20 },
-  imBadgeText: { fontSize: 12, fontWeight: "600", color: "#2563EB", flex: 1 },
+  imBadgeText: { fontSize: 12, fontWeight: "600", flex: 1 },
   sectionLabel: { fontSize: 13, fontWeight: "600", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   amountGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   amountChip: { width: "30%", paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
@@ -495,4 +610,16 @@ const styles = StyleSheet.create({
   statusBox: { flexDirection: "row", gap: 8, borderRadius: 10, borderWidth: 1, padding: 12, marginTop: 10, alignItems: "flex-start" },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   badgeText: { fontSize: 11, fontWeight: "700" },
+  // Overlay
+  overlayBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
+  overlayCard: { backgroundColor: "#0f172a", borderRadius: 28, padding: 40, width: "100%", maxWidth: 360, alignItems: "center", borderWidth: 1, borderColor: "#1e293b" },
+  overlayIconRing: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, alignItems: "center", justifyContent: "center", marginBottom: 24 },
+  overlayTitle: { fontSize: 22, fontWeight: "900", color: "#fff", textAlign: "center", marginBottom: 8 },
+  overlayAmount: { fontSize: 36, fontWeight: "900", marginBottom: 6 },
+  overlaySub: { fontSize: 14, color: "#94a3b8", textAlign: "center", lineHeight: 22, marginBottom: 8 },
+  overlayHint: { fontSize: 12, color: "#475569", marginTop: 20 },
+  overlayDots: { flexDirection: "row", gap: 8, marginTop: 20 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#f97316" },
+  overlayBtn: { marginTop: 24, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
+  overlayBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });
