@@ -26,6 +26,14 @@ author = "agent"
 task = "workflow.run"
 args = "artifacts/api-server: API Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/rankyatra: Web App"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/rankyatra-mobile: Mobile App"
+
 [[workflows.workflow]]
 name = "artifacts/api-server: API Server"
 author = "agent"
@@ -37,6 +45,30 @@ waitForPort = 8080
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "artifacts/rankyatra: Web App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=3000 pnpm --filter @workspace/rankyatra run dev"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "artifacts/rankyatra-mobile: Mobile App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8099 pnpm --filter @workspace/rankyatra-mobile run dev"
+waitForPort = 8099
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 stack = "PNPM_WORKSPACE"
