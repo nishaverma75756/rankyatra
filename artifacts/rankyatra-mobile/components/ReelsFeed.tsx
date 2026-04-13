@@ -166,7 +166,7 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
   const isLongCaption = caption.length > 60;
 
   const actionBottom = tabBarHeight + 32;
-  const infoBottom = tabBarHeight + 88;
+  const infoBottom = tabBarHeight + 36;
 
   return (
     <View style={{ width: SCREEN_W, height: itemHeight, backgroundColor: "#000" }}>
