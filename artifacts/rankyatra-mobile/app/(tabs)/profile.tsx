@@ -75,8 +75,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(premiumPulse, { toValue: 1, duration: 1200, useNativeDriver: false }),
-        Animated.timing(premiumPulse, { toValue: 0, duration: 1200, useNativeDriver: false }),
+        Animated.timing(premiumPulse, { toValue: 1, duration: 2000, useNativeDriver: false }),
+        Animated.timing(premiumPulse, { toValue: 0, duration: 2000, useNativeDriver: false }),
       ])
     ).start();
     Animated.loop(
@@ -330,7 +330,10 @@ export default function ProfileScreen() {
 
   const isKycVerified = (user as any)?.verificationStatus === "verified";
   const isPremium = myRoles.includes("premium");
-  const premiumRingBorderColor = premiumPulse.interpolate({ inputRange: [0, 1], outputRange: ["#f59e0b80", "#f59e0bff"] });
+  const premiumRingBorderColor = premiumPulse.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: ["#f59e0b", "#fbbf24", "#f97316", "#fbbf24", "#f59e0b"],
+  });
   const premiumStarRotate = premiumSpin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
   const formatTime = (seconds: number) => {
@@ -540,23 +543,24 @@ export default function ProfileScreen() {
         </View>
 
       {/* Avatar + Name — tap to go to public profile */}
+      <View style={{ marginHorizontal: 20, borderRadius: 20, marginBottom: 20 }}>
+        {isPremium && (
+          <Animated.View style={{
+            position: "absolute", top: -2.5, left: -2.5, right: -2.5, bottom: -2.5,
+            borderRadius: 22.5, borderWidth: 2.5,
+            borderColor: premiumRingBorderColor,
+          }} />
+        )}
       <TouchableOpacity
         activeOpacity={0.92}
         onPress={() => { if (user?.id) router.push(`/user/${user.id}` as any); }}
-        style={[styles.heroCard, { backgroundColor: colors.secondary }]}
+        style={[styles.heroCard, { backgroundColor: colors.secondary, marginHorizontal: 0, marginBottom: 0 }]}
       >
         {isPremium && (
           <LinearGradient
             colors={["#0f0a1e", "#1a0a2e", "#2d1259", "#4c1d95"]}
             style={StyleSheet.absoluteFillObject}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          />
-        )}
-        {isPremium && (
-          <LinearGradient
-            colors={["#f97316", "#f59e0b", "#f97316"]}
-            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3 }}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           />
         )}
         {/* Avatar wrapper with optional premium ring */}
@@ -686,6 +690,7 @@ export default function ProfileScreen() {
           })()}
         </View>
       </TouchableOpacity>
+      </View>
 
       {/* Followers / Following Row */}
       {user?.id && (
