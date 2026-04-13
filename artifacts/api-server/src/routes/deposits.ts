@@ -159,6 +159,10 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
     })
     .returning();
 
+  // Fetch full user record to get phone number
+  const [fullUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
+  const buyerPhone = fullUser?.phone?.replace(/\D/g, "").slice(-10) || "";
+
   // Call Instamojo API to create payment request
   const formData = new URLSearchParams({
     purpose: `RankYatra Wallet Top-up ₹${parsedAmount}`,
@@ -170,6 +174,8 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
     send_email: "True",
     send_sms: "False",
   });
+
+  if (buyerPhone.length === 10) formData.append("phone", buyerPhone);
 
   const { apiKey, authToken } = getInstamojoKeys();
 
