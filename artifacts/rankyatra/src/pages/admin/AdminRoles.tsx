@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { GraduationCap, Star, Megaphone, Handshake, Crown, Users, TrendingUp, IndianRupee, ChevronRight, Filter } from "lucide-react";
+import { GraduationCap, Star, Megaphone, Handshake, Crown, Headphones, Users, TrendingUp, IndianRupee, ChevronRight, Filter } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,12 @@ import { formatCurrency, formatUID } from "@/lib/utils";
 
 
 const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string; border: string }> = {
-  teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
-  influencer: { label: "Influencer", icon: Star,          color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-  promoter:   { label: "Promoter",   icon: Megaphone,     color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-  partner:    { label: "Partner",    icon: Handshake,     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-  premium:    { label: "Premium",    icon: Crown,         color: "#f97316", bg: "#fff7ed", border: "#fed7aa" },
+  teacher:          { label: "Teacher",      icon: GraduationCap, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+  influencer:       { label: "Influencer",   icon: Star,          color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+  promoter:         { label: "Promoter",     icon: Megaphone,     color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+  partner:          { label: "Partner",      icon: Handshake,     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+  premium:          { label: "Premium",      icon: Crown,         color: "#f97316", bg: "#fff7ed", border: "#fed7aa" },
+  customer_support: { label: "Live Support", icon: Headphones,    color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd" },
 };
 
 export default function AdminRoles() {

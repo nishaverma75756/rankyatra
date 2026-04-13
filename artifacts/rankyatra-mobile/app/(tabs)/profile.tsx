@@ -100,7 +100,7 @@ export default function ProfileScreen() {
 
   const ROLE_COLORS: Record<string, string> = {
     teacher: "#2563eb", influencer: "#7c3aed", promoter: "#d97706",
-    partner: "#059669", premium: "#f97316",
+    partner: "#059669", premium: "#f97316", customer_support: "#0ea5e9",
   };
   const [loadingSettings, setLoadingSettings] = useState(false);
 

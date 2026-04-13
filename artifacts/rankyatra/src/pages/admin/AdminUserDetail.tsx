@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck,
   TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff,
-  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2, Edit2,
+  GraduationCap, Star, Megaphone, Handshake, Crown, Headphones, X, Lock, Settings2, Edit2,
   Trash2, Film, Heart, MessageSquare, Play, Image as ImageIcon, RefreshCw,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
@@ -27,11 +27,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAuthToken } from "@/lib/auth";
 
 const ROLE_META: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  teacher:    { label: "Teacher",    icon: GraduationCap, color: "#2563eb", bg: "#eff6ff" },
-  influencer: { label: "Influencer", icon: Star,          color: "#7c3aed", bg: "#f5f3ff" },
-  promoter:   { label: "Promoter",   icon: Megaphone,     color: "#d97706", bg: "#fffbeb" },
-  partner:    { label: "Partner",    icon: Handshake,     color: "#059669", bg: "#ecfdf5" },
-  premium:    { label: "Premium",    icon: Crown,         color: "#f97316", bg: "#fff7ed" },
+  teacher:          { label: "Teacher",      icon: GraduationCap, color: "#2563eb", bg: "#eff6ff" },
+  influencer:       { label: "Influencer",   icon: Star,          color: "#7c3aed", bg: "#f5f3ff" },
+  promoter:         { label: "Promoter",     icon: Megaphone,     color: "#d97706", bg: "#fffbeb" },
+  partner:          { label: "Partner",      icon: Handshake,     color: "#059669", bg: "#ecfdf5" },
+  premium:          { label: "Premium",      icon: Crown,         color: "#f97316", bg: "#fff7ed" },
+  customer_support: { label: "Live Support", icon: Headphones,    color: "#0ea5e9", bg: "#f0f9ff" },
 };
 
 const ALL_PERMISSIONS = [
