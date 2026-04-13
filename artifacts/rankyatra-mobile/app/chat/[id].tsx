@@ -39,7 +39,7 @@ interface Message {
 
 interface ConvInfo {
   id: number;
-  otherUser: { id: number; name: string; avatarUrl: string | null };
+  otherUser: { id: number; name: string; avatarUrl: string | null; isPremium?: boolean };
 }
 
 function formatTime(iso: string) {
@@ -514,10 +514,19 @@ export default function ChatScreen() {
           {!isMine && (
             <View style={styles.msgAvatar}>
               {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.msgAvatarImg} />
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={[styles.msgAvatarImg, convInfo?.otherUser?.isPremium && { borderWidth: 1.5, borderColor: "#f59e0b" }]}
+                />
               ) : (
-                <View style={[styles.msgAvatarImg, styles.msgAvatarFallback, { backgroundColor: colors.primary + "20" }]}>
-                  <Text style={[styles.msgAvatarText, { color: colors.primary }]}>
+                <View style={[
+                  styles.msgAvatarImg,
+                  styles.msgAvatarFallback,
+                  convInfo?.otherUser?.isPremium
+                    ? { backgroundColor: "#1a0a2e", borderWidth: 1.5, borderColor: "#f59e0b" }
+                    : { backgroundColor: colors.primary + "20" }
+                ]}>
+                  <Text style={[styles.msgAvatarText, { color: convInfo?.otherUser?.isPremium ? "#f59e0b" : colors.primary }]}>
                     {avatarName.slice(0, 1).toUpperCase()}
                   </Text>
                 </View>
@@ -533,7 +542,9 @@ export default function ChatScreen() {
               styles.bubble,
               isMine
                 ? [styles.bubbleMine, { backgroundColor: item.isDeletedForEveryone ? colors.muted : colors.primary }]
-                : [styles.bubbleOther, { backgroundColor: colors.muted, borderWidth: 0 }],
+                : convInfo?.otherUser?.isPremium
+                  ? [styles.bubbleOther, { backgroundColor: "#1a0a2e", borderWidth: 1, borderColor: "#f59e0b" }]
+                  : [styles.bubbleOther, { backgroundColor: colors.muted, borderWidth: 0 }],
             ]}>
               {item.isDeletedForEveryone ? (
                 <Text style={[styles.bubbleText, { color: colors.mutedForeground, fontStyle: "italic" }]}>
@@ -735,18 +746,32 @@ export default function ChatScreen() {
 
         <TouchableOpacity onPress={handleViewProfile} style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 10 }}>
           {convInfo?.otherUser?.avatarUrl ? (
-            <Image source={{ uri: convInfo.otherUser.avatarUrl }} style={styles.headerAvatar} />
+            <Image
+              source={{ uri: convInfo.otherUser.avatarUrl }}
+              style={[styles.headerAvatar, convInfo?.otherUser?.isPremium && { borderWidth: 2, borderColor: "#f59e0b" }]}
+            />
           ) : (
-            <View style={[styles.headerAvatar, styles.headerAvatarFallback, { backgroundColor: colors.primary + "20" }]}>
-              <Text style={[styles.headerAvatarText, { color: colors.primary }]}>
+            <View style={[
+              styles.headerAvatar,
+              styles.headerAvatarFallback,
+              convInfo?.otherUser?.isPremium
+                ? { backgroundColor: "#1a0a2e", borderWidth: 2, borderColor: "#f59e0b" }
+                : { backgroundColor: colors.primary + "20" }
+            ]}>
+              <Text style={[styles.headerAvatarText, { color: convInfo?.otherUser?.isPremium ? "#f59e0b" : colors.primary }]}>
                 {convInfo?.otherUser?.name?.slice(0, 2).toUpperCase() ?? "??"}
               </Text>
             </View>
           )}
           <View style={styles.headerInfo}>
-            <Text style={[styles.headerName, { color: colors.foreground }]} numberOfLines={1}>
-              {convInfo?.otherUser?.name ?? "Chat"}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={[styles.headerName, { color: colors.foreground }]} numberOfLines={1}>
+                {convInfo?.otherUser?.name ?? "Chat"}
+              </Text>
+              {convInfo?.otherUser?.isPremium && (
+                <Text style={{ fontSize: 13, marginLeft: 4, color: "#f59e0b" }}>⭐</Text>
+              )}
+            </View>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: otherOnline ? "#22c55e" : colors.mutedForeground }]} />
               <Text style={[styles.statusText, { color: otherOnline ? "#22c55e" : colors.mutedForeground }]}>

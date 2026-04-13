@@ -83,7 +83,12 @@ router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
       convs.map(async (c) => {
         const otherUserId = c.user1Id === userId ? c.user2Id : c.user1Id;
         const [otherUser] = await db
-          .select({ id: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+          .select({
+            id: usersTable.id,
+            name: usersTable.name,
+            avatarUrl: usersTable.avatarUrl,
+            isPremium: sql<boolean>`EXISTS(SELECT 1 FROM user_roles WHERE user_id = ${usersTable.id} AND role = 'premium')`,
+          })
           .from(usersTable)
           .where(eq(usersTable.id, otherUserId))
           .limit(1);
@@ -144,7 +149,12 @@ router.get("/chat/requests", requireAuth, async (req: any, res: any) => {
       convs.map(async (c) => {
         const otherUserId = c.user1Id === userId ? c.user2Id : c.user1Id;
         const [otherUser] = await db
-          .select({ id: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+          .select({
+            id: usersTable.id,
+            name: usersTable.name,
+            avatarUrl: usersTable.avatarUrl,
+            isPremium: sql<boolean>`EXISTS(SELECT 1 FROM user_roles WHERE user_id = ${usersTable.id} AND role = 'premium')`,
+          })
           .from(usersTable)
           .where(eq(usersTable.id, otherUserId))
           .limit(1);

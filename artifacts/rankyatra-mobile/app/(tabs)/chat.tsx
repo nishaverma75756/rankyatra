@@ -24,6 +24,7 @@ interface OtherUser {
   id: number;
   name: string;
   avatarUrl: string | null;
+  isPremium?: boolean;
 }
 
 interface LastMessage {
@@ -60,21 +61,22 @@ function timeAgo(iso: string) {
 
 function Avatar({ user, size = 46, colors }: { user: OtherUser; size?: number; colors: any }) {
   const initials = user.name?.slice(0, 2).toUpperCase() ?? "??";
+  const ring = user.isPremium ? { borderWidth: 2, borderColor: "#f59e0b" } : {};
   if (user.avatarUrl) {
     return (
       <Image
         source={{ uri: user.avatarUrl }}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
+        style={[{ width: size, height: size, borderRadius: size / 2 }, ring]}
       />
     );
   }
   return (
-    <View style={{
+    <View style={[{
       width: size, height: size, borderRadius: size / 2,
-      backgroundColor: colors.primary + "20",
+      backgroundColor: user.isPremium ? "#1a0a2e" : colors.primary + "20",
       alignItems: "center", justifyContent: "center"
-    }}>
-      <Text style={{ color: colors.primary, fontWeight: "700", fontSize: size * 0.35 }}>
+    }, ring]}>
+      <Text style={{ color: user.isPremium ? "#f59e0b" : colors.primary, fontWeight: "700", fontSize: size * 0.35 }}>
         {initials}
       </Text>
     </View>
@@ -180,6 +182,7 @@ export default function ChatListScreen() {
           styles.convRow,
           { borderBottomColor: colors.border },
           hasUnread && { backgroundColor: "#f0fdf4" },
+          item.otherUser.isPremium && { borderLeftWidth: 3, borderLeftColor: "#f59e0b" },
         ]}
         onPress={() => {
           if (item.unreadCount > 0) {
@@ -204,12 +207,17 @@ export default function ChatListScreen() {
         <View style={styles.convInfo}>
           {/* Name + Time */}
           <View style={styles.convTop}>
-            <Text
-              style={[styles.convName, { color: colors.foreground }, hasUnread && styles.bold]}
-              numberOfLines={1}
-            >
-              {item.otherUser.name}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0 }}>
+              <Text
+                style={[styles.convName, { color: colors.foreground }, hasUnread && styles.bold]}
+                numberOfLines={1}
+              >
+                {item.otherUser.name}
+              </Text>
+              {item.otherUser.isPremium && (
+                <Text style={{ fontSize: 12, marginLeft: 4, color: "#f59e0b" }}>⭐</Text>
+              )}
+            </View>
             <Text style={[styles.convTime, { color: hasUnread ? "#22c55e" : colors.mutedForeground }, hasUnread && styles.bold]}>
               {item.updatedAt ? timeAgo(item.updatedAt) : ""}
             </Text>
