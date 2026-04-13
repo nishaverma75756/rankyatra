@@ -897,6 +897,14 @@ export default function ProfileScreen() {
       {/* Support */}
       <SectionHeader title="Support" icon="help-circle" colors={colors} />
       <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push("/(tabs)/support" as any)}>
+          <View style={[styles.menuIconBox, { backgroundColor: "#f9731618" }]}>
+            <Feather name="headphones" size={15} color="#f97316" />
+          </View>
+          <Text style={[styles.menuLabel, { color: colors.foreground }]}>Customer Support</Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </TouchableOpacity>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push("/faq" as any)}>
           <View style={[styles.menuIconBox, { backgroundColor: colors.primary + "18" }]}>
             <Feather name="help-circle" size={15} color={colors.primary} />
