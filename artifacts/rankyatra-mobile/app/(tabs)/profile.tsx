@@ -566,10 +566,6 @@ export default function ProfileScreen() {
         {/* Avatar wrapper with optional premium ring */}
         {isPremium ? (
           <View style={{ position: "relative" }}>
-            <Animated.View style={{
-              position: "absolute", top: -4, left: -4, right: -4, bottom: -4,
-              borderRadius: 44, borderWidth: 2.5, borderColor: premiumRingBorderColor,
-            }} />
             <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
               {getFullAvatarUrl(user?.avatarUrl) ? (
                 <Image source={{ uri: getFullAvatarUrl(user?.avatarUrl)! }} style={styles.avatarImage} />

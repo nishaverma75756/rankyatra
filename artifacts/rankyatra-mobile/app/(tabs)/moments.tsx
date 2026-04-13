@@ -466,10 +466,10 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
 
   return (
     <Animated.View style={[
-      styles.postCard,
-      { backgroundColor: colors.card, borderWidth: isPremium ? 2 : StyleSheet.hairlineWidth },
+      { borderRadius: 16, borderWidth: isPremium ? 2 : StyleSheet.hairlineWidth },
       isPremium && borderColorAnim ? { borderColor: borderColorAnim } : { borderColor: colors.border },
     ]}>
+      <View style={{ borderRadius: 14, overflow: "hidden", backgroundColor: colors.card }}>
       {isPremium && (
         <LinearGradient
           colors={["#f59e0b18", "#f9731608", "transparent"]}
@@ -703,6 +703,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
           insets={insets}
         />
       )}
+      </View>
     </Animated.View>
   );
 }
