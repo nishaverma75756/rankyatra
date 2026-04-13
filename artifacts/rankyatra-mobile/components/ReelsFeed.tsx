@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Dimensions, StyleSheet,
-  ActivityIndicator, Image, Share, Platform, LayoutChangeEvent,
+  ActivityIndicator, Image, Share, Platform, LayoutChangeEvent, Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -82,6 +82,11 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
   const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
   const viewTracked = useRef(false);
 
+  // Double-tap to like
+  const lastTapRef = useRef<number>(0);
+  const heartScale = useRef(new Animated.Value(0)).current;
+  const heartOpacity = useRef(new Animated.Value(0)).current;
+
   const isOwn = currentUserId === reel.userId;
 
   useEffect(() => {
@@ -132,6 +137,35 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
       setLiked(!newLiked);
       setLikeCount((c) => c + (newLiked ? -1 : 1));
     }
+  };
+
+  const showHeartAnimation = () => {
+    heartScale.setValue(0);
+    heartOpacity.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 5 }),
+      Animated.delay(400),
+      Animated.timing(heartOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => {
+      heartScale.setValue(0);
+    });
+  };
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      // Double tap detected
+      if (!liked) {
+        setLiked(true);
+        setLikeCount((c) => c + 1);
+        customFetch(`/api/reels/${reel.id}/like`, { method: "POST" }).catch(() => {
+          setLiked(false);
+          setLikeCount((c) => c - 1);
+        });
+      }
+      showHeartAnimation();
+    }
+    lastTapRef.current = now;
   };
 
   const handleDelete = () => {
@@ -191,6 +225,25 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
         )
       )}
+
+      {/* Transparent tap overlay for double-tap to like */}
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        activeOpacity={1}
+        onPress={handleDoubleTap}
+      />
+
+      {/* Animated heart on double-tap */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { alignItems: "center", justifyContent: "center" },
+          { opacity: heartOpacity, transform: [{ scale: heartScale }] },
+        ]}
+      >
+        <Feather name="heart" size={100} color="#f97316" style={{ opacity: 0.9 }} />
+      </Animated.View>
 
       {/* Bottom gradient */}
       <LinearGradient
