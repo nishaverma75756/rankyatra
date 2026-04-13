@@ -86,7 +86,7 @@ async function getDepositTotal(userId: number, since: Date): Promise<number> {
         eq(walletDepositsTable.userId, userId),
         gte(walletDepositsTable.createdAt, since),
         sql`${walletDepositsTable.status} != 'rejected'`,
-        sql`${walletDepositsTable.paymentMethod} != 'referral_bonus'`
+        sql`${walletDepositsTable.paymentMethod} IN ('instamojo', 'manual')`
       )
     );
   return rows.reduce((sum, r) => sum + parseFloat(String(r.amount)), 0);
