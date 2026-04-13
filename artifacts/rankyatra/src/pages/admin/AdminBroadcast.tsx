@@ -1,12 +1,12 @@
 import { useState, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthToken } from "@/lib/auth";
+import { getAuthToken, clearAuthToken } from "@/lib/auth";
 import {
   Bell, Users, User, ChevronLeft, Send, Eye, Sparkles,
   CheckCircle2, AlertCircle, Info, Image as ImageIcon,
@@ -68,6 +68,7 @@ const QUICK_TEMPLATES = [
 
 export default function AdminBroadcast() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -101,6 +102,12 @@ export default function AdminBroadcast() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken()}` },
         body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
       });
+      if (res.status === 401) {
+        clearAuthToken();
+        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
+        setLocation("/login");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
       setImageUrl(data.url);
@@ -185,6 +192,12 @@ export default function AdminBroadcast() {
         }),
       });
 
+      if (res.status === 401) {
+        clearAuthToken();
+        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
+        setLocation("/login");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Broadcast failed");
 

@@ -1,5 +1,5 @@
 import { db, pushTokensTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import admin from "firebase-admin";
 import { existsSync, readFileSync } from "fs";
 
@@ -126,11 +126,25 @@ export async function sendPushToUser(
             })
           )
         );
+        const staleTokens: string[] = [];
         results.forEach((r, i) => {
           if (r.status === "rejected") {
-            console.error(`[Push] FCM failed for token ${fcmTokens[i]}:`, r.reason);
+            const errCode = (r.reason as any)?.code ?? "";
+            if (
+              errCode === "messaging/registration-token-not-registered" ||
+              errCode === "messaging/invalid-registration-token" ||
+              errCode === "messaging/mismatched-credential"
+            ) {
+              staleTokens.push(fcmTokens[i]);
+            } else {
+              console.error(`[Push] FCM failed for token ${fcmTokens[i]}:`, r.reason);
+            }
           }
         });
+        if (staleTokens.length > 0) {
+          await db.delete(pushTokensTable).where(inArray(pushTokensTable.token, staleTokens)).catch(() => {});
+          console.log(`[Push] Removed ${staleTokens.length} stale FCM token(s)`);
+        }
       }
     }
 
@@ -155,6 +169,23 @@ export async function sendPushToUser(
       });
       const expoJson = await expoRes.json().catch(() => null);
       console.log(`[Push] Expo push sent to ${expoTokens.length} token(s):`, JSON.stringify(expoJson));
+
+      // Clean up stale Expo tokens
+      if (expoJson?.data) {
+        const staleExpoTokens: string[] = [];
+        (expoJson.data as any[]).forEach((item: any, i: number) => {
+          if (
+            item?.status === "error" &&
+            (item?.details?.error === "DeviceNotRegistered" || item?.details?.error === "InvalidCredentials")
+          ) {
+            staleExpoTokens.push(expoTokens[i]);
+          }
+        });
+        if (staleExpoTokens.length > 0) {
+          await db.delete(pushTokensTable).where(inArray(pushTokensTable.token, staleExpoTokens)).catch(() => {});
+          console.log(`[Push] Removed ${staleExpoTokens.length} stale Expo token(s)`);
+        }
+      }
     }
 
     if (expoTokens.length === 0 && fcmTokens.length === 0) {
