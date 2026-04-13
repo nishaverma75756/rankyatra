@@ -621,7 +621,6 @@ export default function UserPublicProfile() {
                 <Text style={[styles.avatarText, { color: "#f59e0b" }]}>{initials}</Text>
               </View>
             )}
-            <Text style={{ position: "absolute", top: -18, left: 0, right: 0, textAlign: "center", fontSize: 20, lineHeight: 22 }}>👑</Text>
           </View>
         ) : resolveAvatar(u.avatarUrl) ? (
           <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={styles.avatar} />

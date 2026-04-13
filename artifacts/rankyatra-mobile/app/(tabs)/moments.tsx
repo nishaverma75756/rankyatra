@@ -161,14 +161,7 @@ function Avatar({ name, url, size = 40, colors, isPremium }: { name: string; url
       </View>
     );
   if (!isPremium) return avatarEl;
-  return (
-    <View style={{ position: "relative", width: size, height: size + 10 }}>
-      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "center" }}>
-        {avatarEl}
-      </View>
-      <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontSize: size * 0.38, lineHeight: size * 0.4 }}>👑</Text>
-    </View>
-  );
+  return avatarEl;
 }
 
 // ─── Share Modal ──────────────────────────────────────────────────────────────

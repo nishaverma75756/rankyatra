@@ -578,7 +578,6 @@ export default function ProfileScreen() {
                 {uploadingAvatar ? <ActivityIndicator size={10} color="#fff" /> : <Feather name="camera" size={10} color="#fff" />}
               </View>
             </TouchableOpacity>
-            <Text style={{ position: "absolute", top: -18, left: 0, right: 0, textAlign: "center", fontSize: 20, lineHeight: 22 }}>👑</Text>
           </View>
         ) : (
           <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
