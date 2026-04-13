@@ -597,6 +597,27 @@ export default function UserPublicProfile() {
             <FollowBtn />
             <MessageBtn />
           </View>
+
+          {/* Preferences badges */}
+          {Array.isArray(u.preferences) && u.preferences.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {(u.preferences as string[]).map((pref) => (
+                <View
+                  key={pref}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 4,
+                    paddingHorizontal: 10, paddingVertical: 4,
+                    borderRadius: 20,
+                    backgroundColor: "#f9731625",
+                    borderWidth: 1, borderColor: "#f9731650",
+                  }}
+                >
+                  <Feather name="bookmark" size={10} color="#f97316" />
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#f97316" }}>{pref}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </View>
 

@@ -310,6 +310,7 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     followsYou,
     userRole: rolesData[0]?.role ?? null,
     groupBadge: groupData[0]?.groupName ?? null,
+    preferences: user.preferences ?? [],
   });
 });
 
