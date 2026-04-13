@@ -368,6 +368,17 @@ router.delete("/users/:userId/follow", requireAuth, async (req, res): Promise<vo
   res.json({ success: true });
 });
 
+router.get("/users/:userId/follow-status", requireAuth, async (req, res): Promise<void> => {
+  const userId = parseInt(String(req.params.userId), 10);
+  const currentUserId = (req as any).user.id;
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid" }); return; }
+
+  const rows = await db.select().from(followsTable).where(
+    and(eq(followsTable.followerId, currentUserId), eq(followsTable.followingId, userId))
+  );
+  res.json({ isFollowing: rows.length > 0 });
+});
+
 // Debug: Send a test push to self
 router.post("/push/test", requireAuth, async (req: any, res: any): Promise<void> => {
   const userId = req.user.id;

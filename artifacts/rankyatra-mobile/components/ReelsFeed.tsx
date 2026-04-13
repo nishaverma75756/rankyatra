@@ -79,7 +79,30 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
   const [likeCount, setLikeCount] = useState(reel.likeCount);
   const [commentCount, setCommentCount] = useState(reel.commentCount);
   const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
   const viewTracked = useRef(false);
+
+  const isOwn = currentUserId === reel.userId;
+
+  useEffect(() => {
+    if (isOwn || !currentUserId) return;
+    customFetch<{ isFollowing: boolean }>(`/api/users/${reel.userId}/follow-status`)
+      .then((d) => setIsFollowing(d.isFollowing ?? false))
+      .catch(() => setIsFollowing(false));
+  }, [reel.userId, isOwn, currentUserId]);
+
+  const handleFollow = async () => {
+    if (isFollowing === null) return;
+    const next = !isFollowing;
+    setIsFollowing(next);
+    try {
+      await customFetch(`/api/users/${reel.userId}/follow`, {
+        method: next ? "POST" : "DELETE",
+      });
+    } catch {
+      setIsFollowing(!next);
+    }
+  };
 
   const player = useVideoPlayer(isActive ? reel.videoUrl : null, (p) => {
     p.loop = true;
@@ -139,12 +162,11 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
     }
   };
 
-  const isOwn = currentUserId === reel.userId;
   const caption = reel.caption?.trim() ?? "";
-  const isLongCaption = caption.length > 80;
+  const isLongCaption = caption.length > 60;
 
   const actionBottom = tabBarHeight + 32;
-  const infoBottom = tabBarHeight + 32;
+  const infoBottom = tabBarHeight + 88;
 
   return (
     <View style={{ width: SCREEN_W, height: itemHeight, backgroundColor: "#000" }}>
@@ -216,32 +238,52 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
 
       {/* ── Bottom user info + caption ── */}
       <View style={[s.bottomInfo, { bottom: infoBottom, right: 72 }]}>
-        <TouchableOpacity
-          style={s.userRow}
-          onPress={() => router.push(`/user/${reel.userId}` as any)}
-          activeOpacity={0.8}
-        >
-          <Avatar name={reel.userName} url={reel.userAvatar} size={40} />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <Text style={s.userName}>{reel.userName}</Text>
-              {reel.verificationStatus === "verified" && (
-                <View style={s.kycBadge}>
-                  <Text style={s.kycBadgeText}>✓ KYC</Text>
-                </View>
-              )}
+        {/* User row + Follow button */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <TouchableOpacity
+            style={[s.userRow, { flex: 1 }]}
+            onPress={() => router.push(`/user/${reel.userId}` as any)}
+            activeOpacity={0.8}
+          >
+            <Avatar name={reel.userName} url={reel.userAvatar} size={40} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <Text style={s.userName}>{reel.userName}</Text>
+                {reel.verificationStatus === "verified" && (
+                  <View style={s.kycBadge}>
+                    <Text style={s.kycBadgeText}>✓ KYC</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={s.uid}>{formatUID(reel.userId)}</Text>
+              <Text style={s.timeAgo}>{timeAgo(reel.createdAt)}</Text>
             </View>
-            <Text style={s.uid}>{formatUID(reel.userId)}</Text>
-            <Text style={s.timeAgo}>{timeAgo(reel.createdAt)}</Text>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
+          {/* Follow button — only for others, only if not already following */}
+          {!isOwn && isFollowing === false && (
+            <TouchableOpacity
+              onPress={handleFollow}
+              activeOpacity={0.8}
+              style={s.followBtn}
+            >
+              <Text style={s.followBtnText}>+ Follow</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Caption with See More */}
         {caption.length > 0 && (
           <TouchableOpacity onPress={() => setCaptionExpanded((e) => !e)} activeOpacity={0.8}>
             <Text style={s.caption} numberOfLines={captionExpanded ? undefined : 2}>
-              {captionExpanded || !isLongCaption ? caption : caption.slice(0, 80).trimEnd()}
+              {captionExpanded || !isLongCaption
+                ? caption
+                : caption.slice(0, 60).trimEnd()}
               {!captionExpanded && isLongCaption && (
-                <Text style={{ color: "#f9731699" }}> ...more</Text>
+                <Text style={{ color: "#f97316", fontWeight: "700" }}> ...see more</Text>
+              )}
+              {captionExpanded && isLongCaption && (
+                <Text style={{ color: "#f97316", fontWeight: "700" }}> see less</Text>
               )}
             </Text>
           </TouchableOpacity>
@@ -528,6 +570,19 @@ const s = StyleSheet.create({
     textShadowColor: "#0004",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  followBtn: {
+    backgroundColor: "#f97316",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignSelf: "center",
+  },
+  followBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   uploadBanner: {
     position: "absolute",
