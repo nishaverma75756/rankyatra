@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { setupWebSocket } from "./lib/ws";
 import { startExamReminderScheduler } from "./lib/examReminders";
+import { startInstamojoAutoVerify } from "./lib/instamojoAutoVerify";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,5 @@ setupWebSocket(server);
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
   startExamReminderScheduler();
+  startInstamojoAutoVerify();
 });
