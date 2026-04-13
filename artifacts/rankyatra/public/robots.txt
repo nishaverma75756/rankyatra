@@ -9,15 +9,11 @@ Disallow: /answer-sheet/
 Disallow: /oauth/callback
 Disallow: /verify-email
 
-# Allow sitemap access
-Allow: /api/sitemap.xml
-
-# Block rest of API
+# Block API
 Disallow: /api/
 
-# Sitemaps
+# Sitemap
 Sitemap: https://rankyatra.in/sitemap.xml
-Sitemap: https://rankyatra.in/api/sitemap.xml
 
 # Crawl delay
 Crawl-delay: 1
