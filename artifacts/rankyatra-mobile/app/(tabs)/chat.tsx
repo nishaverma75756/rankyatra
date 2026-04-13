@@ -106,6 +106,7 @@ export default function ChatListScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [requestCount, setRequestCount] = useState(0);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -116,21 +117,30 @@ export default function ChatListScreen() {
     setRefreshing(false);
   }, []);
 
+  const fetchRequestCount = useCallback(async () => {
+    try {
+      const data = await customFetch<{ count: number }>("/api/chat/requests/count");
+      setRequestCount(data.count ?? 0);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchConversations();
+    fetchRequestCount();
     resetMessages();
-  }, [fetchConversations, resetMessages]);
+  }, [fetchConversations, fetchRequestCount, resetMessages]);
 
-  // Refresh conversation list every time this screen is focused (e.g. after coming back from a chat)
   useFocusEffect(useCallback(() => {
     fetchConversations();
+    fetchRequestCount();
     resetMessages();
-  }, [fetchConversations, resetMessages]));
+  }, [fetchConversations, fetchRequestCount, resetMessages]));
 
   const handleWsMessage = useCallback((msg: any) => {
-    if (msg.type === "new_message") fetchConversations();
+    if (msg.type === "new_message") { fetchConversations(); fetchRequestCount(); }
     if (msg.type === "messages_read") fetchConversations();
-  }, [fetchConversations]);
+    if (msg.type === "request_accepted") fetchConversations();
+  }, [fetchConversations, fetchRequestCount]);
 
   useChatSocket(token, handleWsMessage);
 
@@ -247,7 +257,24 @@ export default function ChatListScreen() {
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Messages</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Messages</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/message-requests" as any)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.muted }}
+            activeOpacity={0.7}
+          >
+            <Feather name="inbox" size={15} color={requestCount > 0 ? colors.primary : colors.mutedForeground} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: requestCount > 0 ? colors.primary : colors.mutedForeground }}>
+              Requests
+            </Text>
+            {requestCount > 0 && (
+              <View style={{ minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{requestCount > 99 ? "99+" : requestCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList

@@ -11,7 +11,7 @@ const router: IRouter = Router();
 const typingMap = new Map<string, number>();
 const TYPING_TTL_MS = 4000;
 
-// Get total unread message count across all conversations
+// Get total unread message count across all accepted conversations
 router.get("/chat/unread-total", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
   try {
@@ -22,7 +22,11 @@ router.get("/chat/unread-total", requireAuth, async (req: any, res: any) => {
       .where(and(
         or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)),
         ne(messagesTable.senderId, userId),
-        eq(messagesTable.isRead, false)
+        eq(messagesTable.isRead, false),
+        or(
+          eq(conversationsTable.isAccepted, true),
+          eq(conversationsTable.initiatedBy, userId)
+        )
       ));
     res.set("Cache-Control", "no-store");
     res.json({ count: result?.count ?? 0 });
@@ -31,7 +35,26 @@ router.get("/chat/unread-total", requireAuth, async (req: any, res: any) => {
   }
 });
 
-// Get all conversations for current user
+// Get count of pending message requests
+router.get("/chat/requests/count", requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  try {
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(conversationsTable)
+      .where(and(
+        or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)),
+        eq(conversationsTable.isAccepted, false),
+        ne(conversationsTable.initiatedBy, userId)
+      ));
+    res.set("Cache-Control", "no-store");
+    res.json({ count: result?.count ?? 0 });
+  } catch {
+    res.status(500).json({ count: 0 });
+  }
+});
+
+// Get all conversations for current user (only accepted + initiated by me)
 router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
   const userId = req.user.id;
   try {
@@ -47,6 +70,10 @@ router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
           or(
             and(eq(conversationsTable.user1Id, userId), eq(conversationsTable.deletedForUser1, false)),
             and(eq(conversationsTable.user2Id, userId), eq(conversationsTable.deletedForUser2, false))
+          ),
+          or(
+            eq(conversationsTable.isAccepted, true),
+            eq(conversationsTable.initiatedBy, userId)
           )
         )
       )
@@ -85,6 +112,8 @@ router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
           lastMessage: lastMsg ?? null,
           unreadCount: unreadRows.length,
           updatedAt: c.updatedAt,
+          isAccepted: c.isAccepted,
+          initiatedBy: c.initiatedBy,
         };
       })
     );
@@ -92,6 +121,96 @@ router.get("/chat/conversations", requireAuth, async (req: any, res: any) => {
     res.json(result);
   } catch (e) {
     res.status(500).json({ message: "Failed to fetch conversations" });
+  }
+});
+
+// Get pending message requests for current user (sent by others, not yet accepted)
+router.get("/chat/requests", requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  try {
+    const convs = await db
+      .select()
+      .from(conversationsTable)
+      .where(
+        and(
+          or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId)),
+          eq(conversationsTable.isAccepted, false),
+          ne(conversationsTable.initiatedBy, userId)
+        )
+      )
+      .orderBy(desc(conversationsTable.updatedAt));
+
+    const result = await Promise.all(
+      convs.map(async (c) => {
+        const otherUserId = c.user1Id === userId ? c.user2Id : c.user1Id;
+        const [otherUser] = await db
+          .select({ id: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+          .from(usersTable)
+          .where(eq(usersTable.id, otherUserId))
+          .limit(1);
+
+        const [firstMsg] = await db
+          .select()
+          .from(messagesTable)
+          .where(eq(messagesTable.conversationId, c.id))
+          .orderBy(asc(messagesTable.createdAt))
+          .limit(1);
+
+        return {
+          id: c.id,
+          otherUser,
+          firstMessage: firstMsg ?? null,
+          createdAt: c.createdAt,
+        };
+      })
+    );
+
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ message: "Failed to fetch requests" });
+  }
+});
+
+// Accept a message request
+router.post("/chat/conversations/:id/accept", requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  const convId = Number(req.params.id);
+  try {
+    const [conv] = await db.select().from(conversationsTable)
+      .where(and(eq(conversationsTable.id, convId),
+        or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId))))
+      .limit(1);
+    if (!conv) return res.status(404).json({ message: "Not found" });
+    if (conv.initiatedBy === userId) return res.status(400).json({ message: "Cannot accept own request" });
+
+    await db.update(conversationsTable)
+      .set({ isAccepted: true })
+      .where(eq(conversationsTable.id, convId));
+
+    // Notify initiator that request was accepted
+    broadcastToUser(conv.initiatedBy!, JSON.stringify({ type: "request_accepted", conversationId: convId }));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to accept request" });
+  }
+});
+
+// Decline a message request (deletes conversation entirely)
+router.post("/chat/conversations/:id/decline", requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  const convId = Number(req.params.id);
+  try {
+    const [conv] = await db.select().from(conversationsTable)
+      .where(and(eq(conversationsTable.id, convId),
+        or(eq(conversationsTable.user1Id, userId), eq(conversationsTable.user2Id, userId))))
+      .limit(1);
+    if (!conv) return res.status(404).json({ message: "Not found" });
+
+    await db.delete(messagesTable).where(eq(messagesTable.conversationId, convId));
+    await db.delete(conversationsTable).where(eq(conversationsTable.id, convId));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to decline request" });
   }
 });
 
@@ -190,7 +309,7 @@ router.post("/chat/conversations/start/:userId", requireAuth, async (req: any, r
 
     const [created] = await db
       .insert(conversationsTable)
-      .values({ user1Id: myId, user2Id: otherId })
+      .values({ user1Id: myId, user2Id: otherId, initiatedBy: myId, isAccepted: false })
       .returning();
 
     res.json({ id: created.id });

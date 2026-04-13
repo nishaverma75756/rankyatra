@@ -9,6 +9,8 @@ export const conversationsTable = pgTable("conversations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedForUser1: boolean("deleted_for_user1").notNull().default(false),
   deletedForUser2: boolean("deleted_for_user2").notNull().default(false),
+  isAccepted: boolean("is_accepted").notNull().default(false),
+  initiatedBy: integer("initiated_by"),
 });
 
 export const messagesTable = pgTable("messages", {
