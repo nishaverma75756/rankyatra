@@ -285,7 +285,7 @@ export default function DepositScreen() {
                 <>
                   <Feather name="credit-card" size={18} color="#fff" />
                   <Text style={[styles.payBtnText, { color: "#fff" }]}>
-                    Top Up ₹{finalAmount || "—"} to Wallet
+                    Add ₹{finalAmount || "—"} To Wallet
                   </Text>
                 </>
               )}
