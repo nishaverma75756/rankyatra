@@ -483,9 +483,9 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
           <Avatar name={post.userName} url={post.userAvatar} colors={colors} isPremium={isPremium} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
-          {/* Row 1: Name + verification badges */}
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-            <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)}>
+          {/* Row 1: Name + PREMIUM badge only */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)} style={{ flexShrink: 1 }}>
               <Text style={[styles.postName, { color: colors.foreground }]} numberOfLines={1}>{post.userName}</Text>
             </TouchableOpacity>
             {isPremium && (
@@ -493,14 +493,14 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
                 <Text style={{ color: "#f59e0b", fontSize: 9, fontWeight: "800" }}>✦ PREMIUM</Text>
               </View>
             )}
+          </View>
+          {/* Row 2: KYC + Level + Role + Group badges all together */}
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
             {post.verificationStatus === "verified" && (
-              <View style={{ backgroundColor: "#d1fae5", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: "#6ee7b7" }}>
+              <View style={{ backgroundColor: "#d1fae5", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#6ee7b7" }}>
                 <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
               </View>
             )}
-          </View>
-          {/* Row 2: Skill + role + group badges grouped */}
-          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
             {(() => {
               const rp = post.rankPoints ?? 0;
               const label = rp > 700 ? "🏆 Champion" : rp > 400 ? "🔥 Advanced" : rp > 200 ? "⚔️ Warrior" : rp > 100 ? "⚡ Explorer" : "🌱 Beginner";
@@ -533,6 +533,17 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
             )}
           </View>
         </View>
+
+        {/* Follow button — only show when not following and not self */}
+        {!!currentUser && !isSelf && !isFollowing && (
+          <TouchableOpacity
+            style={[styles.followPill, { borderColor: colors.primary, backgroundColor: colors.primary + "12" }]}
+            onPress={toggleFollow}
+          >
+            <Feather name="user-plus" size={11} color={colors.primary} />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>Follow</Text>
+          </TouchableOpacity>
+        )}
 
         {/* 3-dot menu */}
         <TouchableOpacity
