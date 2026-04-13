@@ -158,6 +158,7 @@ export default function ChatScreen() {
   const lastTypingSentRef = useRef<number>(0);
   const flatListRef = useRef<FlatList>(null);
   const isMounted = useRef(true);
+  const keyboardHiddenRef = useRef(false);
 
   useEffect(() => () => { isMounted.current = false; }, []);
 
@@ -263,7 +264,14 @@ export default function ChatScreen() {
 
   useEffect(() => {
     const sub = Keyboard.addListener("keyboardDidHide", () => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      keyboardHiddenRef.current = true;
+      // Backup: scroll after a short delay in case onLayout fires before this
+      setTimeout(() => {
+        if (keyboardHiddenRef.current) {
+          keyboardHiddenRef.current = false;
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }
+      }, 350);
     });
     return () => sub.remove();
   }, []);
@@ -770,6 +778,12 @@ export default function ChatScreen() {
           inverted
           keyExtractor={(m) => String(m.id)}
           renderItem={renderMessage}
+          onLayout={() => {
+            if (keyboardHiddenRef.current) {
+              keyboardHiddenRef.current = false;
+              flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+            }
+          }}
           contentContainerStyle={{
             paddingHorizontal: 12,
             paddingTop: 8,
