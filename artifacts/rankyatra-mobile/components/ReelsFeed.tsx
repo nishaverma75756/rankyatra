@@ -143,8 +143,8 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
   const caption = reel.caption?.trim() ?? "";
   const isLongCaption = caption.length > 80;
 
-  const actionBottom = tabBarHeight + 16;
-  const infoBottom = tabBarHeight + 16;
+  const actionBottom = tabBarHeight + 32;
+  const infoBottom = tabBarHeight + 32;
 
   return (
     <View style={{ width: SCREEN_W, height: itemHeight, backgroundColor: "#000" }}>
@@ -394,10 +394,10 @@ export default function ReelsFeed({
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }} onLayout={onLayout}>
-      {/* Back button — top-left */}
+      {/* Back button — top-left, slightly below status bar */}
       {onBack && (
         <TouchableOpacity
-          style={[s.backBtn, { top: insets.top + 10 }]}
+          style={[s.backBtn, { top: insets.top + 36 }]}
           onPress={onBack}
           activeOpacity={0.8}
         >
@@ -406,7 +406,7 @@ export default function ReelsFeed({
       )}
 
       {/* Reels header — centered */}
-      <View style={[s.topBar, { top: insets.top + 8, zIndex: 50 }]} pointerEvents="none">
+      <View style={[s.topBar, { top: insets.top + 38, zIndex: 50 }]} pointerEvents="none">
         <Text style={s.reelsLabel}>Reels</Text>
       </View>
 
