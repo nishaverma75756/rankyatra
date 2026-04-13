@@ -378,6 +378,16 @@ export async function sendWelcomeEmail(toEmail: string, name: string) {
   });
 }
 
+// ── Generic custom email for admin broadcast ──────────────────────────────────
+export async function sendCustomEmail(toEmail: string, subject: string, html: string) {
+  await transporter.sendMail({
+    from: `"RankYatra" <${process.env.SMTP_USER}>`,
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
 export async function sendGroupInviteEmail(toEmail: string, toName: string, ownerName: string, groupName: string) {
   await transporter.sendMail({
     from: `"RankYatra" <${process.env.SMTP_USER}>`,

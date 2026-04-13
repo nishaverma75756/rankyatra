@@ -1028,6 +1028,72 @@ router.delete("/admin/reels/:reelId", requireAdmin, async (req, res): Promise<vo
   }
 });
 
+// ─── POST /admin/email/send — send custom HTML email to user(s) ──────────────
+router.post("/admin/email/send", requireAdmin, async (req: any, res): Promise<void> => {
+  const { subject, html, target, userId, userIds } = req.body;
+
+  if (!subject?.trim() || !html?.trim()) {
+    res.status(400).json({ error: "subject and html are required" }); return;
+  }
+  if (!["all", "specific"].includes(target)) {
+    res.status(400).json({ error: "target must be 'all' or 'specific'" }); return;
+  }
+  if (target === "specific" && !userId && (!Array.isArray(userIds) || userIds.length === 0)) {
+    res.status(400).json({ error: "userId or userIds required for specific target" }); return;
+  }
+
+  try {
+    const selectFields = {
+      id: usersTable.id, name: usersTable.name, email: usersTable.email,
+      phone: usersTable.phone, customUid: usersTable.customUid, walletBalance: usersTable.walletBalance,
+    };
+
+    let users;
+    if (target === "all") {
+      users = await db.select(selectFields).from(usersTable).where(sql`${usersTable.email} IS NOT NULL`);
+    } else if (userId) {
+      users = await db.select(selectFields).from(usersTable).where(eq(usersTable.id, Number(userId)));
+    } else {
+      users = await db.select(selectFields).from(usersTable).where(inArray(usersTable.id, (userIds as number[]).map(Number)));
+    }
+
+    const resolveVars = (text: string, user: any) => {
+      const uid = `RY${String(user.customUid ?? user.id).padStart(10, "0")}`;
+      return text
+        .replace(/\{name\}/g, user.name ?? "User")
+        .replace(/\{uid\}/g, uid)
+        .replace(/\{email\}/g, user.email ?? "")
+        .replace(/\{wallet\}/g, `₹${user.walletBalance ?? 0}`)
+        .replace(/\{phone\}/g, user.phone ?? "N/A");
+    };
+
+    let sent = 0; let failed = 0; const failedEmails: string[] = [];
+
+    const { sendCustomEmail } = await import("../lib/email");
+
+    const results = await Promise.allSettled(
+      users
+        .filter(u => !!u.email)
+        .map(async (user) => {
+          const resolvedSubject = resolveVars(subject, user);
+          const resolvedHtml = resolveVars(html, user);
+          await sendCustomEmail(user.email!, resolvedSubject, resolvedHtml);
+        })
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === "fulfilled") sent++;
+      else { failed++; failedEmails.push(users[i]?.email ?? ""); }
+    }
+
+    console.log(`[admin/email/send] Sent ${sent}/${users.length}, failed ${failed}`);
+    res.json({ ok: true, sent, failed, total: users.length, failedEmails });
+  } catch (err) {
+    console.error("[admin/email/send]", err);
+    res.status(500).json({ error: "Failed to send emails" });
+  }
+});
+
 // ─── POST /admin/notifications/broadcast — send custom push + in-app notification to users ──
 router.post("/admin/notifications/broadcast", requireAdmin, async (req: any, res): Promise<void> => {
   const { title, body, target, userIds, imageUrl, inApp = true } = req.body;

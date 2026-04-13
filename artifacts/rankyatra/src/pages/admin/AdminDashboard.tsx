@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag, Crown, Bell } from "lucide-react";
+import { Users, BookOpen, Trophy, DollarSign, TrendingUp, Shield, Wallet, ShieldCheck, Flag, Crown, Bell, Mail } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/utils";
 import { getAuthToken } from "@/lib/auth";
@@ -179,6 +179,11 @@ export default function AdminDashboard() {
               <Bell className="h-4 w-4" /> Broadcast Notifications
             </Link>
           </Button>
+          <Button asChild variant="outline" className="border-blue-500 text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+            <Link href="/admin/email" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" /> Email Compose
+            </Link>
+          </Button>
         </div>
 
         {/* Stats */}
@@ -206,7 +211,7 @@ export default function AdminDashboard() {
         )}
 
         <div className="grid md:grid-cols-2 gap-6">
-          <Card className="border-primary/30 bg-primary/5 md:col-span-2">
+          <Card className="border-primary/30 bg-primary/5">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Bell className="h-5 w-5 text-primary" /> Broadcast Notifications
@@ -218,6 +223,21 @@ export default function AdminDashboard() {
               </p>
               <Button asChild className="shrink-0">
                 <Link href="/admin/broadcast">Open Broadcast →</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-500/30 bg-blue-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Mail className="h-5 w-5 text-blue-500" /> Email Compose
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-sm text-muted-foreground flex-1">
+                Professional HTML emails — 5 ready templates (Promotional, Official, Letter, Notice, Contest Alert) ya Custom HTML likhein. Supports <code className="bg-blue-500/10 text-blue-600 text-xs px-1 rounded">{"{name}"}</code>, <code className="bg-blue-500/10 text-blue-600 text-xs px-1 rounded">{"{uid}"}</code>, <code className="bg-blue-500/10 text-blue-600 text-xs px-1 rounded">{"{wallet}"}</code> — Gmail mein perfectly render hota hai.
+              </p>
+              <Button asChild className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
+                <Link href="/admin/email">Compose Email →</Link>
               </Button>
             </CardContent>
           </Card>

@@ -38,6 +38,7 @@ import AdminRoles from "@/pages/admin/AdminRoles";
 import AdminGroupDetail from "@/pages/admin/AdminGroupDetail";
 import AdminReelApplications from "@/pages/admin/AdminReelApplications";
 import AdminBroadcast from "@/pages/admin/AdminBroadcast";
+import AdminEmailCompose from "@/pages/admin/AdminEmailCompose";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import FAQ from "@/pages/FAQ";
@@ -194,6 +195,9 @@ function Router() {
       </Route>
       <Route path="/admin/broadcast">
         <ProtectedRoute component={AdminBroadcast} />
+      </Route>
+      <Route path="/admin/email">
+        <ProtectedRoute component={AdminEmailCompose} />
       </Route>
       <Route path="/admin/groups/:userId">
         <ProtectedRoute component={AdminGroupDetail} />
