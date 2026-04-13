@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 export interface UploadState {
@@ -35,7 +35,7 @@ const ReelsUploadContext = createContext<ReelsUploadContextType>({
   reset: () => {},
 });
 
-const UPLOAD_URL = "https://rankyatra.in/api/reels/upload";
+const UPLOAD_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/reels/upload`;
 
 // ── XHR upload — works for both web and native, shows real progress ────────────
 function uploadViaXHR(
