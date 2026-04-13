@@ -77,6 +77,8 @@ async function checkAndSendReminders() {
             userId: uid,
             type: "exam_reminder",
             examId: exam.id,
+            title: milestone.title,
+            body: milestone.body(exam.title),
           }).catch(() => {});
           broadcastToUser(uid, JSON.stringify({
             type: "notification",

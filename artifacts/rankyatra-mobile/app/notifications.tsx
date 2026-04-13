@@ -200,7 +200,12 @@ export default function NotificationsScreen() {
             if (n.type === "group_invite") {
               return <GroupInviteRow key={n.id} n={n} colors={colors} onRespond={handleInviteRespond} />;
             }
+
             const isExamNotif = n.type === "exam_reminder";
+            const isSystemNotif = n.type === "system";
+            // Notifications that use stored title+body instead of fromUser label
+            const hasTitleBody = (isExamNotif || isSystemNotif) && (n.title || n.body);
+
             return (
               <TouchableOpacity
                 key={n.id}
@@ -211,18 +216,32 @@ export default function NotificationsScreen() {
                 onPress={() => handleNotifPress(n)}
                 activeOpacity={0.7}
               >
+                {/* Icon / Avatar */}
                 {isExamNotif ? (
-                  <View style={[styles.examIcon, { backgroundColor: colors.primary + "20" }]}>
+                  <View style={[styles.examIcon, { backgroundColor: "#f9731620" }]}>
                     <Feather name="book-open" size={20} color={colors.primary} />
+                  </View>
+                ) : isSystemNotif ? (
+                  <View style={[styles.examIcon, { backgroundColor: "#6366f120" }]}>
+                    <Feather name="bell" size={20} color="#6366f1" />
                   </View>
                 ) : (
                   <Avatar name={n.fromUserName ?? "?"} url={n.fromUserAvatar} size={42} colors={colors} />
                 )}
+
+                {/* Text content */}
                 <View style={{ flex: 1 }}>
-                  {isExamNotif ? (
-                    <Text style={[styles.notifText, { color: colors.foreground }]}>
-                      <Text style={{ fontWeight: "700" }}>Exam Reminder 📚</Text>
-                    </Text>
+                  {hasTitleBody ? (
+                    <>
+                      <Text style={[styles.notifText, { color: colors.foreground }]} numberOfLines={1}>
+                        <Text style={{ fontWeight: "700" }}>{n.title}</Text>
+                      </Text>
+                      {n.body ? (
+                        <Text style={[styles.bodyText, { color: colors.mutedForeground }]} numberOfLines={2}>
+                          {n.body}
+                        </Text>
+                      ) : null}
+                    </>
                   ) : (
                     <Text style={[styles.notifText, { color: colors.foreground }]}>
                       <Text style={{ fontWeight: "700" }}>{n.fromUserName}</Text>
@@ -231,6 +250,7 @@ export default function NotificationsScreen() {
                   )}
                   <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{timeAgo(n.createdAt)}</Text>
                 </View>
+
                 {!n.isRead && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
               </TouchableOpacity>
             );
@@ -263,6 +283,7 @@ const styles = StyleSheet.create({
   examIcon: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   groupIcon: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   notifText: { fontSize: 14, lineHeight: 20 },
+  bodyText: { fontSize: 13, lineHeight: 18, marginTop: 2 },
   timeText: { fontSize: 12, marginTop: 3 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   empty: { alignItems: "center", marginTop: 80, gap: 12 },
