@@ -216,10 +216,10 @@ export default function DepositScreen() {
         {/* ─── ADD MONEY ─── */}
         {tab === "add" && (
           <>
-            {/* Instamojo badge */}
-            <View style={[styles.imBadge, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
-              <Feather name="zap" size={14} color="#2563EB" />
-              <Text style={styles.imBadgeText}>Powered by Instamojo — Instant, secure payment</Text>
+            {/* Secure payment badge */}
+            <View style={[styles.imBadge, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+              <Feather name="shield" size={14} color="#16a34a" />
+              <Text style={[styles.imBadgeText, { color: "#166534" }]}>100% Secure & Instant Wallet Top-Up</Text>
             </View>
 
             {/* Amount chips */}
@@ -285,14 +285,14 @@ export default function DepositScreen() {
                 <>
                   <Feather name="credit-card" size={18} color="#fff" />
                   <Text style={[styles.payBtnText, { color: "#fff" }]}>
-                    Pay ₹{finalAmount || "—"} via Instamojo
+                    Top Up ₹{finalAmount || "—"} to Wallet
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <Text style={[styles.footerNote, { color: colors.mutedForeground }]}>
-              You will be redirected to Instamojo's secure page. Money is credited instantly after payment.
+              You will be redirected to our secure payment page. Money is credited instantly after payment.
             </Text>
           </>
         )}
@@ -332,9 +332,9 @@ export default function DepositScreen() {
                         <Text style={[styles.historyDate, { color: colors.mutedForeground }]}>
                           {formatDate(d.createdAt)}
                         </Text>
-                        <View style={[styles.methodBadge, { backgroundColor: isInstamojo ? "#DBEAFE" : "#F3F4F6" }]}>
-                          <Text style={[styles.methodBadgeText, { color: isInstamojo ? "#1D4ED8" : "#6B7280" }]}>
-                            {isInstamojo ? "Instamojo" : "UPI Manual"}
+                        <View style={[styles.methodBadge, { backgroundColor: isInstamojo ? "#F0FDF4" : "#F3F4F6" }]}>
+                          <Text style={[styles.methodBadgeText, { color: isInstamojo ? "#166534" : "#6B7280" }]}>
+                            {isInstamojo ? "Online Payment" : "UPI Manual"}
                           </Text>
                         </View>
                       </View>
@@ -377,7 +377,7 @@ export default function DepositScreen() {
                       <View style={[styles.statusBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
                         <Feather name="clock" size={14} color="#92400E" />
                         <Text style={{ fontSize: 12, color: "#92400E", flex: 1 }}>
-                          {isInstamojo ? "Payment initiated — verifying..." : "Under review · Will be credited within 1–4 hours"}
+                          {isInstamojo ? "Payment initiated — under review · Will be credited shortly" : "Under review · Will be credited within 1–4 hours"}
                         </Text>
                       </View>
                     )}
