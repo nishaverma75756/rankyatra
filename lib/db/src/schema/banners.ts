@@ -9,6 +9,7 @@ export const bannersTable = pgTable("banners", {
   bgTo: text("bg_to").notNull().default("#ea580c"),
   linkUrl: text("link_url").notNull().default("/"),
   linkLabel: text("link_label").notNull().default("Join Now"),
+  imageUrl: text("image_url"),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

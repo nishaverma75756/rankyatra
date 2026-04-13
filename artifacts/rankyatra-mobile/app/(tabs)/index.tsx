@@ -31,6 +31,7 @@ type Banner = {
   bgTo: string;
   linkUrl: string;
   linkLabel: string;
+  imageUrl?: string | null;
   displayOrder: number;
 };
 
@@ -75,20 +76,32 @@ function BannerSlider({ liveCount }: { liveCount: number }) {
       <TouchableOpacity
         activeOpacity={0.92}
         onPress={() => router.push("/(tabs)/")}
-        style={[styles.bannerCard, { backgroundColor: slide.bgFrom }]}
+        style={styles.bannerCard}
       >
-        <View style={styles.bannerContent}>
-          <Text style={styles.bannerEmoji}>{slide.emoji}</Text>
-          <View style={styles.bannerTextBlock}>
-            <Text style={styles.bannerTitle}>{slide.title}</Text>
-            <Text style={styles.bannerSub}>{slide.subtitle}</Text>
-          </View>
-          {liveCount > 0 && (
-            <View style={styles.liveAlert}>
-              <Text style={styles.liveAlertText}>{liveCount} LIVE</Text>
+        {slide.imageUrl ? (
+          /* ── Image Banner ── */
+          <Image
+            source={{ uri: slide.imageUrl }}
+            style={styles.bannerImage}
+            resizeMode="cover"
+          />
+        ) : (
+          /* ── Text / Gradient Banner ── */
+          <View style={[styles.bannerGradient, { backgroundColor: slide.bgFrom }]}>
+            <View style={styles.bannerContent}>
+              <Text style={styles.bannerEmoji}>{slide.emoji}</Text>
+              <View style={styles.bannerTextBlock}>
+                <Text style={styles.bannerTitle}>{slide.title}</Text>
+                <Text style={styles.bannerSub}>{slide.subtitle}</Text>
+              </View>
+              {liveCount > 0 && (
+                <View style={styles.liveAlert}>
+                  <Text style={styles.liveAlertText}>{liveCount} LIVE</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+          </View>
+        )}
         {slides.length > 1 && (
           <View style={styles.dotRow}>
             {slides.map((_, i) => (
@@ -590,8 +603,19 @@ const styles = StyleSheet.create({
   bannerContainer: { paddingHorizontal: 20, marginBottom: 24 },
   bannerCard: {
     borderRadius: 20,
-    height: 96,          // fixed height — no layout shift
+    height: 112,
     overflow: "hidden",
+    justifyContent: "flex-end",
+  },
+  bannerImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+  },
+  bannerGradient: {
+    flex: 1,
     justifyContent: "center",
   },
   bannerContent: {

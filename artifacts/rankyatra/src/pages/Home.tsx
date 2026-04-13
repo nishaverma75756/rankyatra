@@ -17,6 +17,7 @@ type Banner = {
   bgTo: string;
   linkUrl: string;
   linkLabel: string;
+  imageUrl?: string | null;
   displayOrder: number;
 };
 
@@ -59,35 +60,51 @@ function BannerSlider({ liveCount }: { liveCount: number }) {
 
   return (
     <div className="mb-6">
-      <div
-        className="rounded-2xl p-5 flex items-center gap-4 cursor-pointer select-none transition-all duration-500"
-        style={{ background: `linear-gradient(135deg, ${slide.bgFrom}, ${slide.bgTo})` }}
-        onClick={() => setLocation(slide.linkUrl)}
-      >
-        <span className="text-2xl shrink-0">{slide.emoji}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-black text-base leading-tight truncate">{slide.title}</p>
-          {slide.subtitle && <p className="text-white/70 text-xs mt-0.5 truncate">{slide.subtitle}</p>}
+      {slide.imageUrl ? (
+        /* ── Image Banner ── */
+        <div
+          className="rounded-2xl overflow-hidden cursor-pointer select-none"
+          style={{ aspectRatio: "16/5" }}
+          onClick={() => setLocation(slide.linkUrl)}
+        >
+          <img
+            src={slide.imageUrl}
+            alt={slide.title}
+            className="w-full h-full object-cover transition-all duration-500"
+          />
         </div>
-        <div className="shrink-0 flex flex-col items-end gap-1.5">
-          {liveCount > 0 && (
-            <span className="px-2 py-0.5 rounded-lg text-xs font-black text-white bg-white/25">
-              {liveCount} LIVE
+      ) : (
+        /* ── Text / Gradient Banner ── */
+        <div
+          className="rounded-2xl p-5 flex items-center gap-4 cursor-pointer select-none transition-all duration-500"
+          style={{ background: `linear-gradient(135deg, ${slide.bgFrom}, ${slide.bgTo})` }}
+          onClick={() => setLocation(slide.linkUrl)}
+        >
+          <span className="text-2xl shrink-0">{slide.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-black text-base leading-tight truncate">{slide.title}</p>
+            {slide.subtitle && <p className="text-white/70 text-xs mt-0.5 truncate">{slide.subtitle}</p>}
+          </div>
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            {liveCount > 0 && (
+              <span className="px-2 py-0.5 rounded-lg text-xs font-black text-white bg-white/25">
+                {liveCount} LIVE
+              </span>
+            )}
+            <span className="px-2 py-0.5 rounded-lg text-xs font-semibold text-white bg-white/20">
+              {slide.linkLabel} →
             </span>
-          )}
-          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold text-white bg-white/20">
-            {slide.linkLabel} →
-          </span>
+          </div>
         </div>
-      </div>
+      )}
       {slides.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-2.5">
-          {slides.map((_, i) => (
+          {slides.map((s, i) => (
             <button
               key={i}
               onClick={() => goTo(i)}
               className={`rounded-full transition-all duration-300 ${i === current ? "w-5 h-1.5" : "w-1.5 h-1.5 bg-muted-foreground/30"}`}
-              style={i === current ? { backgroundColor: slide.bgFrom, width: 20, height: 6 } : {}}
+              style={i === current ? { backgroundColor: (s as any).bgFrom ?? "#f97316", width: 20, height: 6 } : {}}
             />
           ))}
         </div>
