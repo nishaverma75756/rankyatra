@@ -107,6 +107,7 @@ router.get("/posts/user/:userId", optionalAuth, async (req: any, res: any) => {
         userAvatar: usersTable.avatarUrl,
         likeCount: sql<number>`(SELECT COUNT(*) FROM post_likes WHERE post_id = ${postsTable.id})::int`,
         commentCount: sql<number>`(SELECT COUNT(*) FROM post_comments WHERE post_id = ${postsTable.id})::int`,
+        viewCount: postsTable.viewCount,
         isLiked: viewerId
           ? sql<boolean>`EXISTS(SELECT 1 FROM post_likes WHERE post_id = ${postsTable.id} AND user_id = ${viewerId})`
           : sql<boolean>`false`,
