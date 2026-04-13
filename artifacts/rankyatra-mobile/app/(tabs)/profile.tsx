@@ -477,6 +477,12 @@ export default function ProfileScreen() {
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Profile</Text>
           <View style={styles.headerBtns}>
             <TouchableOpacity
+              onPress={() => { router.push("/(tabs)/support" as any); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              style={[styles.themeToggle, { backgroundColor: "#f9731618", borderColor: "#f9731640" }]}
+            >
+              <Feather name="headphones" size={17} color="#f97316" />
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => { router.push("/groups-explore" as any); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
               style={[styles.themeToggle, {
                 backgroundColor: pendingInvitesCount > 0 ? "#f9731620" : myRoles.length > 0 ? (ROLE_COLORS[myRoles[0]] ?? "#f97316") + "20" : colors.card,
