@@ -210,22 +210,27 @@ router.post("/wallet/deposit/instamojo/create", requireAuth, async (req, res): P
   }
 });
 
+function htmlPage(icon: string, title: string, message: string, color: string) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+  .card{background:#1e293b;border-radius:20px;padding:40px 32px;max-width:380px;width:100%;text-align:center;border:1px solid #334155}
+  .icon{font-size:64px;margin-bottom:20px}.title{font-size:22px;font-weight:800;margin-bottom:12px;color:${color}}
+  .msg{font-size:15px;color:#94a3b8;line-height:1.6}.note{margin-top:20px;font-size:13px;color:#475569;border-top:1px solid #334155;padding-top:16px}</style></head>
+  <body><div class="card"><div class="icon">${icon}</div><div class="title">${title}</div><div class="msg">${message}</div>
+  <div class="note">Aap ab yeh window band kar sakte hain — app mein apne aap update ho jayega.</div></div></body></html>`;
+}
+
 // ── INSTAMOJO: Callback after payment ──────────────────────────────────────
 router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void> => {
-  const { payment_id, payment_request_id, payment_status, deposit_id, source } = req.query as Record<string, string>;
-  const isMobile = source === "mobile";
+  const { payment_id, payment_request_id, payment_status, deposit_id } = req.query as Record<string, string>;
 
-  function redirectTo(path: string, params: Record<string, string>) {
-    const qs = new URLSearchParams(params).toString();
-    if (isMobile) {
-      res.redirect(`rankyatra://wallet-deposit?${qs}`);
-    } else {
-      res.redirect(`${APP_URL}/wallet/deposit?${qs}`);
-    }
-  }
+  const sendHtml = (icon: string, title: string, message: string, color: string) => {
+    res.setHeader("Content-Type", "text/html");
+    res.send(htmlPage(icon, title, message, color));
+  };
 
   if (!deposit_id) {
-    redirectTo("", { instamojo: "failed", reason: "invalid" });
+    sendHtml("❌", "Invalid Request", "Payment link is invalid or expired.", "#ef4444");
     return;
   }
 
@@ -233,12 +238,12 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
   const [deposit] = await db.select().from(walletDepositsTable).where(eq(walletDepositsTable.id, depositIdNum));
 
   if (!deposit) {
-    redirectTo("", { instamojo: "failed", reason: "notfound" });
+    sendHtml("❌", "Not Found", "Payment record not found. Please contact support.", "#ef4444");
     return;
   }
 
   if (deposit.status === "success") {
-    redirectTo("", { instamojo: "success", amount: String(deposit.amount) });
+    sendHtml("✅", "Payment Already Credited!", `₹${deposit.amount} has been added to your wallet.`, "#22c55e");
     return;
   }
 
@@ -246,18 +251,15 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
     await db.update(walletDepositsTable)
       .set({ status: "rejected", adminNote: "Payment cancelled or failed", updatedAt: new Date() })
       .where(eq(walletDepositsTable.id, depositIdNum));
-    redirectTo("", { instamojo: "failed", reason: "cancelled" });
+    sendHtml("❌", "Payment Cancelled", "Your payment was not completed. No money has been deducted.", "#ef4444");
     return;
   }
 
-  // Verify payment with Instamojo
+  // Verify payment with Instamojo API
   const { apiKey, authToken } = getInstamojoKeys();
   try {
     const verifyRes = await fetch(`${INSTAMOJO_BASE}/payments/${payment_id}/`, {
-      headers: {
-        "X-Api-Key": apiKey,
-        "X-Auth-Token": authToken,
-      },
+      headers: { "X-Api-Key": apiKey, "X-Auth-Token": authToken },
     });
 
     const verifyData = await verifyRes.json() as any;
@@ -267,7 +269,7 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
       await db.update(walletDepositsTable)
         .set({ status: "rejected", adminNote: "Payment verification failed", updatedAt: new Date() })
         .where(eq(walletDepositsTable.id, depositIdNum));
-      redirectTo("", { instamojo: "failed", reason: "verify" });
+      sendHtml("❌", "Verification Failed", "Payment could not be verified. Contact support if money was deducted.", "#ef4444");
       return;
     }
 
@@ -279,21 +281,20 @@ router.get("/wallet/deposit/instamojo/callback", async (req, res): Promise<void>
       await db.update(walletDepositsTable)
         .set({ status: "rejected", adminNote: `Amount mismatch or not credited. Got: ${paidAmount}`, updatedAt: new Date() })
         .where(eq(walletDepositsTable.id, depositIdNum));
-      redirectTo("", { instamojo: "failed", reason: "amount" });
+      sendHtml("⚠️", "Amount Mismatch", "Paid amount does not match. Please contact support.", "#f97316");
       return;
     }
 
-    // All checks passed — credit the wallet
+    // All good — credit wallet
     await creditDepositAndWallet(depositIdNum, payment_id);
-    redirectTo("", { instamojo: "success", amount: String(expectedAmount) });
+    sendHtml("✅", `₹${expectedAmount} Added to Wallet!`, "Your payment was successful. Your wallet has been topped up. Close this window and check your app.", "#22c55e");
   } catch (err) {
     console.error("Instamojo callback error:", err);
-    // Leave deposit as "pending" so admin can manually verify — do NOT reject
     await db.update(walletDepositsTable)
-      .set({ adminNote: "Callback error — awaiting admin review", updatedAt: new Date() })
+      .set({ adminNote: "Callback error — awaiting auto-verify", updatedAt: new Date() })
       .where(eq(walletDepositsTable.id, depositIdNum))
       .catch(() => {});
-    redirectTo("", { instamojo: "pending" });
+    sendHtml("⏳", "Processing...", "Your payment is being processed. Please close this window — your wallet will update shortly.", "#f97316");
   }
 });
 

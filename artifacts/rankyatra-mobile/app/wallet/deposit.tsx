@@ -57,6 +57,7 @@ export default function DepositScreen() {
   const [tab, setTab] = useState<"add" | "history">("add");
   const [customAmount, setCustomAmount] = useState("");
   const [paying, setPaying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [history, setHistory] = useState<Deposit[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [limits, setLimits] = useState<{
@@ -101,6 +102,39 @@ export default function DepositScreen() {
     fetchHistory();
   }, [fetchHistory]);
 
+  const pollDepositStatus = async (depositId: number, amountPaid: number): Promise<void> => {
+    setVerifying(true);
+    const maxAttempts = 15; // poll for ~30 seconds
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const res = await fetch(`${baseUrl}/api/wallet/deposits/${depositId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.status === "success") {
+          setVerifying(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          await Promise.all([fetchHistory(), fetchLimits()]);
+          setCustomAmount("");
+          setTab("history");
+          showSuccess("Payment Successful! 🎉", `₹${amountPaid} has been added to your wallet.`);
+          return;
+        }
+        if (data.status === "rejected") {
+          setVerifying(false);
+          showError("Payment Failed", data.adminNote ?? "Payment could not be verified. Contact support if money was deducted.");
+          await fetchHistory();
+          return;
+        }
+      } catch (_) {}
+    }
+    // Timed out — refresh history silently, user can check later
+    await fetchHistory();
+    setVerifying(false);
+  };
+
   const handlePayInstamojo = async () => {
     if (!finalAmount || finalAmount < 10) {
       showError("Invalid Amount", "Please enter a minimum amount of ₹10.");
@@ -134,32 +168,17 @@ export default function DepositScreen() {
         return;
       }
 
-      // Open Instamojo in browser — wait for deep link redirect
-      const result = await WebBrowser.openAuthSessionAsync(data.paymentUrl, "rankyatra://wallet-deposit");
+      const { paymentUrl, depositId } = data;
 
-      if (result.type === "success" && result.url) {
-        const params = new URL(result.url).searchParams;
-        const status = params.get("instamojo");
-        const amount = params.get("amount");
+      // Open payment page — we don't rely on deep link redirect at all
+      // Instead, after browser closes we poll the deposit status
+      await WebBrowser.openBrowserAsync(paymentUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
 
-        if (status === "success") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          await Promise.all([fetchHistory(), fetchLimits()]);
-          setCustomAmount("");
-          setTab("history");
-          showSuccess("Payment Successful! 🎉", `₹${amount || finalAmount} has been added to your wallet.`);
-        } else {
-          const reason = params.get("reason");
-          const msg =
-            reason === "cancelled" ? "Payment was cancelled." :
-            reason === "amount" ? "Amount mismatch. Contact support." :
-            "Payment could not be verified. Contact support if money was deducted.";
-          showError("Payment Failed", msg);
-        }
-      } else if (result.type === "cancel") {
-        // User closed browser without paying — silently refresh
-        await fetchHistory();
-      }
+      // Browser closed — now poll backend to check if payment went through
+      // The callback route already auto-verifies with Instamojo when user pays
+      await pollDepositStatus(depositId, finalAmount);
     } catch (e: any) {
       showError("Error", e.message ?? "Something went wrong. Please try again.");
     } finally {
@@ -274,13 +293,18 @@ export default function DepositScreen() {
             <TouchableOpacity
               style={[
                 styles.payBtn,
-                { backgroundColor: colors.primary, opacity: finalAmount >= 10 && !paying ? 1 : 0.5 },
+                { backgroundColor: verifying ? "#16a34a" : colors.primary, opacity: finalAmount >= 10 && !paying && !verifying ? 1 : 0.75 },
               ]}
               onPress={handlePayInstamojo}
-              disabled={finalAmount < 10 || paying}
+              disabled={finalAmount < 10 || paying || verifying}
             >
-              {paying ? (
-                <ActivityIndicator color="#fff" size="small" />
+              {paying || verifying ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={[styles.payBtnText, { color: "#fff" }]}>
+                    {verifying ? "Verifying Payment..." : "Opening Payment Page..."}
+                  </Text>
+                </View>
               ) : (
                 <>
                   <Feather name="credit-card" size={18} color="#fff" />
