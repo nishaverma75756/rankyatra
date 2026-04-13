@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Dimensions, StyleSheet,
-  ActivityIndicator, Image, Share,
+  ActivityIndicator, Image, Share, Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -123,13 +123,18 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
 
   const handleShare = async () => {
     try {
-      const url = `https://${process.env.EXPO_PUBLIC_DOMAIN}/reels/${reel.id}`;
-      await Share.share({
-        message: `${reel.userName} posted a reel on RankYatra!\n${reel.caption ? reel.caption + "\n" : ""}${url}`,
-        url,
-      });
-    } catch {
-      showError("Error", "Could not open share menu.");
+      const url = `https://rankyatra.in/reels/${reel.id}`;
+      const message = `${reel.userName} posted a reel on RankYatra!\n${reel.caption ? reel.caption + "\n" : ""}${url}`;
+      if (Platform.OS === "ios") {
+        await Share.share({ message, url, title: "RankYatra Reel" });
+      } else {
+        await Share.share({ message, title: "RankYatra Reel" });
+      }
+    } catch (e: any) {
+      const msg = e?.message ?? "";
+      if (!msg.includes("cancelled") && !msg.includes("User did not share") && !msg.includes("dismissed")) {
+        showError("Error", "Could not open share menu.");
+      }
     }
   };
 
