@@ -3,8 +3,9 @@ import { useFocusEffect } from "expo-router";
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Image, Modal, RefreshControl, Share,
-  KeyboardAvoidingView, Platform, ScrollView, Linking, BackHandler,
+  KeyboardAvoidingView, Platform, ScrollView, Linking, BackHandler, Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
 import { showSuccess, showError, showAlert } from "@/utils/alert";
 import { router } from "expo-router";
@@ -117,6 +118,7 @@ interface Post {
   topReplyUser: string | null;
   topReplyUserAvatar: string | null;
   userRole: string | null;
+  isPremium: boolean;
   userGroupBadge: string | null;
 }
 
@@ -150,11 +152,23 @@ function timeAgo(iso: string) {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
-function Avatar({ name, url, size = 40, colors }: { name: string; url: string | null; size?: number; colors: any }) {
-  if (url) return <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+function Avatar({ name, url, size = 40, colors, isPremium }: { name: string; url: string | null; size?: number; colors: any; isPremium?: boolean }) {
+  const avatarEl = url
+    ? <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: isPremium ? 2 : 0, borderColor: "#f59e0b" }} />
+    : (
+      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: isPremium ? "#1a0a2e" : colors.primary + "20", alignItems: "center", justifyContent: "center", borderWidth: isPremium ? 2 : 0, borderColor: "#f59e0b" }}>
+        <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontWeight: "700", fontSize: size * 0.35 }}>{name?.slice(0, 2).toUpperCase()}</Text>
+      </View>
+    );
+  if (!isPremium) return avatarEl;
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: colors.primary, fontWeight: "700", fontSize: size * 0.35 }}>{name?.slice(0, 2).toUpperCase()}</Text>
+    <View style={{ position: "relative", width: size, height: size }}>
+      {avatarEl}
+      <View style={{ position: "absolute", top: -8, left: 0, right: 0, alignItems: "center" }}>
+        <View style={{ backgroundColor: "#f59e0b", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#fff3" }}>
+          <Text style={{ fontSize: 7, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -406,6 +420,17 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   const menuBtnRef = useRef<any>(null);
   const [textExpanded, setTextExpanded] = useState(false);
   const isLongText = post.content.trim().length > SEE_MORE_LIMIT;
+  const isPremium = !!post.isPremium;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isPremium) return;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [isPremium]);
 
   const toggleLike = async () => {
     if (!currentUser) { router.push("/login" as any); return; }
@@ -446,18 +471,36 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
     );
   };
 
+  const premiumOpacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+
   return (
-    <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Animated.View style={[
+      styles.postCard,
+      { backgroundColor: colors.card, borderColor: isPremium ? "#f59e0b" : colors.border, borderWidth: isPremium ? 1.5 : StyleSheet.hairlineWidth },
+      isPremium && { opacity: premiumOpacity },
+    ]}>
+      {isPremium && (
+        <LinearGradient
+          colors={["#f59e0b18", "#f9731608", "transparent"]}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, borderRadius: 12 }}
+          pointerEvents="none"
+        />
+      )}
       {/* Header */}
       <View style={styles.postHeader}>
         <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)}>
-          <Avatar name={post.userName} url={post.userAvatar} colors={colors} />
+          <Avatar name={post.userName} url={post.userAvatar} colors={colors} isPremium={isPremium} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)}>
               <Text style={[styles.postName, { color: colors.foreground }]} numberOfLines={1}>{post.userName}</Text>
             </TouchableOpacity>
+            {isPremium && (
+              <View style={{ backgroundColor: "#f59e0b20", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#f59e0b60" }}>
+                <Text style={{ color: "#f59e0b", fontSize: 9, fontWeight: "800" }}>✦ PREMIUM</Text>
+              </View>
+            )}
             {post.verificationStatus === "verified" && (
               <View style={{ backgroundColor: "#d1fae5", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: "#6ee7b7" }}>
                 <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
@@ -474,7 +517,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
                 </View>
               );
             })()}
-            {!!post.userRole && (
+            {!!post.userRole && post.userRole !== "premium" && (
               <View style={{ backgroundColor: "#ede9fe", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
                 <Text style={{ color: "#6d28d9", fontSize: 9, fontWeight: "700" }}>🎓 {post.userRole}</Text>
               </View>
@@ -485,8 +528,8 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
               </View>
             )}
           </View>
-          <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
-            UID-{formatUID(post.userId, post.userCustomUid)}
+          <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
+            {isPremium ? "✦ " : ""}UID-{formatUID(post.userId, post.userCustomUid)}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
             <Text style={[styles.postTime, { color: colors.mutedForeground }]}>{timeAgo(post.createdAt)}</Text>
@@ -669,7 +712,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
           insets={insets}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 

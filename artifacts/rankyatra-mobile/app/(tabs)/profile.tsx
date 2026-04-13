@@ -578,8 +578,10 @@ export default function ProfileScreen() {
                 {uploadingAvatar ? <ActivityIndicator size={10} color="#fff" /> : <Feather name="camera" size={10} color="#fff" />}
               </View>
             </TouchableOpacity>
-            <View style={{ position: "absolute", bottom: -6, right: -6, backgroundColor: "#f59e0b", borderRadius: 12, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff2" }}>
-              <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+            <View style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center" }}>
+              <View style={{ backgroundColor: "#f59e0b", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff3" }}>
+                <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+              </View>
             </View>
           </View>
         ) : (

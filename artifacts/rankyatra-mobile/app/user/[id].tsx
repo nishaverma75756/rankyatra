@@ -615,14 +615,16 @@ export default function UserPublicProfile() {
               borderRadius: 44, borderWidth: 2.5, borderColor: premiumRingBorderColor,
             }} />
             {resolveAvatar(u.avatarUrl) ? (
-              <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={styles.avatar} />
+              <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={[styles.avatar, { borderColor: "#f59e0b" }]} />
             ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}>
-                <Text style={styles.avatarText}>{initials}</Text>
+              <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: "#1a0a2e" }]}>
+                <Text style={[styles.avatarText, { color: "#f59e0b" }]}>{initials}</Text>
               </View>
             )}
-            <View style={{ position: "absolute", bottom: -6, right: -6, backgroundColor: "#f59e0b", borderRadius: 12, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff2" }}>
-              <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+            <View style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center" }}>
+              <View style={{ backgroundColor: "#f59e0b", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff3" }}>
+                <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+              </View>
             </View>
           </View>
         ) : resolveAvatar(u.avatarUrl) ? (

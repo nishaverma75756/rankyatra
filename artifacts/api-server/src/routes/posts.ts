@@ -62,6 +62,7 @@ router.get("/posts", optionalAuth, async (req: any, res: any) => {
         topReplyUser: sql<string | null>`(SELECT u.name FROM post_comments pc JOIN users u ON u.id = pc.user_id WHERE pc.post_id = ${postsTable.id} AND pc.parent_comment_id IS NOT NULL ORDER BY pc.created_at DESC LIMIT 1)`,
         topReplyUserAvatar: sql<string | null>`(SELECT u.avatar_url FROM post_comments pc JOIN users u ON u.id = pc.user_id WHERE pc.post_id = ${postsTable.id} AND pc.parent_comment_id IS NOT NULL ORDER BY pc.created_at DESC LIMIT 1)`,
         userRole: sql<string | null>`(SELECT role FROM user_roles WHERE user_id = ${postsTable.userId} ORDER BY assigned_at ASC LIMIT 1)`,
+        isPremium: sql<boolean>`EXISTS(SELECT 1 FROM user_roles WHERE user_id = ${postsTable.userId} AND role = 'premium')`,
         userGroupBadge: sql<string | null>`(SELECT g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ${postsTable.userId} AND gm.status = 'accepted' LIMIT 1)`,
         categories: postsTable.categories,
       })
@@ -112,6 +113,7 @@ router.get("/posts/user/:userId", optionalAuth, async (req: any, res: any) => {
           ? sql<boolean>`EXISTS(SELECT 1 FROM post_likes WHERE post_id = ${postsTable.id} AND user_id = ${viewerId})`
           : sql<boolean>`false`,
         userRole: sql<string | null>`(SELECT role FROM user_roles WHERE user_id = ${postsTable.userId} ORDER BY assigned_at ASC LIMIT 1)`,
+        isPremium: sql<boolean>`EXISTS(SELECT 1 FROM user_roles WHERE user_id = ${postsTable.userId} AND role = 'premium')`,
         userGroupBadge: sql<string | null>`(SELECT g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ${postsTable.userId} AND gm.status = 'accepted' LIMIT 1)`,
       })
       .from(postsTable)
@@ -157,6 +159,7 @@ router.get("/posts/:id", optionalAuth, async (req: any, res: any) => {
           ? sql<boolean>`EXISTS(SELECT 1 FROM follows WHERE follower_id = ${userId} AND following_id = ${postsTable.userId})`
           : sql<boolean>`false`,
         userRole: sql<string | null>`(SELECT role FROM user_roles WHERE user_id = ${postsTable.userId} ORDER BY assigned_at ASC LIMIT 1)`,
+        isPremium: sql<boolean>`EXISTS(SELECT 1 FROM user_roles WHERE user_id = ${postsTable.userId} AND role = 'premium')`,
         userGroupBadge: sql<string | null>`(SELECT g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ${postsTable.userId} AND gm.status = 'accepted' LIMIT 1)`,
       })
       .from(postsTable)
