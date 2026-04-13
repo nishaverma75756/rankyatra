@@ -232,7 +232,7 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     currentUserId
       ? db.select().from(followsTable).where(and(eq(followsTable.followerId, userId), eq(followsTable.followingId, currentUserId)))
       : Promise.resolve([]),
-    db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, userId)).limit(1),
+    db.select({ role: userRolesTable.role }).from(userRolesTable).where(eq(userRolesTable.userId, userId)),
     db.select({ groupName: groupsTable.name })
       .from(groupMembersTable)
       .leftJoin(groupsTable, eq(groupMembersTable.groupId, groupsTable.id))
@@ -309,6 +309,7 @@ router.get("/users/:userId/public-profile", optionalAuth, async (req, res): Prom
     isFollowing,
     followsYou,
     userRole: rolesData[0]?.role ?? null,
+    isPremium: rolesData.some((r) => r.role === "premium"),
     groupBadge: groupData[0]?.groupName ?? null,
     preferences: user.preferences ?? [],
   });

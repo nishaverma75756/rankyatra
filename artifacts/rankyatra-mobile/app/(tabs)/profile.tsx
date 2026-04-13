@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,9 @@ import {
   Dimensions,
   TextInput,
   KeyboardAvoidingView,
+  Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const POST_GRID_SIZE = (SCREEN_WIDTH - 32 - 8) / 3; // 3 cols, 16px margin each side, 4px gaps
@@ -66,6 +68,21 @@ export default function ProfileScreen() {
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<{ id: number; name: string; avatarUrl: string | null }[]>([]);
   const [myRoles, setMyRoles] = useState<string[]>([]);
+
+  // Premium animations
+  const premiumPulse = useRef(new Animated.Value(0)).current;
+  const premiumSpin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(premiumPulse, { toValue: 1, duration: 1200, useNativeDriver: false }),
+        Animated.timing(premiumPulse, { toValue: 0, duration: 1200, useNativeDriver: false }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.timing(premiumSpin, { toValue: 1, duration: 4000, useNativeDriver: true })
+    ).start();
+  }, []);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
   // Edit name
@@ -312,6 +329,9 @@ export default function ProfileScreen() {
     "#6b7280"; // Beginner = grey
 
   const isKycVerified = (user as any)?.verificationStatus === "verified";
+  const isPremium = myRoles.includes("premium");
+  const premiumRingBorderColor = premiumPulse.interpolate({ inputRange: [0, 1], outputRange: ["#f59e0b80", "#f59e0bff"] });
+  const premiumStarRotate = premiumSpin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -525,41 +545,94 @@ export default function ProfileScreen() {
         onPress={() => { if (user?.id) router.push(`/user/${user.id}` as any); }}
         style={[styles.heroCard, { backgroundColor: colors.secondary }]}
       >
-        <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
-          {getFullAvatarUrl(user?.avatarUrl) ? (
-            <Image
-              source={{ uri: getFullAvatarUrl(user?.avatarUrl)! }}
-              style={styles.avatarImage}
-            />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: "#ffffff22" }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
+        {isPremium && (
+          <LinearGradient
+            colors={["#0f0a1e", "#1a0a2e", "#2d1259", "#4c1d95"]}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          />
+        )}
+        {isPremium && (
+          <LinearGradient
+            colors={["#f97316", "#f59e0b", "#f97316"]}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3 }}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          />
+        )}
+        {/* Avatar wrapper with optional premium ring */}
+        {isPremium ? (
+          <View style={{ position: "relative" }}>
+            <Animated.View style={{
+              position: "absolute", top: -4, left: -4, right: -4, bottom: -4,
+              borderRadius: 44, borderWidth: 2.5, borderColor: premiumRingBorderColor,
+            }} />
+            <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
+              {getFullAvatarUrl(user?.avatarUrl) ? (
+                <Image source={{ uri: getFullAvatarUrl(user?.avatarUrl)! }} style={styles.avatarImage} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: "#ffffff22" }]}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                {uploadingAvatar ? <ActivityIndicator size={10} color="#fff" /> : <Feather name="camera" size={10} color="#fff" />}
+              </View>
+            </TouchableOpacity>
+            <View style={{ position: "absolute", bottom: -6, right: -6, backgroundColor: "#f59e0b", borderRadius: 12, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff2" }}>
+              <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
             </View>
-          )}
-          <View style={styles.cameraBadge}>
-            {uploadingAvatar ? (
-              <ActivityIndicator size={10} color="#fff" />
+          </View>
+        ) : (
+          <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar} style={styles.avatarWrapper}>
+            {getFullAvatarUrl(user?.avatarUrl) ? (
+              <Image
+                source={{ uri: getFullAvatarUrl(user?.avatarUrl)! }}
+                style={styles.avatarImage}
+              />
             ) : (
-              <Feather name="camera" size={10} color="#fff" />
+              <View style={[styles.avatar, { backgroundColor: "#ffffff22" }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
+              {uploadingAvatar ? (
+                <ActivityIndicator size={10} color="#fff" />
+              ) : (
+                <Feather name="camera" size={10} color="#fff" />
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+        <View style={styles.heroInfo}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Text style={styles.heroName}>{user?.name}</Text>
+            {isPremium && (
+              <LinearGradient
+                colors={["#f59e0b", "#f97316"]}
+                style={{ borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              >
+                <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 }}>✦ PREMIUM</Text>
+              </LinearGradient>
             )}
           </View>
-        </TouchableOpacity>
-        <View style={styles.heroInfo}>
-          <Text style={styles.heroName}>{user?.name}</Text>
           <Text style={styles.heroEmail}>{user?.email}</Text>
           {user?.id && (
             <TouchableOpacity
               onPress={copyUID}
               activeOpacity={0.75}
-              style={styles.uidChip}
+              style={[styles.uidChip, isPremium && { borderColor: "#f59e0b80", backgroundColor: "#f59e0b18" }]}
             >
-              <Text style={styles.uidChipText}>
+              {isPremium && (
+                <Animated.Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "800", transform: [{ rotate: premiumStarRotate }] }}>✦</Animated.Text>
+              )}
+              <Text style={[styles.uidChipText, isPremium && { color: "#f59e0b" }]}>
                 UID-RY{String(user.customUid ?? user.id).padStart(10, "0")}
               </Text>
               <Feather
                 name={uidCopied ? "check" : "copy"}
                 size={11}
-                color={uidCopied ? "#4ade80" : "#ffffff99"}
+                color={uidCopied ? "#4ade80" : isPremium ? "#f59e0b99" : "#ffffff99"}
               />
             </TouchableOpacity>
           )}
@@ -582,7 +655,7 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             )}
-            {!!(user as any)?.userRole && (
+            {!!(user as any)?.userRole && (user as any)?.userRole !== "premium" && (
               <View style={[styles.badge, { backgroundColor: "#7c3aed" }]}>
                 <Text style={[styles.badgeText, { color: "#fff" }]}>🎓 {(user as any).userRole}</Text>
               </View>
@@ -1271,6 +1344,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     marginBottom: 20,
+    overflow: "hidden",
   },
   avatarWrapper: {
     position: "relative",

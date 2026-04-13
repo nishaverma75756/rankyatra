@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Image, ActivityIndicator,
-  TouchableOpacity, Platform, Dimensions, Modal, StatusBar, Pressable,
+  TouchableOpacity, Platform, Dimensions, Modal, StatusBar, Pressable, Animated,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import { useEffect, useRef } from "react";
 import { showConfirm, showError } from "@/utils/alert";
+import { LinearGradient } from "expo-linear-gradient";
 
 const _MIN_ASPECT = 3 / 4;
 function SmartPostImage({ uri, onPress, colors }: { uri: string; onPress: () => void; colors: any }) {
@@ -72,11 +73,21 @@ const SKILL_COLORS: Record<string, string> = {
 };
 
 // ─── ProfilePostCard ──────────────────────────────────────────────────────────
-function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any; user: any; colors: any; isSelf?: boolean; onDeleted?: (id: number) => void }) {
+function ProfilePostCard({ post, user, colors, isSelf, onDeleted, isPremium }: { post: any; user: any; colors: any; isSelf?: boolean; onDeleted?: (id: number) => void; isPremium?: boolean }) {
   const router = useRouter();
   const [isLiked, setIsLiked] = useState(post.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
   const { user: me, token } = useAuth();
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isPremium) return;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [isPremium]);
 
   const handlePostMenu = () => {
     showConfirm(
@@ -121,8 +132,21 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
   const avatarUri = resolveAvatar(user?.avatarUrl);
   const initials = (user?.name ?? "?").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
 
+  const premiumBorderOpacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+
   return (
-    <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Animated.View style={[
+      styles.postCard,
+      { backgroundColor: colors.card, borderColor: isPremium ? "#f59e0b" : colors.border, borderWidth: isPremium ? 1.5 : StyleSheet.hairlineWidth },
+      isPremium && { opacity: premiumBorderOpacity },
+    ]}>
+      {isPremium && (
+        <LinearGradient
+          colors={["#f59e0b18", "#f9731608", "transparent"]}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 60, borderRadius: 12 }}
+          pointerEvents="none"
+        />
+      )}
       {/* Header */}
       <View style={styles.postHeader}>
         {avatarUri ? (
@@ -135,6 +159,11 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <Text style={[styles.postName, { color: colors.foreground }]} numberOfLines={1}>{user?.name}</Text>
+            {isPremium && (
+              <View style={{ backgroundColor: "#f59e0b20", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#f59e0b60" }}>
+                <Text style={{ color: "#f59e0b", fontSize: 9, fontWeight: "800" }}>✦ PREMIUM</Text>
+              </View>
+            )}
             {isKyc && (
               <View style={{ backgroundColor: "#d1fae5", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: "#6ee7b7" }}>
                 <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
@@ -144,8 +173,8 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
               <Text style={{ color: skillFg, fontSize: 9, fontWeight: "700" }}>{skillLabel}</Text>
             </View>
           </View>
-          <Text style={{ color: colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
-            UID-{formatUID(user?.id ?? 0, user?.customUid)}
+          <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
+            {isPremium ? "✦ " : ""}UID-{formatUID(user?.id ?? 0, user?.customUid)}
           </Text>
           <Text style={[styles.postTime, { color: colors.mutedForeground, marginTop: 1 }]}>{timeAgo(post.createdAt)}</Text>
         </View>
@@ -209,7 +238,7 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted }: { post: any;
           <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>{post.viewCount ?? 0}</Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -381,6 +410,21 @@ export default function UserPublicProfile() {
   const queryClient = useQueryClient();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0) + 16;
   const [activeTab, setActiveTab] = useState<"posts" | "reels" | "stats">("posts");
+
+  // Premium animations (color anim = useNativeDriver: false; spin = useNativeDriver: true)
+  const premiumPulse = useRef(new Animated.Value(0)).current;
+  const premiumSpin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(premiumPulse, { toValue: 1, duration: 1200, useNativeDriver: false }),
+        Animated.timing(premiumPulse, { toValue: 0, duration: 1200, useNativeDriver: false }),
+      ])
+    ).start();
+    Animated.loop(
+      Animated.timing(premiumSpin, { toValue: 1, duration: 4000, useNativeDriver: true })
+    ).start();
+  }, []);
   const [selectedReel, setSelectedReel] = useState<any | null>(null);
   const [deletedPostIds, setDeletedPostIds] = useState<Set<number>>(new Set());
   const [deletedReelIds, setDeletedReelIds] = useState<Set<number>>(new Set());
@@ -458,9 +502,12 @@ export default function UserPublicProfile() {
   const initials = (u?.name ?? "?").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
   const skillColor = SKILL_COLORS[u?.skillLevel] ?? "#6b7280";
   const isKyc = u?.verificationStatus === "verified";
+  const isPremium: boolean = u?.isPremium ?? false;
   const uid = u?.id ? `UID-${formatUID(u.id, u.customUid)}` : "";
   const isFollowing: boolean = u?.isFollowing ?? false;
   const followsYou: boolean = u?.followsYou ?? false;
+  const premiumRingBorderColor = premiumPulse.interpolate({ inputRange: [0, 1], outputRange: ["#f59e0b80", "#f59e0bff"] });
+  const premiumStarRotate = premiumSpin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const isMutating = followMutation.isPending || unfollowMutation.isPending;
   const userPosts: any[] = (userPostsData?.posts ?? []).filter((p: any) => !deletedPostIds.has(p.id));
   const userReels: any[] = (userReelsData?.reels ?? []).filter((r: any) => !deletedReelIds.has(r.id));
@@ -545,8 +592,40 @@ export default function UserPublicProfile() {
 
   const HeroSection = (
     <View style={styles.hero}>
+      {isPremium ? (
+        <LinearGradient
+          colors={["#0f0a1e", "#1a0a2e", "#2d1259", "#4c1d95"]}
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        />
+      ) : null}
+      {isPremium && (
+        <LinearGradient
+          colors={["#f97316", "#f59e0b", "#f97316"]}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3 }}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        />
+      )}
       <View style={styles.heroInner}>
-        {resolveAvatar(u.avatarUrl) ? (
+        {/* Avatar with premium animated ring */}
+        {isPremium ? (
+          <View style={{ position: "relative" }}>
+            <Animated.View style={{
+              position: "absolute", top: -4, left: -4, right: -4, bottom: -4,
+              borderRadius: 44, borderWidth: 2.5, borderColor: premiumRingBorderColor,
+            }} />
+            {resolveAvatar(u.avatarUrl) ? (
+              <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            <View style={{ position: "absolute", bottom: -6, right: -6, backgroundColor: "#f59e0b", borderRadius: 12, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff2" }}>
+              <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
+            </View>
+          </View>
+        ) : resolveAvatar(u.avatarUrl) ? (
           <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, styles.avatarFallback]}>
@@ -555,15 +634,34 @@ export default function UserPublicProfile() {
         )}
         <View style={styles.heroInfo}>
           <View style={styles.heroNameRow}>
-            <Text style={styles.heroName} numberOfLines={1}>{u.name}</Text>
+            <Text style={[styles.heroName, isPremium && { color: "#fef3c7" }]} numberOfLines={1}>{u.name}</Text>
             {u.isAdmin && <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>👑 Admin</Text></View>}
+            {isPremium && (
+              <LinearGradient
+                colors={["#f59e0b", "#f97316"]}
+                style={{ borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              >
+                <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 }}>✦ PREMIUM</Text>
+              </LinearGradient>
+            )}
           </View>
           {followsYou && !isSelf && (
             <View style={styles.followsYouBadge}>
               <Text style={styles.followsYouText}>Follows you</Text>
             </View>
           )}
-          <Text style={styles.heroUID}>{uid}</Text>
+          {/* Premium UID badge */}
+          {isPremium ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+              <Animated.Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "800", transform: [{ rotate: premiumStarRotate }] }}>✦</Animated.Text>
+              <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "800", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1.5 }}>
+                {uid}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.heroUID}>{uid}</Text>
+          )}
           <View style={styles.badgeRow}>
             {isKyc && (
               <View style={styles.kycBadge}>
@@ -576,7 +674,7 @@ export default function UserPublicProfile() {
                 <Text style={[styles.tierText, { color: skillColor }]}>{u.skillIcon} {u.skillLevel}</Text>
               </View>
             )}
-            {!!u.userRole && (
+            {!!u.userRole && u.userRole !== "premium" && (
               <View style={[styles.tierBadge, { backgroundColor: "#7c3aed30" }]}>
                 <Text style={[styles.tierText, { color: "#7c3aed" }]}>🎓 {u.userRole}</Text>
               </View>
@@ -847,6 +945,7 @@ export default function UserPublicProfile() {
               user={u}
               colors={colors}
               isSelf={isSelf}
+              isPremium={isPremium}
               onDeleted={(id) => setDeletedPostIds((prev) => new Set([...prev, id]))}
             />
           ))}
