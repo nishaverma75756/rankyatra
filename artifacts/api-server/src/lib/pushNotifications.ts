@@ -60,6 +60,7 @@ type PushMessage = {
   sound?: "default" | null;
   badge?: number;
   categoryId?: string;
+  image?: string;
 };
 
 type PushOptions = {
@@ -117,7 +118,11 @@ export async function sendPushToUser(
           fcmTokens.map((token) =>
             messaging.send({
               token,
-              notification: { title, body },
+              notification: {
+                title,
+                body,
+                ...(options.imageUrl ? { imageUrl: options.imageUrl } : {}),
+              },
               data: fcmData,
               android: {
                 priority: "high",
@@ -157,6 +162,7 @@ export async function sendPushToUser(
         data: data ?? {},
         sound: "default",
         ...(options.category ? { categoryId: options.category } : {}),
+        ...(options.imageUrl ? { image: options.imageUrl } : {}),
       }));
       const expoRes = await fetch(EXPO_PUSH_URL, {
         method: "POST",
