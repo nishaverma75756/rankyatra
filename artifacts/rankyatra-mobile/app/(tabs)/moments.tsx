@@ -483,6 +483,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
           <Avatar name={post.userName} url={post.userAvatar} colors={colors} isPremium={isPremium} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
+          {/* Row 1: Name + verification badges */}
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <TouchableOpacity onPress={() => router.push(`/user/${post.userId}` as any)}>
               <Text style={[styles.postName, { color: colors.foreground }]} numberOfLines={1}>{post.userName}</Text>
@@ -497,29 +498,32 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
                 <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
               </View>
             )}
+          </View>
+          {/* Row 2: Skill + role + group badges grouped */}
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
             {(() => {
               const rp = post.rankPoints ?? 0;
               const label = rp > 700 ? "🏆 Champion" : rp > 400 ? "🔥 Advanced" : rp > 200 ? "⚔️ Warrior" : rp > 100 ? "⚡ Explorer" : "🌱 Beginner";
               const bg = rp > 700 ? "#fef3c7" : rp > 400 ? "#fee2e2" : rp > 200 ? "#ede9fe" : rp > 100 ? "#e0f2fe" : "#f3f4f6";
               const fg = rp > 700 ? "#92400e" : rp > 400 ? "#991b1b" : rp > 200 ? "#5b21b6" : rp > 100 ? "#075985" : "#374151";
               return (
-                <View style={{ backgroundColor: bg, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <View style={{ backgroundColor: bg, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: fg, fontSize: 9, fontWeight: "700" }}>{label}</Text>
                 </View>
               );
             })()}
             {!!post.userRole && post.userRole !== "premium" && (
-              <View style={{ backgroundColor: "#ede9fe", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+              <View style={{ backgroundColor: "#ede9fe", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ color: "#6d28d9", fontSize: 9, fontWeight: "700" }}>🎓 {post.userRole}</Text>
               </View>
             )}
             {!!post.userGroupBadge && (
-              <View style={{ backgroundColor: "#e0f2fe", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 }}>
+              <View style={{ backgroundColor: "#e0f2fe", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ color: "#0369a1", fontSize: 9, fontWeight: "700" }}>👥 {post.userGroupBadge}</Text>
               </View>
             )}
           </View>
-          <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 2 }}>
+          <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontSize: 9, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", letterSpacing: 1, marginTop: 3 }}>
             {isPremium ? "✦ " : ""}UID-{formatUID(post.userId, post.userCustomUid)}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
@@ -529,22 +533,6 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
             )}
           </View>
         </View>
-
-        {/* Follow pill (for other users) */}
-        {!!currentUser && !isSelf && (
-          <TouchableOpacity
-            style={[styles.followPill, {
-              borderColor: isFollowing ? "#ef4444" : colors.border,
-              backgroundColor: isFollowing ? "#ef444415" : "transparent",
-            }]}
-            onPress={toggleFollow}
-          >
-            <Feather name={isFollowing ? "user-minus" : "user-plus"} size={11} color={isFollowing ? "#ef4444" : colors.foreground} />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: isFollowing ? "#ef4444" : colors.foreground }}>
-              {isFollowing ? "Unfollow" : "Follow"}
-            </Text>
-          </TouchableOpacity>
-        )}
 
         {/* 3-dot menu */}
         <TouchableOpacity
