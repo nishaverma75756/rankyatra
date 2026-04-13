@@ -41,6 +41,8 @@ export const usersTable = pgTable("users", {
   registrationIp: text("registration_ip"),
   canPostReels: boolean("can_post_reels").notNull().default(false),
   preferences: text("preferences").array().notNull().default([]),
+  bannedUntil: timestamp("banned_until", { withTimezone: true }),
+  banReason: text("ban_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

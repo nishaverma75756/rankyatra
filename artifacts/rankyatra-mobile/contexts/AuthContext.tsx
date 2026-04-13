@@ -19,15 +19,24 @@ interface AuthUser {
   is_admin?: boolean;
   wallet_balance?: string;
   avatar_url?: string | null;
+  bannedUntil?: string | null;
+  banReason?: string | null;
+}
+
+export interface BanInfo {
+  bannedUntil: string;
+  banReason: string;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
+  banInfo: BanInfo | null;
   login: (token: string, user: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<AuthUser>) => void;
+  handleBannedLogin: (info: BanInfo) => void;
 }
 
 const AUTH_TOKEN_KEY = "rankyatra_token";
@@ -47,6 +56,8 @@ function normalizeUser(raw: any): AuthUser {
     canPostReels: raw.canPostReels ?? false,
     customUid: raw.customUid ?? null,
     preferences: Array.isArray(raw.preferences) ? raw.preferences : [],
+    bannedUntil: raw.bannedUntil ?? null,
+    banReason: raw.banReason ?? null,
   };
 }
 
@@ -58,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const tokenRef = useRef<string | null>(null);
 
   // Keep tokenRef in sync so AppState handler can read current token
@@ -75,6 +87,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const normalized = normalizeUser(freshUser);
           await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized)).catch(() => {});
           setUser(normalized);
+          setBanInfo(null);
+        }
+      } else if (res && res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === "banned" && data.bannedUntil) {
+          setBanInfo({ bannedUntil: data.bannedUntil, banReason: data.banReason ?? "Account temporarily suspended" });
         }
       }
     } catch {}
@@ -111,6 +129,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (freshUser) await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
             setToken(storedToken);
             setUser(normalized);
+            // Clear any previous ban info if ban expired
+            setBanInfo(null);
+          } else if (res && res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            if (data.error === "banned" && data.bannedUntil) {
+              // Keep token but show ban screen
+              setToken(storedToken);
+              setUser(normalizeUser(JSON.parse(storedUser)));
+              setBanInfo({ bannedUntil: data.bannedUntil, banReason: data.banReason ?? "Account temporarily suspended" });
+            } else {
+              // Blocked permanently
+              await Promise.all([AsyncStorage.removeItem(AUTH_TOKEN_KEY), AsyncStorage.removeItem(AUTH_USER_KEY)]);
+            }
           } else if (res && res.status === 401) {
             // Server explicitly rejected — token is invalid, clear it
             await Promise.all([
@@ -170,8 +201,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const handleBannedLogin = useCallback((info: BanInfo) => {
+    setBanInfo(info);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, banInfo, login, logout, updateUser, handleBannedLogin }}>
       {children}
     </AuthContext.Provider>
   );

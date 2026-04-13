@@ -18,6 +18,7 @@ import { setBaseUrl } from "@workspace/api-client-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import BannedScreen from "@/components/BannedScreen";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ActivityCountProvider } from "@/contexts/ActivityCountContext";
 import { ReelsUploadProvider } from "@/contexts/ReelsUploadContext";
@@ -243,17 +244,21 @@ function GlobalHeartbeat() {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, banInfo } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
     const inAuthGroup = segments[0] === "(auth)";
-    if (user && inAuthGroup) {
+    if (user && !banInfo && inAuthGroup) {
       router.replace("/(tabs)/");
     }
-  }, [user, isLoading, segments]);
+  }, [user, isLoading, segments, banInfo]);
+
+  if (!isLoading && banInfo && new Date(banInfo.bannedUntil) > new Date()) {
+    return <BannedScreen />;
+  }
 
   return <><GlobalHeartbeat /><PushNotificationSetup />{children}</>;
 }

@@ -28,6 +28,8 @@ function userPayload(user: typeof usersTable.$inferSelect) {
     canPostReels: user.canPostReels ?? false,
     preferences: Array.isArray(user.preferences) ? user.preferences : [],
     createdAt: user.createdAt.toISOString(),
+    bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,
+    banReason: user.banReason ?? null,
   };
 }
 
@@ -178,6 +180,14 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   if (user.isBlocked) {
     res.status(403).json({ error: "Account blocked. Contact admin." });
+    return;
+  }
+  if (user.bannedUntil && user.bannedUntil > new Date()) {
+    res.status(403).json({
+      error: "banned",
+      bannedUntil: user.bannedUntil.toISOString(),
+      banReason: user.banReason ?? "Account temporarily suspended",
+    });
     return;
   }
 

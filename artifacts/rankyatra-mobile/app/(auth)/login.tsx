@@ -32,7 +32,7 @@ GoogleSignin.configure({
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { login, handleBannedLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -52,7 +52,11 @@ export default function LoginScreen() {
       router.replace("/(tabs)/");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showError("Login Failed", e?.data?.error || e?.data?.message || "Invalid credentials.");
+      if (e?.data?.error === "banned" && e?.data?.bannedUntil) {
+        handleBannedLogin({ bannedUntil: e.data.bannedUntil, banReason: e.data.banReason ?? "Account temporarily suspended" });
+      } else {
+        showError("Login Failed", e?.data?.error || e?.data?.message || "Invalid credentials.");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,7 +82,13 @@ export default function LoginScreen() {
         body: JSON.stringify({ idToken }),
       });
       const data = await serverRes.json();
-      if (!serverRes.ok) throw new Error(data.error || "Google Sign-In failed");
+      if (!serverRes.ok) {
+        if (serverRes.status === 403 && data.error === "banned" && data.bannedUntil) {
+          handleBannedLogin({ bannedUntil: data.bannedUntil, banReason: data.banReason ?? "Account temporarily suspended" });
+          return;
+        }
+        throw new Error(data.error || "Google Sign-In failed");
+      }
 
       await login(data.token, data.user);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

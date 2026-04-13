@@ -120,6 +120,8 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
     panCardUrl: verification?.panCardUrl ?? null,
     kycStatus: verification?.status ?? null,
     kycNote: verification?.adminNote ?? null,
+    bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,
+    banReason: user.banReason ?? null,
   });
 });
 
@@ -1026,6 +1028,50 @@ router.delete("/admin/reels/:reelId", requireAdmin, async (req, res): Promise<vo
     console.error("[admin/reels/:reelId DELETE]", err);
     res.status(500).json({ error: "Failed to delete reel" });
   }
+});
+
+// ─── POST /admin/users/:id/ban — timed ban ────────────────────────────────────
+router.post("/admin/users/:userId/ban", requireAdmin, async (req: any, res): Promise<void> => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user ID" }); return; }
+
+  const { duration, bannedUntil: customUntil, banReason } = req.body;
+  if (!banReason?.trim()) { res.status(400).json({ error: "banReason is required" }); return; }
+
+  const [targetUser] = await db.select({ id: usersTable.id, isSuperAdmin: usersTable.isSuperAdmin })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!targetUser) { res.status(404).json({ error: "User not found" }); return; }
+  if (targetUser.isSuperAdmin) { res.status(403).json({ error: "Super admin cannot be banned" }); return; }
+
+  let bannedUntil: Date;
+  if (duration === "custom" && customUntil) {
+    bannedUntil = new Date(customUntil);
+  } else {
+    const ms: Record<string, number> = {
+      "1h": 60 * 60 * 1000,
+      "6h": 6 * 60 * 60 * 1000,
+      "12h": 12 * 60 * 60 * 1000,
+      "24h": 24 * 60 * 60 * 1000,
+      "3d": 3 * 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+    };
+    if (!ms[duration]) { res.status(400).json({ error: "Invalid duration. Use 1h/6h/12h/24h/3d/7d/30d or custom" }); return; }
+    bannedUntil = new Date(Date.now() + ms[duration]);
+  }
+  if (bannedUntil <= new Date()) { res.status(400).json({ error: "Ban expiry must be in the future" }); return; }
+
+  await db.update(usersTable).set({ bannedUntil, banReason: banReason.trim() }).where(eq(usersTable.id, userId));
+  console.log(`[admin/ban] User ${userId} banned until ${bannedUntil.toISOString()} — reason: ${banReason}`);
+  res.json({ ok: true, bannedUntil: bannedUntil.toISOString(), banReason: banReason.trim() });
+});
+
+// ─── DELETE /admin/users/:id/ban — unban ──────────────────────────────────────
+router.delete("/admin/users/:userId/ban", requireAdmin, async (req: any, res): Promise<void> => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  await db.update(usersTable).set({ bannedUntil: null, banReason: null }).where(eq(usersTable.id, userId));
+  res.json({ ok: true });
 });
 
 // ─── POST /admin/upload-image — upload notification image, returns public URL ─

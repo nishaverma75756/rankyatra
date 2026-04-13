@@ -87,6 +87,14 @@ export default function AdminUserDetail() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  // Timed ban
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banDuration, setBanDuration] = useState("24h");
+  const [banCustomDate, setBanCustomDate] = useState("");
+  const [banReason, setBanReason] = useState("");
+  const [banning, setBanning] = useState(false);
+  const [unbanning, setUnbanning] = useState(false);
+
   // Reel application
   const [reelApp, setReelApp] = useState<any>(null);
   const [reelAppLoading, setReelAppLoading] = useState(false);
@@ -363,6 +371,56 @@ export default function AdminUserDetail() {
     },
   });
 
+  const handleBan = async () => {
+    setBanning(true);
+    try {
+      let bannedUntil: string;
+      if (banDuration === "custom") {
+        if (!banCustomDate) {
+          toast({ title: "Select expiry date", variant: "destructive" });
+          setBanning(false);
+          return;
+        }
+        bannedUntil = new Date(banCustomDate).toISOString();
+      } else {
+        const map: Record<string, number> = {
+          "1h": 1, "6h": 6, "12h": 12, "24h": 24, "72h": 72, "168h": 168, "720h": 720,
+        };
+        const hrs = map[banDuration] ?? 24;
+        bannedUntil = new Date(Date.now() + hrs * 60 * 60 * 1000).toISOString();
+      }
+      const res = await fetch(`/api/admin/users/${userId}/ban`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ bannedUntil, banReason: banReason || "Account temporarily suspended" }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Failed to ban user"); }
+      toast({ title: "User banned", description: `Account suspended until ${new Date(bannedUntil).toLocaleString()}` });
+      setShowBanModal(false);
+      setBanReason("");
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+    setBanning(false);
+  };
+
+  const handleUnban = async () => {
+    setUnbanning(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/ban`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Failed to unban user"); }
+      toast({ title: "User unbanned", description: "Suspension has been lifted." });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+    setUnbanning(false);
+  };
+
   const handleSaveProfile = () => {
     const data: any = {};
     if (name && name !== u?.name) data.name = name;
@@ -433,6 +491,12 @@ export default function AdminUserDetail() {
                     </Badge>
                   )}
                   {u?.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
+                  {u?.bannedUntil && new Date(u.bannedUntil) > new Date() && (
+                    <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-300">
+                      <Clock className="h-2.5 w-2.5 mr-1" />
+                      Suspended
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">{u?.email}</p>
                 {u?.id && (
@@ -473,16 +537,41 @@ export default function AdminUserDetail() {
             {/* Action buttons */}
             <div className="flex gap-2 mt-4 flex-wrap">
               {!isTargetAdmin && !isTargetSuperAdmin && (
-                <Button
-                  size="sm"
-                  variant={u?.isBlocked ? "outline" : "destructive"}
-                  disabled={blocking}
-                  onClick={() => blockUser({ userId, data: { isBlocked: !u?.isBlocked } })}
-                >
-                  {u?.isBlocked
-                    ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Unblock</>
-                    : <><UserX className="h-3.5 w-3.5 mr-1" />Block User</>}
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant={u?.isBlocked ? "outline" : "destructive"}
+                    disabled={blocking}
+                    onClick={() => blockUser({ userId, data: { isBlocked: !u?.isBlocked } })}
+                  >
+                    {u?.isBlocked
+                      ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Unblock</>
+                      : <><UserX className="h-3.5 w-3.5 mr-1" />Block User</>}
+                  </Button>
+
+                  {u?.bannedUntil && new Date(u.bannedUntil) > new Date() ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-400 text-orange-600 hover:bg-orange-50"
+                      disabled={unbanning}
+                      onClick={handleUnban}
+                    >
+                      <Clock className="h-3.5 w-3.5 mr-1" />
+                      {unbanning ? "Lifting..." : "Lift Suspension"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                      onClick={() => { setBanDuration("24h"); setBanReason(""); setBanCustomDate(""); setShowBanModal(true); }}
+                    >
+                      <Clock className="h-3.5 w-3.5 mr-1" />
+                      Timed Ban
+                    </Button>
+                  )}
+                </>
               )}
 
               {/* Super admin only: Grant/Revoke admin */}
@@ -1243,6 +1332,80 @@ export default function AdminUserDetail() {
               }}
             >
               {resetting ? "Resetting..." : "Permanently Reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Timed Ban Modal */}
+      <Dialog open={showBanModal} onOpenChange={setShowBanModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-600" />
+              Timed Suspension
+            </DialogTitle>
+            <DialogDescription>
+              Temporarily suspend <strong>{u?.name}</strong>. The account will auto-restore after the selected period.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Duration</Label>
+              <Select value={banDuration} onValueChange={setBanDuration}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1h">1 Hour</SelectItem>
+                  <SelectItem value="6h">6 Hours</SelectItem>
+                  <SelectItem value="12h">12 Hours</SelectItem>
+                  <SelectItem value="24h">24 Hours (1 Day)</SelectItem>
+                  <SelectItem value="72h">3 Days</SelectItem>
+                  <SelectItem value="168h">7 Days</SelectItem>
+                  <SelectItem value="720h">30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Date & Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {banDuration === "custom" && (
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Expiry Date & Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={banCustomDate}
+                  onChange={(e) => setBanCustomDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Reason (shown to user)</Label>
+              <Input
+                placeholder="e.g. Violation of community guidelines"
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              The user will see this suspension message when they open the app and will not be able to log in until the period ends.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBanModal(false)} disabled={banning}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={banning}
+              onClick={handleBan}
+            >
+              {banning ? "Applying..." : "Apply Suspension"}
             </Button>
           </DialogFooter>
         </DialogContent>

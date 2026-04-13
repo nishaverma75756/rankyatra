@@ -69,6 +69,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       res.status(403).json({ error: "Account blocked" });
       return;
     }
+    if (user.bannedUntil && user.bannedUntil > new Date()) {
+      res.status(403).json({
+        error: "banned",
+        bannedUntil: user.bannedUntil.toISOString(),
+        banReason: user.banReason ?? "Account temporarily suspended",
+      });
+      return;
+    }
 
     req.user = {
       id: user.id,
