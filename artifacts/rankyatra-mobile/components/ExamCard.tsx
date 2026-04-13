@@ -100,7 +100,7 @@ export function ExamCard({ exam, onPress, isRegistered, hasSubmitted }: ExamCard
             activeOpacity={0.8}
           >
             <Feather name="user-plus" size={12} color="#fff" />
-            <Text style={styles.actionBtnText}>Join Exam Now</Text>
+            <Text style={styles.actionBtnText}>Join Now</Text>
           </TouchableOpacity>
         );
       }
