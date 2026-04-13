@@ -27,6 +27,7 @@ import notificationsRouter from "./notifications";
 import rolesRouter from "./roles";
 import referralRouter from "./referral";
 import sitemapRouter from "./sitemap";
+import supportRouter from "./support";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(notificationsRouter);
 router.use(rolesRouter);
 router.use(referralRouter);
 router.use(sitemapRouter);
+router.use(supportRouter);
 
 export default router;

@@ -28,4 +28,5 @@ export * from "./groups";
 export * from "./referrals";
 export * from "./referral_clicks";
 export * from "./reel_applications";
+export * from "./feedback";
 

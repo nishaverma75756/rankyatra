@@ -1,7 +1,7 @@
 import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
-export const USER_ROLES = ["teacher", "influencer", "promoter", "partner", "premium"] as const;
+export const USER_ROLES = ["teacher", "influencer", "promoter", "partner", "premium", "customer_support"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const userRolesTable = pgTable("user_roles", {

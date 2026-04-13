@@ -184,6 +184,11 @@ export default function AdminDashboard() {
               <Mail className="h-4 w-4" /> Email Compose
             </Link>
           </Button>
+          <Button asChild variant="outline" className="border-orange-500 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20">
+            <Link href="/admin/feedback" className="flex items-center gap-2">
+              💬 Feedback &amp; Suggestions
+            </Link>
+          </Button>
         </div>
 
         {/* Stats */}

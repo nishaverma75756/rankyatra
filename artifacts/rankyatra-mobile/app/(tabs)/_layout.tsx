@@ -97,6 +97,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="support"
+        options={{
+          title: "Support",
+          tabBarIcon: ({ color }) => <Feather name="headphones" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
