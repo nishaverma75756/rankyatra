@@ -9,7 +9,10 @@ Disallow: /answer-sheet/
 Disallow: /oauth/callback
 Disallow: /verify-email
 
-# Block API
+# Allow sitemap access
+Allow: /api/sitemap.xml
+
+# Block rest of API
 Disallow: /api/
 
 # Sitemaps
