@@ -868,4 +868,85 @@ router.patch("/admin/users/:id/reel-access", requireSuperAdmin, async (req, res)
   }
 });
 
+// ─── GET /admin/users/:userId/content/posts — list user's posts for admin ────
+router.get("/admin/users/:userId/content/posts", requireAdmin, async (req, res): Promise<void> => {
+  const targetUserId = Number(req.params.userId);
+  try {
+    const posts = await db
+      .select({
+        id: postsTable.id,
+        content: postsTable.content,
+        imageUrl: postsTable.imageUrl,
+        createdAt: postsTable.createdAt,
+        viewCount: postsTable.viewCount,
+        likeCount: sql<number>`(SELECT COUNT(*) FROM post_likes WHERE post_id = ${postsTable.id})::int`,
+        commentCount: sql<number>`(SELECT COUNT(*) FROM post_comments WHERE post_id = ${postsTable.id})::int`,
+      })
+      .from(postsTable)
+      .where(eq(postsTable.userId, targetUserId))
+      .orderBy(desc(postsTable.id))
+      .limit(200);
+    res.json({ posts });
+  } catch (err) {
+    console.error("[admin/content/posts]", err);
+    res.status(500).json({ error: "Failed to fetch posts" });
+  }
+});
+
+// ─── GET /admin/users/:userId/content/reels — list user's reels for admin ────
+router.get("/admin/users/:userId/content/reels", requireAdmin, async (req, res): Promise<void> => {
+  const targetUserId = Number(req.params.userId);
+  try {
+    const reelsList = await db
+      .select({
+        id: reels.id,
+        caption: reels.caption,
+        thumbnailUrl: reels.thumbnailUrl,
+        videoUrl: reels.videoUrl,
+        viewCount: reels.viewCount,
+        likeCount: reels.likeCount,
+        commentCount: reels.commentCount,
+        createdAt: reels.createdAt,
+      })
+      .from(reels)
+      .where(eq(reels.userId, targetUserId))
+      .orderBy(desc(reels.id))
+      .limit(200);
+    res.json({ reels: reelsList });
+  } catch (err) {
+    console.error("[admin/content/reels]", err);
+    res.status(500).json({ error: "Failed to fetch reels" });
+  }
+});
+
+// ─── DELETE /admin/posts/:postId — admin delete any post ─────────────────────
+router.delete("/admin/posts/:postId", requireAdmin, async (req, res): Promise<void> => {
+  const postId = Number(req.params.postId);
+  try {
+    const [post] = await db.select({ id: postsTable.id }).from(postsTable).where(eq(postsTable.id, postId)).limit(1);
+    if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+    await db.delete(postsTable).where(eq(postsTable.id, postId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/posts/:postId DELETE]", err);
+    res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
+// ─── DELETE /admin/reels/:reelId — admin delete any reel ─────────────────────
+router.delete("/admin/reels/:reelId", requireAdmin, async (req, res): Promise<void> => {
+  const reelId = Number(req.params.reelId);
+  try {
+    const [reel] = await db.select({ id: reels.id }).from(reels).where(eq(reels.id, reelId)).limit(1);
+    if (!reel) { res.status(404).json({ error: "Reel not found" }); return; }
+    await db.delete(reelLikes).where(eq(reelLikes.reelId, reelId));
+    await db.delete(reelCommentsTable).where(eq(reelCommentsTable.reelId, reelId));
+    await db.delete(reels).where(eq(reels.id, reelId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/reels/:reelId DELETE]", err);
+    res.status(500).json({ error: "Failed to delete reel" });
+  }
+});
+
 export default router;

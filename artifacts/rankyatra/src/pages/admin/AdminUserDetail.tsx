@@ -3,7 +3,8 @@ import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Save, Wallet, Shield, ShieldOff, UserX, UserCheck, KeyRound, BadgeCheck,
   TrendingUp, CreditCard, CheckCircle, XCircle, Clock, AlertCircle, Phone, Eye, EyeOff,
-  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2, Edit2
+  GraduationCap, Star, Megaphone, Handshake, Crown, X, Lock, Settings2, Edit2,
+  Trash2, Film, Heart, MessageSquare, Play, Image as ImageIcon, RefreshCw,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +93,13 @@ export default function AdminUserDetail() {
   const [reelAppNote, setReelAppNote] = useState("");
   const [reelAccessLoading, setReelAccessLoading] = useState(false);
 
+  // Content moderation
+  const [contentTab, setContentTab] = useState<"posts" | "reels">("posts");
+  const [userPosts, setUserPosts] = useState<any[]>([]);
+  const [userReels, setUserReels] = useState<any[]>([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
   const fetchReelApp = async () => {
     if (!userId) return;
     setReelAppLoading(true);
@@ -159,7 +167,55 @@ export default function AdminUserDetail() {
     }
   }, [u?.id]);
 
-  useEffect(() => { fetchRoles(); fetchReelApp(); }, [userId]);
+  const fetchContent = async () => {
+    if (!userId) return;
+    setContentLoading(true);
+    try {
+      const [postsRes, reelsRes] = await Promise.all([
+        fetch(`/api/admin/users/${userId}/content/posts`, { headers: { Authorization: `Bearer ${getAuthToken()}` } }),
+        fetch(`/api/admin/users/${userId}/content/reels`, { headers: { Authorization: `Bearer ${getAuthToken()}` } }),
+      ]);
+      const postsData = await postsRes.json();
+      const reelsData = await reelsRes.json();
+      setUserPosts(postsData.posts ?? []);
+      setUserReels(reelsData.reels ?? []);
+    } catch {}
+    setContentLoading(false);
+  };
+
+  const handleDeletePost = async (postId: number) => {
+    if (!confirm("Delete this post? This cannot be undone.")) return;
+    setDeletingId(postId);
+    try {
+      const res = await fetch(`/api/admin/posts/${postId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      setUserPosts(prev => prev.filter(p => p.id !== postId));
+      toast({ title: "Post deleted." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed to delete post", variant: "destructive" });
+    } finally { setDeletingId(null); }
+  };
+
+  const handleDeleteReel = async (reelId: number) => {
+    if (!confirm("Delete this reel? This cannot be undone.")) return;
+    setDeletingId(reelId);
+    try {
+      const res = await fetch(`/api/admin/reels/${reelId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) { const e = await res.json(); throw e; }
+      setUserReels(prev => prev.filter(r => r.id !== reelId));
+      toast({ title: "Reel deleted." });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.error ?? "Failed to delete reel", variant: "destructive" });
+    } finally { setDeletingId(null); }
+  };
+
+  useEffect(() => { fetchRoles(); fetchReelApp(); fetchContent(); }, [userId]);
 
   const handleAssignRole = async (role: string) => {
     setRolesLoading(true);
@@ -830,6 +886,128 @@ export default function AdminUserDetail() {
             >
               {adjusting ? "Updating..." : walletType === "credit" ? `Credit ₹${walletAmount || "0"}` : `Debit ₹${walletAmount || "0"}`}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* ── Content Moderation: Posts & Reels ── */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Film className="h-4 w-4 text-primary" /> Content Moderation
+              </CardTitle>
+              <button
+                onClick={fetchContent}
+                disabled={contentLoading}
+                className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                title="Refresh"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${contentLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Tab switcher */}
+            <div className="flex border-b border-border mb-4">
+              <button
+                onClick={() => setContentTab("posts")}
+                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-px ${contentTab === "posts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                Posts ({userPosts.length})
+              </button>
+              <button
+                onClick={() => setContentTab("reels")}
+                className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-px ${contentTab === "reels" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                Reels ({userReels.length})
+              </button>
+            </div>
+
+            {contentLoading ? (
+              <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground text-sm">
+                <RefreshCw className="h-4 w-4 animate-spin" /> Loading content...
+              </div>
+            ) : contentTab === "posts" ? (
+              userPosts.length === 0 ? (
+                <p className="text-center text-muted-foreground text-sm py-8">No posts found for this user.</p>
+              ) : (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                  {userPosts.map(post => (
+                    <div key={post.id} className="flex gap-3 p-3 border border-border rounded-xl hover:bg-muted/30 transition-colors group">
+                      {post.imageUrl && (
+                        <img
+                          src={post.imageUrl}
+                          alt=""
+                          className="w-16 h-16 rounded-lg object-cover shrink-0 border border-border"
+                        />
+                      )}
+                      {!post.imageUrl && (
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 self-start mt-0.5">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm leading-relaxed line-clamp-3 text-foreground">{post.content}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Heart className="h-3 w-3" />{post.likeCount}</span>
+                          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{post.commentCount}</span>
+                          <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{post.viewCount}</span>
+                          <span className="ml-auto">{new Date(post.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-white hover:bg-destructive shrink-0 self-start opacity-0 group-hover:opacity-100 transition-opacity"
+                        disabled={deletingId === post.id}
+                        onClick={() => handleDeletePost(post.id)}
+                      >
+                        {deletingId === post.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              userReels.length === 0 ? (
+                <p className="text-center text-muted-foreground text-sm py-8">No reels found for this user.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-1">
+                  {userReels.map(reel => (
+                    <div key={reel.id} className="relative group aspect-[9/16] rounded-xl overflow-hidden bg-muted border border-border">
+                      {reel.thumbnailUrl ? (
+                        <img src={reel.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Play className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      {/* Gradient + stats */}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                        {reel.caption && (
+                          <p className="text-white text-xs line-clamp-2 mb-1">{reel.caption}</p>
+                        )}
+                        <div className="flex items-center gap-2 text-white/80 text-xs">
+                          <span className="flex items-center gap-0.5"><Heart className="h-2.5 w-2.5" />{reel.likeCount}</span>
+                          <span className="flex items-center gap-0.5"><Eye className="h-2.5 w-2.5" />{reel.viewCount}</span>
+                        </div>
+                      </div>
+                      {/* Delete button */}
+                      <button
+                        disabled={deletingId === reel.id}
+                        onClick={() => handleDeleteReel(reel.id)}
+                        className="absolute top-1.5 right-1.5 bg-destructive/90 hover:bg-destructive text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                        title="Delete reel"
+                      >
+                        {deletingId === reel.id
+                          ? <RefreshCw className="h-3 w-3 animate-spin" />
+                          : <Trash2 className="h-3 w-3" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
           </CardContent>
         </Card>
       </div>
