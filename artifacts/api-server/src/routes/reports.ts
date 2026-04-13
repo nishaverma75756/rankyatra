@@ -5,6 +5,30 @@ import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+// Generic report endpoint used by mobile app — supports post and user reports
+router.post("/reports", requireAuth, async (req: any, res: any) => {
+  const reporterId = req.user.id;
+  const { reason, details, reportedUserId, postId, conversationId } = req.body;
+
+  if (!reason) return res.status(400).json({ message: "Reason is required" });
+  if (!reportedUserId) return res.status(400).json({ message: "reportedUserId is required" });
+  if (reporterId === Number(reportedUserId)) return res.status(400).json({ message: "Cannot report yourself" });
+
+  try {
+    await db.insert(reportsTable).values({
+      reporterId,
+      reportedUserId: Number(reportedUserId),
+      postId: postId ?? null,
+      conversationId: conversationId ?? null,
+      reason,
+      details: details ?? null,
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to submit report" });
+  }
+});
+
 // Submit a report
 router.post("/users/:id/report", requireAuth, async (req: any, res: any) => {
   const reporterId = req.user.id;

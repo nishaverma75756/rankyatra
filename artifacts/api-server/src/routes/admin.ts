@@ -919,6 +919,29 @@ router.get("/admin/users/:userId/content/reels", requireAdmin, async (req, res):
   }
 });
 
+// ─── GET /admin/posts/:postId — fetch post for preview ───────────────────────
+router.get("/admin/posts/:postId", requireAdmin, async (req, res): Promise<void> => {
+  const postId = Number(req.params.postId);
+  try {
+    const [post] = await db.select({
+      id: postsTable.id,
+      content: postsTable.content,
+      imageUrl: postsTable.imageUrl,
+      createdAt: postsTable.createdAt,
+      userId: postsTable.userId,
+    }).from(postsTable).where(eq(postsTable.id, postId)).limit(1);
+    if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+
+    const [user] = await db.select({ name: usersTable.name, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable).where(eq(usersTable.id, post.userId)).limit(1);
+
+    res.json({ ...post, userName: user?.name ?? "Unknown", userAvatar: user?.avatarUrl ?? null });
+  } catch (err) {
+    console.error("[admin/posts/:postId GET]", err);
+    res.status(500).json({ error: "Failed to fetch post" });
+  }
+});
+
 // ─── DELETE /admin/posts/:postId — admin delete any post ─────────────────────
 router.delete("/admin/posts/:postId", requireAdmin, async (req, res): Promise<void> => {
   const postId = Number(req.params.postId);

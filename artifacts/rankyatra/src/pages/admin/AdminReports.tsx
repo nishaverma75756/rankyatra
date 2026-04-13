@@ -6,7 +6,8 @@ import { getAuthToken } from "@/lib/auth";
 import { Navbar } from "@/components/Navbar";
 import {
   ArrowLeft, Flag, CheckCircle, XCircle, Clock,
-  ExternalLink, User, ShieldOff, Shield, ChevronDown, ChevronUp, MessageSquare
+  ExternalLink, User, ShieldOff, Shield, ChevronDown, ChevronUp, MessageSquare,
+  Trash2, Image as ImageIcon, FileText
 } from "lucide-react";
 
 type ChatMessage = {
@@ -106,10 +107,126 @@ function ConversationMessages({ convId, reporterId, reportedUserId, token }: {
   );
 }
 
+type PostData = {
+  id: number;
+  content: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+  userName: string;
+  userAvatar: string | null;
+};
+
+function PostPreview({ postId, token, onDeleted }: { postId: number; token: string; onDeleted: () => void }) {
+  const qc = useQueryClient();
+  const [deleted, setDeleted] = useState(false);
+
+  const { data: post, isLoading, isError } = useQuery<PostData>({
+    queryKey: ["admin-post", postId],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl(`/api/admin/posts/${postId}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Not found");
+      return res.json();
+    },
+  });
+
+  const deletePost = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(getApiUrl(`/api/admin/posts/${postId}`), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      setDeleted(true);
+      qc.invalidateQueries({ queryKey: ["admin-reports"] });
+      onDeleted();
+    },
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 rounded-xl text-sm text-muted-foreground">
+      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+      Loading post...
+    </div>
+  );
+
+  if (isError || deleted) return (
+    <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 rounded-xl text-sm text-muted-foreground">
+      <FileText className="h-4 w-4" />
+      {deleted ? "Post has been deleted." : "Post not found (may have already been deleted)."}
+    </div>
+  );
+
+  if (!post) return null;
+
+  return (
+    <div className="border border-orange-200 dark:border-orange-800 rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+          <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+            Reported Post #{postId} — by {post.userName}
+          </span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {new Date(post.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+        </span>
+      </div>
+
+      {/* Post content */}
+      <div className="bg-background/50 p-4 space-y-3">
+        {post.content && (
+          <p className="text-sm text-foreground leading-relaxed">{post.content}</p>
+        )}
+        {post.imageUrl && (
+          <div className="rounded-lg overflow-hidden border border-border max-w-sm">
+            <img src={post.imageUrl} alt="Post image" className="w-full object-cover max-h-64" />
+          </div>
+        )}
+        {!post.content && !post.imageUrl && (
+          <p className="text-sm text-muted-foreground italic">No content</p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-t border-border">
+        <a
+          href={`/post/${postId}/comments`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> View Full Post
+        </a>
+        <button
+          onClick={() => {
+            if (window.confirm(`Are you sure you want to permanently delete Post #${postId}? This cannot be undone.`)) {
+              deletePost.mutate();
+            }
+          }}
+          disabled={deletePost.isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-100 dark:bg-red-900/20 hover:bg-red-200 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-colors disabled:opacity-60"
+        >
+          {deletePost.isPending
+            ? <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-500" />
+            : <Trash2 className="h-3.5 w-3.5" />
+          }
+          Delete Post
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ReportCard({ r, token }: { r: Report; token: string }) {
   const qc = useQueryClient();
   const [showMessages, setShowMessages] = useState(false);
   const [reportedBlocked, setReportedBlocked] = useState(false);
+  const [postDeleted, setPostDeleted] = useState(false);
 
   const updateStatus = useMutation({
     mutationFn: async ({ status }: { status: string }) => {
@@ -258,17 +375,22 @@ function ReportCard({ r, token }: { r: Report; token: string }) {
         </div>
       )}
 
-      {/* View Post */}
-      {r.postId && (
-        <a
-          href={`/post/${r.postId}/comments`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-xl text-sm font-semibold text-orange-700 dark:text-orange-400 hover:bg-orange-100 transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-          View Reported Post (Post #{r.postId})
-        </a>
+      {/* Post Preview + Delete */}
+      {r.postId && !postDeleted && (
+        <PostPreview
+          postId={r.postId}
+          token={token}
+          onDeleted={() => {
+            setPostDeleted(true);
+            updateStatus.mutate({ status: "resolved" });
+          }}
+        />
+      )}
+      {r.postId && postDeleted && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-xl text-sm font-semibold text-green-700 dark:text-green-400">
+          <CheckCircle className="h-4 w-4" />
+          Post deleted and report resolved.
+        </div>
       )}
 
       {/* View Conversation */}
