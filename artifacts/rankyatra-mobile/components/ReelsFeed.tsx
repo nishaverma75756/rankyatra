@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Dimensions, StyleSheet,
-  ActivityIndicator, Image, Share, Platform,
+  ActivityIndicator, Image, Share, Platform, LayoutChangeEvent,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -13,7 +13,7 @@ import { showError, showConfirm } from "@/utils/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReelsUpload } from "@/contexts/ReelsUploadContext";
 
-const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
+const { width: SCREEN_W } = Dimensions.get("window");
 
 interface Reel {
   id: number;
@@ -66,13 +66,14 @@ function formatUID(id: number) {
 }
 
 // ─── Single Reel Item ─────────────────────────────────────────────────────────
-function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, onDelete }: {
+function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, onDelete, itemHeight }: {
   reel: Reel;
   isActive: boolean;
   currentUserId: number | null;
   bottomInset: number;
   tabBarHeight: number;
   onDelete: (id: number) => void;
+  itemHeight: number;
 }) {
   const [liked, setLiked] = useState(reel.isLiked);
   const [likeCount, setLikeCount] = useState(reel.likeCount);
@@ -142,12 +143,11 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
   const caption = reel.caption?.trim() ?? "";
   const isLongCaption = caption.length > 80;
 
-  // Position everything above the tab bar
   const actionBottom = tabBarHeight + 16;
   const infoBottom = tabBarHeight + 16;
 
   return (
-    <View style={{ width: SCREEN_W, height: SCREEN_H, backgroundColor: "#000" }}>
+    <View style={{ width: SCREEN_W, height: itemHeight, backgroundColor: "#000" }}>
       {/* Video or thumbnail */}
       {isActive ? (
         player ? (
@@ -179,7 +179,6 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
 
       {/* ── Right action buttons ── */}
       <View style={[s.rightActions, { bottom: actionBottom }]}>
-        {/* Like */}
         <TouchableOpacity style={s.actionBtn} onPress={toggleLike} activeOpacity={0.7}>
           <Feather name="heart" size={28} color={liked ? "#f97316" : "#fff"} />
           <Text style={[s.actionLabel, liked && { color: "#f97316" }]}>
@@ -187,7 +186,6 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
           </Text>
         </TouchableOpacity>
 
-        {/* Comment */}
         <TouchableOpacity
           style={s.actionBtn}
           onPress={() => router.push({ pathname: "/post-comments", params: { reelId: String(reel.id), isReel: "1" } } as any)}
@@ -199,20 +197,17 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
           </Text>
         </TouchableOpacity>
 
-        {/* Share */}
         <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={handleShare}>
           <Feather name="send" size={26} color="#fff" />
           <Text style={s.actionLabel}>Share</Text>
         </TouchableOpacity>
 
-        {/* Delete (own reels only) */}
         {isOwn && (
           <TouchableOpacity style={s.actionBtn} onPress={handleDelete} activeOpacity={0.7}>
             <Feather name="trash-2" size={24} color="#fff" />
           </TouchableOpacity>
         )}
 
-        {/* Views */}
         <View style={[s.actionBtn, { marginTop: 6 }]}>
           <Feather name="eye" size={20} color="#ffffff99" />
           <Text style={[s.actionLabel, { color: "#ffffff99", fontSize: 11 }]}>{reel.viewCount}</Text>
@@ -221,7 +216,6 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
 
       {/* ── Bottom user info + caption ── */}
       <View style={[s.bottomInfo, { bottom: infoBottom, right: 72 }]}>
-        {/* User row */}
         <TouchableOpacity
           style={s.userRow}
           onPress={() => router.push(`/user/${reel.userId}` as any)}
@@ -242,7 +236,6 @@ function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, on
           </View>
         </TouchableOpacity>
 
-        {/* Caption */}
         {caption.length > 0 && (
           <TouchableOpacity onPress={() => setCaptionExpanded((e) => !e)} activeOpacity={0.8}>
             <Text style={s.caption} numberOfLines={captionExpanded ? undefined : 2}>
@@ -263,14 +256,19 @@ export default function ReelsFeed({
   colors,
   tabBarHeight,
   isTabFocused = true,
+  onBack,
 }: {
   colors: any;
   tabBarHeight: number;
   isTabFocused?: boolean;
+  onBack?: () => void;
 }) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const upload = useReelsUpload();
+
+  // Measure actual container height for correct snap
+  const [containerH, setContainerH] = useState(Dimensions.get("window").height);
 
   const [reelsList, setReelsList] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -320,6 +318,11 @@ export default function ReelsFeed({
     }
   }, [upload.done]);
 
+  const onLayout = (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0) setContainerH(h);
+  };
+
   const UploadBanner = (upload.isUploading || upload.done || upload.error) ? (
     <View style={[s.uploadBanner, { top: insets.top + 60 }]}>
       {upload.error ? (
@@ -351,7 +354,7 @@ export default function ReelsFeed({
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000" }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000" }} onLayout={onLayout}>
         {UploadBanner}
         <ActivityIndicator color="#f97316" size="large" />
       </View>
@@ -360,8 +363,14 @@ export default function ReelsFeed({
 
   if (reelsList.length === 0) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000", paddingHorizontal: 32 }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000", paddingHorizontal: 32 }} onLayout={onLayout}>
         {UploadBanner}
+        {/* Back button */}
+        {onBack && (
+          <TouchableOpacity style={[s.backBtn, { top: insets.top + 10 }]} onPress={onBack} activeOpacity={0.8}>
+            <Feather name="arrow-left" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
         {/* Header */}
         <View style={[s.topBar, { top: insets.top + 8 }]}>
           <Text style={s.reelsLabel}>Reels</Text>
@@ -384,8 +393,19 @@ export default function ReelsFeed({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      {/* Reels header (always on top) */}
+    <View style={{ flex: 1, backgroundColor: "#000" }} onLayout={onLayout}>
+      {/* Back button — top-left */}
+      {onBack && (
+        <TouchableOpacity
+          style={[s.backBtn, { top: insets.top + 10 }]}
+          onPress={onBack}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-left" size={22} color="#fff" />
+        </TouchableOpacity>
+      )}
+
+      {/* Reels header — centered */}
       <View style={[s.topBar, { top: insets.top + 8, zIndex: 50 }]} pointerEvents="none">
         <Text style={s.reelsLabel}>Reels</Text>
       </View>
@@ -403,10 +423,11 @@ export default function ReelsFeed({
             bottomInset={insets.bottom}
             tabBarHeight={tabBarHeight}
             onDelete={(id) => setReelsList((prev) => prev.filter((r) => r.id !== id))}
+            itemHeight={containerH}
           />
         )}
         pagingEnabled
-        snapToInterval={SCREEN_H}
+        snapToInterval={containerH}
         snapToAlignment="start"
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
@@ -419,17 +440,28 @@ export default function ReelsFeed({
         removeClippedSubviews
         initialNumToRender={1}
         ListFooterComponent={loadingMore ? (
-          <View style={{ height: SCREEN_H, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
+          <View style={{ height: containerH, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color="#f97316" />
           </View>
         ) : null}
-        getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
+        getItemLayout={(_, index) => ({ length: containerH, offset: containerH * index, index })}
       />
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  backBtn: {
+    position: "absolute",
+    left: 14,
+    zIndex: 100,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#00000050",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   topBar: {
     position: "absolute",
     left: 0,

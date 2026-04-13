@@ -865,7 +865,12 @@ export default function MomentsScreen() {
       {/* ── Reels Feed — fullscreen overlay so snap works correctly ── */}
       {activeTab === "reels" && (
         <View style={[StyleSheet.absoluteFillObject, { top: 0, zIndex: 20 }]}>
-          <ReelsFeed colors={colors} tabBarHeight={insets.bottom + 60} isTabFocused={isMomentsFocused} />
+          <ReelsFeed
+            colors={colors}
+            tabBarHeight={insets.bottom + 60}
+            isTabFocused={isMomentsFocused}
+            onBack={() => setActiveTab("posts")}
+          />
         </View>
       )}
 
