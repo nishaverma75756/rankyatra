@@ -42,19 +42,37 @@ function timeAgo(iso: string) {
 }
 
 function Avatar({ name, url, size = 38 }: { name: string; url: string | null; size?: number }) {
-  if (url) return <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: "#fff" }} />;
+  if (url) return (
+    <Image
+      source={{ uri: url }}
+      style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: "#fff" }}
+    />
+  );
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: "#f9731660", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#fff" }}>
-      <Text style={{ color: "#fff", fontWeight: "700", fontSize: size * 0.35 }}>{name?.slice(0, 2).toUpperCase()}</Text>
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: "#f9731660", alignItems: "center", justifyContent: "center",
+      borderWidth: 2, borderColor: "#fff",
+    }}>
+      <Text style={{ color: "#fff", fontWeight: "700", fontSize: size * 0.35 }}>
+        {name?.slice(0, 2).toUpperCase()}
+      </Text>
     </View>
   );
 }
 
+function formatUID(id: number) {
+  return `RY${String(id).padStart(10, "0")}`;
+}
+
 // ─── Single Reel Item ─────────────────────────────────────────────────────────
-// KEY FIX: inactive items get null source → no native player created → no OOM crash
-function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCommentCountChange }: {
-  reel: Reel; isActive: boolean; currentUserId: number | null; tabBarHeight: number;
-  onDelete: (id: number) => void; onCommentCountChange?: (id: number, count: number) => void;
+function ReelItem({ reel, isActive, currentUserId, bottomInset, tabBarHeight, onDelete }: {
+  reel: Reel;
+  isActive: boolean;
+  currentUserId: number | null;
+  bottomInset: number;
+  tabBarHeight: number;
+  onDelete: (id: number) => void;
 }) {
   const [liked, setLiked] = useState(reel.isLiked);
   const [likeCount, setLikeCount] = useState(reel.likeCount);
@@ -62,7 +80,6 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCom
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const viewTracked = useRef(false);
 
-  // Only load video for active item — inactive items show thumbnail
   const player = useVideoPlayer(isActive ? reel.videoUrl : null, (p) => {
     p.loop = true;
     p.muted = false;
@@ -120,9 +137,13 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCom
   const caption = reel.caption?.trim() ?? "";
   const isLongCaption = caption.length > 80;
 
+  // Position everything above the tab bar
+  const actionBottom = tabBarHeight + 16;
+  const infoBottom = tabBarHeight + 16;
+
   return (
     <View style={{ width: SCREEN_W, height: SCREEN_H, backgroundColor: "#000" }}>
-      {/* Show video only when active, thumbnail when inactive */}
+      {/* Video or thumbnail */}
       {isActive ? (
         player ? (
           <VideoView
@@ -144,15 +165,15 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCom
         )
       )}
 
-      {/* Dark gradient overlay bottom */}
+      {/* Bottom gradient */}
       <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.85)"]}
-        style={s.gradientOverlay}
+        colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.85)"]}
+        style={[StyleSheet.absoluteFillObject, { top: "45%" }]}
         pointerEvents="none"
       />
 
-      {/* Right action buttons */}
-      <View style={[s.rightActions, { bottom: tabBarHeight + 120 }]}>
+      {/* ── Right action buttons ── */}
+      <View style={[s.rightActions, { bottom: actionBottom }]}>
         {/* Like */}
         <TouchableOpacity style={s.actionBtn} onPress={toggleLike} activeOpacity={0.7}>
           <Feather name="heart" size={28} color={liked ? "#f97316" : "#fff"} />
@@ -186,39 +207,44 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCom
           </TouchableOpacity>
         )}
 
-        {/* View count */}
-        <View style={[s.actionBtn, { marginTop: 8 }]}>
+        {/* Views */}
+        <View style={[s.actionBtn, { marginTop: 6 }]}>
           <Feather name="eye" size={20} color="#ffffff99" />
           <Text style={[s.actionLabel, { color: "#ffffff99", fontSize: 11 }]}>{reel.viewCount}</Text>
         </View>
       </View>
 
-      {/* Bottom info */}
-      <View style={[s.bottomInfo, { paddingBottom: tabBarHeight + 20 }]}>
+      {/* ── Bottom user info + caption ── */}
+      <View style={[s.bottomInfo, { bottom: infoBottom, right: 72 }]}>
+        {/* User row */}
         <TouchableOpacity
           style={s.userRow}
           onPress={() => router.push(`/user/${reel.userId}` as any)}
           activeOpacity={0.8}
         >
-          <Avatar name={reel.userName} url={reel.userAvatar} size={36} />
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Avatar name={reel.userName} url={reel.userAvatar} size={40} />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <Text style={s.userName}>{reel.userName}</Text>
               {reel.verificationStatus === "verified" && (
-                <View style={{ backgroundColor: "#d1fae5", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
-                  <Text style={{ color: "#065f46", fontSize: 9, fontWeight: "700" }}>✓ KYC</Text>
+                <View style={s.kycBadge}>
+                  <Text style={s.kycBadgeText}>✓ KYC</Text>
                 </View>
               )}
             </View>
+            <Text style={s.uid}>{formatUID(reel.userId)}</Text>
             <Text style={s.timeAgo}>{timeAgo(reel.createdAt)}</Text>
           </View>
         </TouchableOpacity>
 
+        {/* Caption */}
         {caption.length > 0 && (
           <TouchableOpacity onPress={() => setCaptionExpanded((e) => !e)} activeOpacity={0.8}>
             <Text style={s.caption} numberOfLines={captionExpanded ? undefined : 2}>
               {captionExpanded || !isLongCaption ? caption : caption.slice(0, 80).trimEnd()}
-              {!captionExpanded && isLongCaption && <Text style={{ color: "#f9731699" }}> ...more</Text>}
+              {!captionExpanded && isLongCaption && (
+                <Text style={{ color: "#f9731699" }}> ...more</Text>
+              )}
             </Text>
           </TouchableOpacity>
         )}
@@ -228,10 +254,19 @@ function ReelItem({ reel, isActive, currentUserId, tabBarHeight, onDelete, onCom
 }
 
 // ─── Reels Feed ───────────────────────────────────────────────────────────────
-export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }: { colors: any; tabBarHeight: number; isTabFocused?: boolean }) {
+export default function ReelsFeed({
+  colors,
+  tabBarHeight,
+  isTabFocused = true,
+}: {
+  colors: any;
+  tabBarHeight: number;
+  isTabFocused?: boolean;
+}) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const upload = useReelsUpload();
+
   const [reelsList, setReelsList] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -254,7 +289,7 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
       setHasMore(data.hasMore ?? false);
       setNextCursor(data.nextCursor ?? null);
     } catch {
-      // Silently ignore fetch errors on refresh
+      // Silently ignore
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -274,7 +309,6 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
     fetchReels(nextCursor);
   };
 
-  // Refresh feed after upload completes
   useEffect(() => {
     if (upload.done) {
       setTimeout(() => fetchReels(), 500);
@@ -282,7 +316,7 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
   }, [upload.done]);
 
   const UploadBanner = (upload.isUploading || upload.done || upload.error) ? (
-    <View style={[s.uploadBanner, { top: insets.top + 4 }]}>
+    <View style={[s.uploadBanner, { top: insets.top + 60 }]}>
       {upload.error ? (
         <View style={[s.bannerInner, { backgroundColor: "#ef4444ee" }]}>
           <Feather name="alert-circle" size={16} color="#fff" />
@@ -323,6 +357,10 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000", paddingHorizontal: 32 }}>
         {UploadBanner}
+        {/* Header */}
+        <View style={[s.topBar, { top: insets.top + 8 }]}>
+          <Text style={s.reelsLabel}>Reels</Text>
+        </View>
         <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#f9731620", alignItems: "center", justifyContent: "center" }}>
           <Feather name="film" size={36} color="#f97316" />
         </View>
@@ -341,8 +379,14 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      {/* Reels header (always on top) */}
+      <View style={[s.topBar, { top: insets.top + 8, zIndex: 50 }]} pointerEvents="none">
+        <Text style={s.reelsLabel}>Reels</Text>
+      </View>
+
       {UploadBanner}
+
       <FlatList
         data={reelsList}
         keyExtractor={(r) => String(r.id)}
@@ -351,6 +395,7 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
             reel={item}
             isActive={index === activeIndex && isTabFocused}
             currentUserId={user?.id ?? null}
+            bottomInset={insets.bottom}
             tabBarHeight={tabBarHeight}
             onDelete={(id) => setReelsList((prev) => prev.filter((r) => r.id !== id))}
           />
@@ -380,40 +425,96 @@ export default function ReelsFeed({ colors, tabBarHeight, isTabFocused = true }:
 }
 
 const s = StyleSheet.create({
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    top: "40%",
-  },
   topBar: {
-    position: "absolute", top: 0, left: 0, right: 0,
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 16,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
   },
-  reelsLabel: { color: "#fff", fontSize: 17, fontWeight: "700", textShadowColor: "#0008", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  reelsLabel: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
+    textShadowColor: "#0008",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+    letterSpacing: 0.5,
+  },
   rightActions: {
-    position: "absolute", right: 12,
-    alignItems: "center", gap: 18,
+    position: "absolute",
+    right: 12,
+    alignItems: "center",
+    gap: 20,
   },
-  actionBtn: { alignItems: "center", gap: 3 },
-  actionLabel: { color: "#fff", fontSize: 12, fontWeight: "600", textShadowColor: "#0008", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  actionBtn: { alignItems: "center", gap: 4 },
+  actionLabel: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    textShadowColor: "#0008",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   bottomInfo: {
-    position: "absolute", bottom: 0, left: 0, right: 72,
-    padding: 16, gap: 8,
+    position: "absolute",
+    left: 12,
+    gap: 10,
   },
   userRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  userName: { color: "#fff", fontWeight: "700", fontSize: 14, textShadowColor: "#0008", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-  timeAgo: { color: "#ffffff99", fontSize: 11 },
-  caption: { color: "#fff", fontSize: 14, lineHeight: 20, textShadowColor: "#0004", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  userName: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+    textShadowColor: "#0008",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  uid: {
+    color: "#f97316",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginTop: 1,
+  },
+  timeAgo: { color: "#ffffff99", fontSize: 11, marginTop: 1 },
+  kycBadge: {
+    backgroundColor: "#d1fae5",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  kycBadgeText: { color: "#065f46", fontSize: 9, fontWeight: "700" },
+  caption: {
+    color: "#fff",
+    fontSize: 14,
+    lineHeight: 20,
+    textShadowColor: "#0004",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   uploadBanner: {
-    position: "absolute", left: 12, right: 12, zIndex: 999,
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 999,
   },
   bannerInner: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14, overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    overflow: "hidden",
   },
   bannerText: { color: "#fff", fontSize: 13, fontWeight: "600", flex: 1 },
   bannerClose: { padding: 4 },
-  progressTrack: { height: 3, backgroundColor: "#ffffff30", borderRadius: 2, marginTop: 5, overflow: "hidden" },
+  progressTrack: {
+    height: 3,
+    backgroundColor: "#ffffff30",
+    borderRadius: 2,
+    marginTop: 5,
+    overflow: "hidden",
+  },
   progressFill: { height: "100%", backgroundColor: "#f97316", borderRadius: 2 },
 });

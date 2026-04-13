@@ -862,9 +862,9 @@ export default function MomentsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Reels Feed ── */}
+      {/* ── Reels Feed — fullscreen overlay so snap works correctly ── */}
       {activeTab === "reels" && (
-        <View style={styles.flex}>
+        <View style={[StyleSheet.absoluteFillObject, { top: 0, zIndex: 20 }]}>
           <ReelsFeed colors={colors} tabBarHeight={insets.bottom + 60} isTabFocused={isMomentsFocused} />
         </View>
       )}
