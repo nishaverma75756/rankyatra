@@ -82,10 +82,7 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted, isPremium }: {
   useEffect(() => {
     if (!isPremium) return;
     Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-        Animated.timing(shimmerAnim, { toValue: 0, duration: 1500, useNativeDriver: true }),
-      ])
+      Animated.timing(shimmerAnim, { toValue: 1, duration: 2400, useNativeDriver: false })
     ).start();
   }, [isPremium]);
 
@@ -132,13 +129,16 @@ function ProfilePostCard({ post, user, colors, isSelf, onDeleted, isPremium }: {
   const avatarUri = resolveAvatar(user?.avatarUrl);
   const initials = (user?.name ?? "?").split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
 
-  const premiumBorderOpacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const borderColorAnim = isPremium ? shimmerAnim.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: ["#f59e0b", "#fbbf24", "#f97316", "#fbbf24", "#f59e0b"],
+  }) : undefined;
 
   return (
     <Animated.View style={[
       styles.postCard,
-      { backgroundColor: colors.card, borderColor: isPremium ? "#f59e0b" : colors.border, borderWidth: isPremium ? 1.5 : StyleSheet.hairlineWidth },
-      isPremium && { opacity: premiumBorderOpacity },
+      { backgroundColor: colors.card, borderWidth: isPremium ? 2 : StyleSheet.hairlineWidth },
+      isPremium && borderColorAnim ? { borderColor: borderColorAnim } : { borderColor: colors.border },
     ]}>
       {isPremium && (
         <LinearGradient
@@ -621,11 +621,7 @@ export default function UserPublicProfile() {
                 <Text style={[styles.avatarText, { color: "#f59e0b" }]}>{initials}</Text>
               </View>
             )}
-            <View style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center" }}>
-              <View style={{ backgroundColor: "#f59e0b", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1.5, borderColor: "#fff3" }}>
-                <Text style={{ fontSize: 8, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
-              </View>
-            </View>
+            <Text style={{ position: "absolute", top: -18, left: 0, right: 0, textAlign: "center", fontSize: 20, lineHeight: 22 }}>👑</Text>
           </View>
         ) : resolveAvatar(u.avatarUrl) ? (
           <Image source={{ uri: resolveAvatar(u.avatarUrl)! }} style={styles.avatar} />

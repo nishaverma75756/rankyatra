@@ -154,21 +154,19 @@ function timeAgo(iso: string) {
 
 function Avatar({ name, url, size = 40, colors, isPremium }: { name: string; url: string | null; size?: number; colors: any; isPremium?: boolean }) {
   const avatarEl = url
-    ? <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: isPremium ? 2 : 0, borderColor: "#f59e0b" }} />
+    ? <Image source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: isPremium ? 2.5 : 0, borderColor: "#f59e0b" }} />
     : (
-      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: isPremium ? "#1a0a2e" : colors.primary + "20", alignItems: "center", justifyContent: "center", borderWidth: isPremium ? 2 : 0, borderColor: "#f59e0b" }}>
+      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: isPremium ? "#1a0a2e" : colors.primary + "20", alignItems: "center", justifyContent: "center", borderWidth: isPremium ? 2.5 : 0, borderColor: "#f59e0b" }}>
         <Text style={{ color: isPremium ? "#f59e0b" : colors.primary, fontWeight: "700", fontSize: size * 0.35 }}>{name?.slice(0, 2).toUpperCase()}</Text>
       </View>
     );
   if (!isPremium) return avatarEl;
   return (
-    <View style={{ position: "relative", width: size, height: size }}>
-      {avatarEl}
-      <View style={{ position: "absolute", top: -8, left: 0, right: 0, alignItems: "center" }}>
-        <View style={{ backgroundColor: "#f59e0b", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#fff3" }}>
-          <Text style={{ fontSize: 7, fontWeight: "800", color: "#1a0a2e" }}>✦ PRO</Text>
-        </View>
+    <View style={{ position: "relative", width: size, height: size + 10 }}>
+      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "center" }}>
+        {avatarEl}
       </View>
+      <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontSize: size * 0.38, lineHeight: size * 0.4 }}>👑</Text>
     </View>
   );
 }
@@ -425,10 +423,7 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
   useEffect(() => {
     if (!isPremium) return;
     Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-        Animated.timing(shimmerAnim, { toValue: 0, duration: 1500, useNativeDriver: true }),
-      ])
+      Animated.timing(shimmerAnim, { toValue: 1, duration: 2400, useNativeDriver: false })
     ).start();
   }, [isPremium]);
 
@@ -471,13 +466,16 @@ function PostCard({ post, currentUser, colors, insets, onDelete, onUpdated }: {
     );
   };
 
-  const premiumOpacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const borderColorAnim = isPremium ? shimmerAnim.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: ["#f59e0b", "#fbbf24", "#f97316", "#fbbf24", "#f59e0b"],
+  }) : undefined;
 
   return (
     <Animated.View style={[
       styles.postCard,
-      { backgroundColor: colors.card, borderColor: isPremium ? "#f59e0b" : colors.border, borderWidth: isPremium ? 1.5 : StyleSheet.hairlineWidth },
-      isPremium && { opacity: premiumOpacity },
+      { backgroundColor: colors.card, borderWidth: isPremium ? 2 : StyleSheet.hairlineWidth },
+      isPremium && borderColorAnim ? { borderColor: borderColorAnim } : { borderColor: colors.border },
     ]}>
       {isPremium && (
         <LinearGradient
