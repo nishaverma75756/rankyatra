@@ -137,8 +137,7 @@ export async function sendPushToUser(
             const errCode = (r.reason as any)?.code ?? "";
             if (
               errCode === "messaging/registration-token-not-registered" ||
-              errCode === "messaging/invalid-registration-token" ||
-              errCode === "messaging/mismatched-credential"
+              errCode === "messaging/invalid-registration-token"
             ) {
               staleTokens.push(fcmTokens[i]);
             } else {
