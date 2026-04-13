@@ -3,7 +3,7 @@ import { useFocusEffect } from "expo-router";
 import {
   View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Image, Modal, RefreshControl, Share,
-  KeyboardAvoidingView, Platform, ScrollView, Linking,
+  KeyboardAvoidingView, Platform, ScrollView, Linking, BackHandler,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { showSuccess, showError, showAlert } from "@/utils/alert";
@@ -800,6 +800,20 @@ export default function MomentsScreen() {
 
   const [activeTab, setActiveTab] = useState<"posts" | "reels">("posts");
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+
+  // Android hardware back button — when on Reels, go back to Posts instead of leaving screen
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        if (activeTab === "reels") {
+          setActiveTab("posts");
+          return true;
+        }
+        return false;
+      });
+      return () => sub.remove();
+    }, [activeTab])
+  );
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
