@@ -68,7 +68,7 @@ router.get("/admin/roles", requireAdmin, async (_req, res) => {
 router.post("/admin/users/:userId/roles", requireAdmin, async (req: any, res) => {
   const userId = parseInt(req.params.userId, 10);
   const { role } = req.body;
-  const validRoles = ["teacher", "influencer", "promoter", "partner", "premium"];
+  const validRoles = ["teacher", "influencer", "promoter", "partner", "premium", "customer_support"];
   if (!role || !validRoles.includes(role)) {
     res.status(400).json({ error: "Invalid role" }); return;
   }
