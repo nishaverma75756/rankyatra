@@ -690,6 +690,19 @@ router.post("/groups/:groupId/join", requireAuth, async (req: any, res) => {
         .set({ status: "accepted", joinedAt: new Date() })
         .where(eq(groupMembersTable.id, existing.id));
     } else {
+      // ── ONE GROUP RESTRICTION: user can only be an accepted member of one group ──
+      const [alreadyInGroup] = await db
+        .select({ id: groupMembersTable.id, groupId: groupMembersTable.groupId })
+        .from(groupMembersTable)
+        .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.status, "accepted")));
+
+      if (alreadyInGroup) {
+        const [otherGroup] = await db.select({ name: groupsTable.name }).from(groupsTable).where(eq(groupsTable.id, alreadyInGroup.groupId));
+        const otherName = otherGroup?.name ?? "ek group";
+        res.status(400).json({ error: `Aap pehle se "${otherName}" group mein hain. Pehle us group ko leave karein, phir naye group mein join ho sakte hain.` });
+        return;
+      }
+
       await db.insert(groupMembersTable).values({ groupId, userId, status: "accepted", joinedAt: new Date() });
     }
 
