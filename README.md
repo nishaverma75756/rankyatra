@@ -669,3 +669,55 @@ pnpm run typecheck
 - `robots.txt`, `manifest.json`, `sitemap.xml` added to `public/`
 - Dynamic `/api/sitemap.xml` from backend
 - Google Search Console: verified + sitemap submitted
+
+---
+
+## Recent Changes (Session 2 — April 2026)
+
+### New Columns Added to Existing Tables
+
+| Table | New Column | Type | Notes |
+|-------|-----------|------|-------|
+| `conversations` | `is_accepted` | boolean | Whether message request has been accepted |
+| `conversations` | `initiated_by` | integer | User ID who started the conversation |
+
+### API Server Changes
+
+1. **posts.ts** — All 3 post queries (`feed`, `user posts`, `single post`) now return `isPremium: boolean` via SQL EXISTS subquery on `user_roles`
+2. **users.ts** — Public user profile endpoint now returns `isPremium: boolean` for the profile user
+3. **chat.ts** — Both `/chat/conversations` and `/chat/requests` endpoints now return `isPremium: boolean` in the `otherUser` object
+4. **deposits.ts** — Deposit limit calculation (`getDepositTotal`) changed from blacklist to **whitelist** approach: only `instamojo` and `manual` payment methods count toward the ₹100/day and ₹3000/month limit. Rewards, admin credits, referral bonuses are automatically excluded.
+
+### Mobile App Changes
+
+12. **Premium PostCard animation** (`app/(tabs)/moments.tsx`, `app/user/[id].tsx`)
+    - Premium user posts show animated gold border cycling through `#f59e0b → #fbbf24 → #f97316 → #fbbf24 → #f59e0b`
+    - Animation uses `useNativeDriver: false` (borderColor not supported by native driver)
+    - Crown emoji 👑 removed from all premium avatar locations
+
+13. **Premium hero card** (`app/(tabs)/profile.tsx`, `app/user/[id].tsx`)
+    - Premium users get luxury deep purple gradient hero background (`#0f0a1e → #4c1d95`)
+    - Animated gold ring around avatar (`Animated.View` with `position: absolute, top/left/right/bottom: -2.5`)
+    - Ring cycles gold → yellow → orange → yellow → gold
+    - Outer plain `View` wrapper handles margins; `Animated.View` uses `position: absolute` to show border outside `overflow: hidden` card
+    - Removed static `borderWidth` from `avatarImage` style to fix double-ring bug
+
+14. **Chat premium indicators** (`app/(tabs)/chat.tsx`, `app/chat/[id].tsx`)
+    - Chat list: premium contacts show gold avatar ring, gold left border strip on conversation row, ⭐ badge next to name
+    - Chat screen header: premium contact's avatar shows gold ring, ⭐ badge next to name in header
+    - Received message bubbles from premium users: dark purple background (`#1a0a2e`) with gold border (`#f59e0b`)
+    - Small inline avatar next to received messages also shows gold ring for premium senders
+    - `OtherUser` interface in both files extended with `isPremium?: boolean`
+
+### Key Business Logic Updates
+
+**Deposit Limits (Whitelist Approach):**
+- Daily limit: ₹100 per user
+- Monthly limit: ₹3,000 per user
+- Counted: only `paymentMethod IN ('instamojo', 'manual')` and `status != 'rejected'`
+- NOT counted: referral bonuses, admin wallet credits, winning rewards, any future payment type
+
+**Premium User Display:**
+- `isPremium` is computed server-side via `EXISTS(SELECT 1 FROM user_roles WHERE user_id = ? AND role = 'premium')`
+- Returned in: feed posts, user profiles, chat conversations
+- Mobile app shows gold borders/badges wherever premium users appear
