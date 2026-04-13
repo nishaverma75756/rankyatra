@@ -9,16 +9,27 @@ import bcrypt from "bcryptjs";
 const router: IRouter = Router();
 
 // GET /api/users/popular?category=UPSC&offset=0&limit=10
+// GET /api/users/popular?categories=SSC,UPSC&offset=0&limit=10  (multi-category, overlap match)
 router.get("/users/popular", optionalAuth, async (req: any, res: any): Promise<void> => {
   try {
     const category = typeof req.query.category === "string" ? req.query.category.trim() : null;
+    // Support comma-separated multi-category: ?categories=SSC,UPSC
+    const categoriesRaw = typeof req.query.categories === "string" ? req.query.categories.trim() : null;
+    const multiCategories = categoriesRaw ? categoriesRaw.split(",").map((c) => c.trim()).filter(Boolean) : null;
+
     const offset = Math.max(0, Number(req.query.offset ?? 0));
     const limit = Math.min(20, Math.max(1, Number(req.query.limit ?? 10)));
 
-    // Build WHERE: if category provided, filter by preferences array containing that category
-    const categoryFilter = category
-      ? sql`AND ${usersTable.preferences} @> ARRAY[${category}]::text[]`
-      : sql``;
+    // Build WHERE filter using Drizzle sql template (properly parameterized)
+    let categoryFilter = sql``;
+    if (multiCategories && multiCategories.length > 0) {
+      // && operator: preferences overlaps with any of the given categories
+      const items = sql.join(multiCategories.map((c) => sql`${c}`), sql`, `);
+      categoryFilter = sql`AND ${usersTable.preferences} && ARRAY[${items}]::text[]`;
+    } else if (category) {
+      // @> operator: preferences contains the given category
+      categoryFilter = sql`AND ${usersTable.preferences} @> ARRAY[${category}]::text[]`;
+    }
 
     const rows = await db.execute(sql`
       SELECT

@@ -678,6 +678,7 @@ export default function MomentsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
+  const MY_PREF_KEY = "__MY_PREF__";
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -716,7 +717,16 @@ export default function MomentsScreen() {
   const fetchPopularUsers = useCallback(async (cat: string | null, offset: number, replace: boolean) => {
     if (offset === 0) setLoadingPopular(true); else setPopularLoadingMore(true);
     try {
-      const catParam = cat ? `&category=${encodeURIComponent(cat)}` : "";
+      let catParam = "";
+      if (cat === MY_PREF_KEY) {
+        // Multi-category: use user's own preferences
+        const prefs: string[] = user?.preferences ?? [];
+        if (prefs.length > 0) {
+          catParam = `&categories=${prefs.map(encodeURIComponent).join(",")}`;
+        }
+      } else if (cat) {
+        catParam = `&category=${encodeURIComponent(cat)}`;
+      }
       const r = await fetch(`${BASE_URL}/api/users/popular?offset=${offset}&limit=10${catParam}`);
       if (!r.ok) throw new Error("Failed");
       const data: { users: PopularUser[]; hasMore: boolean } = await r.json();
@@ -726,7 +736,7 @@ export default function MomentsScreen() {
     } catch {}
     setLoadingPopular(false);
     setPopularLoadingMore(false);
-  }, []);
+  }, [user]);
 
   // When search modal opens or category changes, load popular users
   useEffect(() => {
@@ -965,6 +975,7 @@ export default function MomentsScreen() {
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 9, gap: 8, alignItems: "center" }}
                 >
+                  {/* All tab */}
                   <TouchableOpacity
                     onPress={() => setActiveCategory(null)}
                     style={{
@@ -975,6 +986,24 @@ export default function MomentsScreen() {
                   >
                     <Text style={{ fontSize: 13, fontWeight: "700", color: activeCategory === null ? "#fff" : colors.foreground }}>All</Text>
                   </TouchableOpacity>
+
+                  {/* My Preferences tab — only if user has preferences set */}
+                  {user && Array.isArray(user.preferences) && user.preferences.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setActiveCategory(MY_PREF_KEY)}
+                      style={{
+                        paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                        flexDirection: "row", alignItems: "center", gap: 5,
+                        backgroundColor: activeCategory === MY_PREF_KEY ? colors.primary : colors.muted,
+                        borderColor: activeCategory === MY_PREF_KEY ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Feather name="star" size={12} color={activeCategory === MY_PREF_KEY ? "#fff" : colors.primary} />
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: activeCategory === MY_PREF_KEY ? "#fff" : colors.primary }}>My Preferences</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Individual category tabs */}
                   {categoriesList.map((cat) => {
                     const active = activeCategory === cat;
                     return (
@@ -1051,7 +1080,7 @@ export default function MomentsScreen() {
                 <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Feather name="trending-up" size={14} color={colors.primary} />
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.foreground }}>
-                    {activeCategory ? `Top ${activeCategory} Users` : "Popular Users"}
+                    {activeCategory === MY_PREF_KEY ? "My Preference Users" : activeCategory ? `Top ${activeCategory} Users` : "Popular Users"}
                   </Text>
                 </View>
               }
@@ -1098,7 +1127,7 @@ export default function MomentsScreen() {
               ListEmptyComponent={loadingPopular ? null : (
                 <View style={styles.center}>
                   <Text style={{ color: colors.mutedForeground, marginTop: 40, fontSize: 14 }}>
-                    {activeCategory ? `No ${activeCategory} users found` : "No users yet"}
+                    {activeCategory === MY_PREF_KEY ? "Koi user nahi mila aapke preferences ke hisaab se" : activeCategory ? `No ${activeCategory} users found` : "No users yet"}
                   </Text>
                 </View>
               )}
